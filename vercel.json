@@ -1,0 +1,12 @@
+{
+  "projects": [
+    {
+      "name": "cota-web",
+      "root": "apps/web"
+    },
+    {
+      "name": "cota-admin",
+      "root": "apps/admin"
+    }
+  ]
+}

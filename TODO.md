@@ -61,8 +61,13 @@
 - [ ] ⚠️ Remplir ONESIGNAL_APP_ID + ONESIGNAL_REST_KEY dans backend/algo/.env
 - [ ] ⚠️ Créer table push_tokens dans Supabase (user_id, expo_token)
 
-## Sprint 8 — Déploiement
-- [ ] Vercel (web + admin)
-- [ ] Railway (FastAPI)
-- [ ] Expo EAS Build (Play Store)
-- [ ] App Store (optionnel)
+## Sprint 8 — Déploiement ✅
+- [x] vercel.json + next.config.ts web + admin (vars env)
+- [x] Dockerfile + railway.toml FastAPI (healthcheck /health)
+- [x] eas.json : profils development / preview / production
+- [x] DEPLOY.md : guide complet Vercel + Railway + EAS + Supabase
+- [ ] ⚠️ MANUEL : `vercel --prod` dans apps/web et apps/admin
+- [ ] ⚠️ MANUEL : `railway up` dans backend/algo
+- [ ] ⚠️ MANUEL : `eas build --profile preview --platform android`
+- [ ] ⚠️ MANUEL : exécuter schema.sql + créer table push_tokens dans Supabase
+- [ ] ⚠️ MANUEL : configurer domaines cota.ci / admin.cota.ci / api.cota.ci
