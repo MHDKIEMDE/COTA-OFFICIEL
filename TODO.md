@@ -17,35 +17,38 @@
 - [x] Écrans auth mobile (login OTP)
 - [ ] ⚠️ Exécuter schema.sql dans Supabase Dashboard (SQL Editor)
 
-## Sprint 3 — Algorithme & Données
-- [ ] Setup FastAPI (Python) dans backend/algo/
-- [ ] Intégration API-Football (matchs du jour, stats, H2H)
-- [ ] Algorithme de prédiction v3 (9 critères, score 0-100)
-- [ ] Endpoint /predictions/today
-- [ ] Endpoint /predictions/coupon
-- [ ] Endpoint /predictions/history
-- [ ] Job quotidien (cron) de génération des prédictions
+## Sprint 3 — Algorithme & Données ✅
+- [x] Setup FastAPI (Python) dans backend/algo/
+- [x] Intégration API-Football (matchs du jour, stats, H2H)
+- [x] Algorithme de prédiction v3 (9 critères, score 0-100)
+- [x] Endpoint /predictions/today
+- [x] Endpoint /predictions/coupon
+- [x] Endpoint /predictions/history
+- [x] Job quotidien (cron) de génération des prédictions
 
-## Sprint 4 — App principale (web + mobile)
-- [ ] Page pronostics du jour (liste + détail)
-- [ ] Coupon IA combiné du jour
-- [ ] Filtrage par compétitions (Tier 1–4)
-- [ ] Niveaux de confiance (1–4 étoiles)
-- [ ] Contenu verrouillé premium
-- [ ] 4 états gérés : loading / error / empty / success
+## Sprint 4 — App principale (web + mobile) ✅
+- [x] Page pronostics du jour (liste + détail)
+- [x] Coupon IA combiné du jour
+- [x] Filtrage par compétitions (Tier 1–4)
+- [x] Niveaux de confiance (1–4 étoiles)
+- [x] Contenu verrouillé premium
+- [x] 4 états gérés : loading / error / empty / success
 
-## Sprint 5 — Admin back-office
-- [ ] Dashboard : stats clés (users, revenus, win rate)
-- [ ] Gestion matchs + prédictions (CRUD)
-- [ ] Gestion utilisateurs + abonnements
-- [ ] Gestion compétitions et tiers
-- [ ] Historique des résultats
+## Sprint 5 — Admin back-office ✅
+- [x] Dashboard : stats clés (users, revenus, win rate)
+- [x] Gestion matchs + prédictions (CRUD)
+- [x] Gestion utilisateurs + abonnements
+- [x] Gestion compétitions et tiers
+- [x] Historique des résultats
 
-## Sprint 6 — Monétisation
-- [ ] Intégration Paydunya (Wave, Orange Money, MTN, Moov)
-- [ ] Système freemium (verrouillage contenu)
-- [ ] Plans d'abonnement (mensuel / trimestriel / annuel)
-- [ ] Liens affiliation bookmakers
+## Sprint 6 — Monétisation ✅
+- [x] Intégration Paydunya (Wave, Orange Money, MTN, Moov)
+- [x] Système freemium (verrouillage contenu → /subscribe)
+- [x] Plans d'abonnement (mensuel 2500 / trimestriel 6500 / annuel 20000 XOF)
+- [x] Liens affiliation bookmakers (/bookmakers)
+- [ ] ⚠️ Remplir les vraies clés Paydunya dans .env (PAYDUNYA_MASTER_KEY, etc.)
+- [ ] ⚠️ Remplir SUPABASE_SERVICE_ROLE_KEY dans apps/web/.env.local
+- [ ] ⚠️ Remplir les liens affiliation réels dans .env.local
 
 ## Sprint 7 — Notifications & Polish
 - [ ] Intégration OneSignal (push web + iOS + Android)

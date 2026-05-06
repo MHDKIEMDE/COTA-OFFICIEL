@@ -12,7 +12,7 @@ export default function PremiumLock() {
         Contenu <span className="text-yellow-400 font-semibold">Premium</span>
       </p>
       <Link
-        href="/premium"
+        href="/subscribe"
         className="text-xs bg-yellow-500 hover:bg-yellow-400 text-black font-bold px-4 py-2 rounded-lg transition"
       >
         Débloquer Premium

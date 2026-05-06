@@ -1,11 +1,17 @@
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+
+const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL ?? "https://cota.ci";
 
 export default function PremiumLockCard() {
+  function handleUnlock() {
+    Linking.openURL(`${WEB_URL}/subscribe`);
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.icon}>🔒</Text>
       <Text style={styles.label}>Contenu Premium</Text>
-      <TouchableOpacity style={styles.btn}>
+      <TouchableOpacity style={styles.btn} onPress={handleUnlock}>
         <Text style={styles.btnText}>Débloquer</Text>
       </TouchableOpacity>
     </View>
