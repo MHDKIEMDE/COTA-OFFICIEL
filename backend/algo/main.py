@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.routes.predictions import router as predictions_router
 from app.routes.payments import router as payments_router
+from app.routes.notifications import router as notifications_router
+from app.routes.notifications import notify_predictions_today, notify_results_evening
 from app.services.prediction_service import generate_daily_predictions
 
 app = FastAPI(title="COTA Algo API", version="1.0.0")
@@ -19,6 +21,7 @@ app.add_middleware(
 
 app.include_router(predictions_router)
 app.include_router(payments_router)
+app.include_router(notifications_router)
 
 # Cron : génération automatique chaque jour à 7h00
 scheduler = AsyncIOScheduler()
@@ -31,6 +34,20 @@ async def startup():
         hour=7,
         minute=0,
         id="daily_predictions",
+    )
+    scheduler.add_job(
+        notify_predictions_today,
+        "cron",
+        hour=7,
+        minute=15,
+        id="notify_predictions",
+    )
+    scheduler.add_job(
+        notify_results_evening,
+        "cron",
+        hour=21,
+        minute=0,
+        id="notify_results",
     )
     scheduler.start()
 

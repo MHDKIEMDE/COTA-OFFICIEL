@@ -1,65 +1,89 @@
-import Image from "next/image";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-export default function Home() {
+export const metadata: Metadata = {
+  title: "COTA — Pronostics Football IA pour l'Afrique de l'Ouest",
+  description:
+    "Analyse IA de 9 critères par match, coupon combiné quotidien, cotes et alertes en temps réel. Abonnement Mobile Money.",
+};
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <main className="min-h-screen bg-gray-950 text-white flex flex-col">
+      {/* Nav */}
+      <header className="border-b border-gray-900">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <span className="text-2xl font-black text-green-400">COTA</span>
+          <nav className="flex items-center gap-4 text-sm">
+            <Link href="/predictions" className="text-gray-400 hover:text-white transition">
+              Pronostics
+            </Link>
+            <Link href="/coupon" className="text-gray-400 hover:text-white transition">
+              Coupon IA
+            </Link>
+            <Link href="/bookmakers" className="text-gray-400 hover:text-white transition">
+              Bookmakers
+            </Link>
+            <Link
+              href="/subscribe"
+              className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-4 py-2 rounded-xl transition"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+              Premium
+            </Link>
+          </nav>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </header>
+
+      {/* Hero */}
+      <section className="flex-1 flex flex-col items-center justify-center text-center px-4 py-20">
+        <div className="inline-block bg-green-900/30 border border-green-700 text-green-400 text-xs font-bold px-3 py-1 rounded-full mb-6 uppercase tracking-widest">
+          Algorithme IA v3 — 9 critères
         </div>
-      </main>
-    </div>
+        <h1 className="text-5xl md:text-6xl font-black mb-6 leading-tight">
+          Les meilleurs pronostics<br />
+          <span className="text-green-400">football d'Afrique</span>
+        </h1>
+        <p className="text-gray-400 text-lg max-w-xl mb-10">
+          Notre IA analyse forme récente, H2H, blessures, cotes et 5 autres critères
+          pour générer chaque matin le coupon combiné le plus solide du jour.
+        </p>
+        <div className="flex flex-wrap gap-4 justify-center">
+          <Link
+            href="/predictions"
+            className="bg-green-600 hover:bg-green-500 text-white font-bold px-8 py-4 rounded-2xl text-lg transition"
+          >
+            Voir les pronostics
+          </Link>
+          <Link
+            href="/subscribe"
+            className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-8 py-4 rounded-2xl text-lg transition"
+          >
+            Débloquer Premium
+          </Link>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="border-t border-gray-900 py-16">
+        <div className="max-w-5xl mx-auto px-4 grid sm:grid-cols-3 gap-8 text-center">
+          {[
+            { icon: "🤖", title: "Algorithme IA", desc: "9 critères analysés automatiquement chaque matin avant les matchs." },
+            { icon: "🎯", title: "Coupon combiné", desc: "Le meilleur combo du jour sélectionné parmi les matchs les plus sûrs." },
+            { icon: "📲", title: "Mobile Money", desc: "Paiement Wave, Orange Money, MTN ou Moov en moins de 30 secondes." },
+          ].map((f) => (
+            <div key={f.title} className="flex flex-col items-center gap-3">
+              <span className="text-4xl">{f.icon}</span>
+              <h3 className="font-black text-lg">{f.title}</h3>
+              <p className="text-gray-500 text-sm">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-900 py-6 text-center text-xs text-gray-600">
+        © 2025 COTA · Pariez de manière responsable · Jeu interdit aux mineurs
+      </footer>
+    </main>
   );
 }

@@ -50,12 +50,16 @@
 - [ ] ⚠️ Remplir SUPABASE_SERVICE_ROLE_KEY dans apps/web/.env.local
 - [ ] ⚠️ Remplir les liens affiliation réels dans .env.local
 
-## Sprint 7 — Notifications & Polish
-- [ ] Intégration OneSignal (push web + iOS + Android)
-- [ ] Notification matchs du jour (matin)
-- [ ] Notification résultats (soir)
-- [ ] PWA (manifest, service worker, installable Android)
-- [ ] Optimisations performance + SEO
+## Sprint 7 — Notifications & Polish ✅
+- [x] Intégration OneSignal web (SDK CDN + OneSignalSDKWorker.js)
+- [x] Intégration expo-notifications mobile (hook useNotifications + register token)
+- [x] Cron 7h15 — notification pronostics du jour (OneSignal + Expo push)
+- [x] Cron 21h00 — notification résultats du soir (win rate)
+- [x] PWA — manifest.ts + icônes déjà présents + service worker OneSignal
+- [x] SEO — metadata globale layout.tsx + landing page COTA complète
+- [ ] ⚠️ Remplir NEXT_PUBLIC_ONESIGNAL_APP_ID dans apps/web/.env.local
+- [ ] ⚠️ Remplir ONESIGNAL_APP_ID + ONESIGNAL_REST_KEY dans backend/algo/.env
+- [ ] ⚠️ Créer table push_tokens dans Supabase (user_id, expo_token)
 
 ## Sprint 8 — Déploiement
 - [ ] Vercel (web + admin)
