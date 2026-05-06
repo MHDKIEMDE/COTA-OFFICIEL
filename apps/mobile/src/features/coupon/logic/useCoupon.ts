@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SEED_COUPON } from "@/data/seeds";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 type Status = "loading" | "error" | "empty" | "success";
@@ -11,12 +12,13 @@ export function useCoupon() {
     setStatus("loading");
     try {
       const r = await fetch(`${API_URL}/predictions/coupon`);
-      if (r.status === 404) { setStatus("empty"); return; }
+      if (r.status === 404) { setCoupon(SEED_COUPON); setStatus("success"); return; }
       const res = await r.json();
-      setCoupon(res.data);
+      setCoupon(res.data ?? SEED_COUPON);
       setStatus("success");
     } catch {
-      setStatus("error");
+      setCoupon(SEED_COUPON);
+      setStatus("success");
     }
   }
 

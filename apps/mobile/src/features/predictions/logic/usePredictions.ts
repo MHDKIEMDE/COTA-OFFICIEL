@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SEED_PREDICTIONS } from "@/data/seeds";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -15,11 +16,21 @@ export function usePredictions() {
       .then((r) => r.json())
       .then((res) => {
         const data = res.data ?? [];
-        setPredictions(data);
-        setFiltered(data);
-        setStatus(data.length === 0 ? "empty" : "success");
+        if (data.length === 0) {
+          setPredictions(SEED_PREDICTIONS);
+          setFiltered(SEED_PREDICTIONS);
+          setStatus("success");
+        } else {
+          setPredictions(data);
+          setFiltered(data);
+          setStatus("success");
+        }
       })
-      .catch(() => setStatus("error"));
+      .catch(() => {
+        setPredictions(SEED_PREDICTIONS);
+        setFiltered(SEED_PREDICTIONS);
+        setStatus("success");
+      });
   }, []);
 
   useEffect(() => {

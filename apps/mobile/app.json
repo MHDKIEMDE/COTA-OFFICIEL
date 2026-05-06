@@ -16,7 +16,10 @@
       "supportsTablet": false,
       "bundleIdentifier": "ci.cota.app",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -26,8 +29,7 @@
       },
       "package": "ci.cota.app",
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "googleServicesFile": "./google-services.json"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -44,9 +46,12 @@
       [
         "expo-build-properties",
         {
-          "android": { "compileSdkVersion": 35 }
+          "android": {
+            "compileSdkVersion": 35
+          }
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {
