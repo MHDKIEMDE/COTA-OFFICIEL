@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bebas_Neue, DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import OneSignalInit from "@/components/OneSignalInit";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const bebasNeue = Bebas_Neue({
+  weight: "400",
+  variable: "--font-bebas",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
+  display: "swap",
+});
+
+const dmMono = DM_Mono({
+  weight: ["300", "400", "500"],
+  variable: "--font-dm-mono",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,8 +38,7 @@ export const metadata: Metadata = {
     locale: "fr_CI",
     siteName: "COTA",
     title: "COTA — Pronostics Football IA",
-    description:
-      "Pronostics football alimentés par l'IA pour l'Afrique de l'Ouest.",
+    description: "Pronostics football alimentés par l'IA pour l'Afrique de l'Ouest.",
   },
   twitter: {
     card: "summary_large_image",
@@ -46,15 +55,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
       lang="fr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${bebasNeue.variable} ${dmSans.variable} ${dmMono.variable}`}
+      style={{ background: "#080C14" }}
     >
-      <body className="min-h-full flex flex-col">
+      <body>
         <OneSignalInit />
         {children}
       </body>
