@@ -7,19 +7,20 @@ export function useCoupon() {
   const [coupon, setCoupon] = useState<any>(null);
   const [status, setStatus] = useState<Status>("loading");
 
-  useEffect(() => {
-    fetch(`${API_URL}/predictions/coupon`)
-      .then((r) => {
-        if (r.status === 404) { setStatus("empty"); return null; }
-        return r.json();
-      })
-      .then((res) => {
-        if (!res) return;
-        setCoupon(res.data);
-        setStatus("success");
-      })
-      .catch(() => setStatus("error"));
-  }, []);
+  async function load() {
+    setStatus("loading");
+    try {
+      const r = await fetch(`${API_URL}/predictions/coupon`);
+      if (r.status === 404) { setStatus("empty"); return; }
+      const res = await r.json();
+      setCoupon(res.data);
+      setStatus("success");
+    } catch {
+      setStatus("error");
+    }
+  }
 
-  return { coupon, status };
+  useEffect(() => { load(); }, []);
+
+  return { coupon, status, reload: load };
 }
