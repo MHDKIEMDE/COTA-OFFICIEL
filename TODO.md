@@ -8,13 +8,14 @@
 - [x] Package api-client partagé
 - [x] Git + push GitHub COTA-OFFICIEL
 
-## Sprint 2 — Authentification Supabase 🔄
-- [ ] Créer projet Supabase + configurer variables d'env
-- [ ] Schéma DB : users, subscriptions, predictions, coupons, leagues
-- [ ] Auth Supabase (OTP email/SMS + Google OAuth)
-- [ ] Gestion des rôles : free / premium / admin (RLS)
-- [ ] Écrans auth web (login / register / OTP)
-- [ ] Écrans auth mobile (login / register / OTP)
+## Sprint 2 — Authentification Supabase ✅
+- [x] Créer projet Supabase + configurer variables d'env
+- [x] Schéma DB : profiles, subscriptions, predictions, coupons, leagues, matches
+- [x] Auth Supabase (OTP email + Google OAuth)
+- [x] Gestion des rôles : free / premium / admin (RLS)
+- [x] Écrans auth web (login OTP + Google)
+- [x] Écrans auth mobile (login OTP)
+- [ ] ⚠️ Exécuter schema.sql dans Supabase Dashboard (SQL Editor)
 
 ## Sprint 3 — Algorithme & Données
 - [ ] Setup FastAPI (Python) dans backend/algo/
