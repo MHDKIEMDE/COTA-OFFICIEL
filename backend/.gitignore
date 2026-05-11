@@ -1,0 +1,76 @@
+# ============================================
+# FICHIERS SENSIBLES - CONFIGURATION & IPs
+# ============================================
+
+# Environment files (contains sensitive data: IPs, DB passwords, API keys)
+.env
+.env.backup
+.env.production
+.env.local
+.env.development
+.env.*.local
+*.env
+
+# Logs (may contain sensitive data)
+*.log
+logs/
+storage/logs/*.log
+
+# Database dumps (may contain sensitive data)
+*.sql
+*.dump
+*.backup
+database/dumps/
+
+# Configuration files with personal IPs
+config.local.php
+local_config.php
+
+# Personal documentation with IPs
+TROUVER_IP.md
+*_PERSONNEL.md
+*_LOCAL.md
+
+# API keys and secrets
+secrets.json
+api_keys.json
+credentials.json
+*.pem
+*.key
+*.cert
+auth.json
+vps.md
+*_vps.md
+*hostinger*.md
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+
+# IDE and editor files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db

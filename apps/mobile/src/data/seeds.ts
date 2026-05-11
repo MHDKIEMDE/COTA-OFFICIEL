@@ -1,0 +1,163 @@
+// Données de test pour tous les écrans
+
+export const SEED_PREDICTIONS = [
+  {
+    id: "1",
+    is_premium: false,
+    prediction: "1X",
+    odds: 1.72,
+    confidence_level: 4,
+    result: "won",
+    matches: {
+      home_team: "Arsenal",
+      away_team: "Chelsea",
+      league_name: "Premier League",
+      match_date: new Date().toISOString(),
+      score: "2 - 1",
+    },
+  },
+  {
+    id: "2",
+    is_premium: false,
+    prediction: "1",
+    odds: 1.55,
+    confidence_level: 3,
+    result: null,
+    matches: {
+      home_team: "PSG",
+      away_team: "Lyon",
+      league_name: "Ligue 1",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "3",
+    is_premium: false,
+    prediction: "+2.5",
+    odds: 2.10,
+    confidence_level: 3,
+    result: "won",
+    matches: {
+      home_team: "Sénégal",
+      away_team: "Guinée",
+      league_name: "AFCON Qualif.",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "4",
+    is_premium: true,
+    prediction: "BTTS",
+    odds: 1.85,
+    confidence_level: 3,
+    result: null,
+    matches: {
+      home_team: "Real Madrid",
+      away_team: "Barcelona",
+      league_name: "La Liga",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "5",
+    is_premium: true,
+    prediction: "1",
+    odds: 1.90,
+    confidence_level: 4,
+    result: "lost",
+    matches: {
+      home_team: "Bayern Munich",
+      away_team: "Dortmund",
+      league_name: "Bundesliga",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "6",
+    is_premium: false,
+    prediction: "1X",
+    odds: 1.65,
+    confidence_level: 2,
+    result: null,
+    matches: {
+      home_team: "ASEC Mimosas",
+      away_team: "Africa Sports",
+      league_name: "MTN Ligue 1 CI",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "7",
+    is_premium: false,
+    prediction: "2",
+    odds: 2.30,
+    confidence_level: 2,
+    result: "won",
+    matches: {
+      home_team: "Ajax",
+      away_team: "PSV",
+      league_name: "Eredivisie",
+      match_date: new Date().toISOString(),
+    },
+  },
+  {
+    id: "8",
+    is_premium: true,
+    prediction: "DNB 1",
+    odds: 1.60,
+    confidence_level: 4,
+    result: null,
+    matches: {
+      home_team: "Inter Milan",
+      away_team: "Napoli",
+      league_name: "Serie A",
+      match_date: new Date().toISOString(),
+    },
+  },
+];
+
+export const SEED_COUPON = {
+  total_odds: 9.45,
+  confidence: 3,
+  picks: [
+    {
+      home_team: "Arsenal",
+      away_team: "Chelsea",
+      league: "Premier League",
+      prediction: "1X",
+      odds: 1.72,
+    },
+    {
+      home_team: "PSG",
+      away_team: "Lyon",
+      league: "Ligue 1",
+      prediction: "1",
+      odds: 1.55,
+    },
+    {
+      home_team: "Sénégal",
+      away_team: "Guinée",
+      league: "AFCON Qualif.",
+      prediction: "+2.5",
+      odds: 2.10,
+    },
+    {
+      home_team: "ASEC Mimosas",
+      away_team: "Africa Sports",
+      league: "MTN Ligue 1 CI",
+      prediction: "1X",
+      odds: 1.65,
+    },
+  ],
+};
+
+export const TICKER_SEEDS = [
+  { match: "Arsenal — Chelsea", pred: "1X", odds: "1.72", status: "won" },
+  { match: "PSG — Lyon", pred: "1", odds: "1.55", status: "pending" },
+  { match: "Real Madrid — Barça", pred: "BTTS", odds: "1.85", status: "live" },
+  { match: "Sénégal — Guinée", pred: "+2.5", odds: "2.10", status: "won" },
+  { match: "ASEC — Africa Sports", pred: "1X", odds: "1.65", status: "pending" },
+  { match: "Bayern — Dortmund", pred: "1", odds: "1.90", status: "lost" },
+  { match: "Ajax — PSV", pred: "BTTS", odds: "1.70", status: "won" },
+  { match: "Inter — Napoli", pred: "DNB 1", odds: "1.60", status: "pending" },
+];

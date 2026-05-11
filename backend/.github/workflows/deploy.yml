@@ -1,0 +1,41 @@
+name: 🚀 Deploy COTA to VPS (Docker)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: 🐳 Build & Deploy Docker
+    runs-on: self-hosted
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build & restart containers
+        working-directory: /var/www/cota-backend
+        run: |
+          echo "📥 Mise à jour du code..."
+          git pull origin main
+
+          echo "🐳 Build et redémarrage des containers..."
+          docker compose -p cota -f docker/docker-compose.yml build
+          docker compose -p cota -f docker/docker-compose.yml up -d --remove-orphans
+
+          echo "⏳ Attente que l'app soit prête..."
+          sleep 10
+
+          echo "🔍 Statut des containers:"
+          docker compose -p cota -f docker/docker-compose.yml ps
+
+      - name: ✅ Vérification santé
+        working-directory: /var/www/cota-backend
+        run: |
+          echo "🔍 Test de santé de l'API..."
+          curl -sf http://localhost:8082/api/health && echo "✅ API opérationnelle" || echo "⚠️  Health check échoué (vérifier les logs)"
+
+          echo "📋 Logs récents:"
+          docker compose -p cota -f docker/docker-compose.yml logs app --tail=20
