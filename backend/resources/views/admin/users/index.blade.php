@@ -27,7 +27,7 @@
     
     <!-- Filters -->
     <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-        <form method="GET" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div>
                 <select name="status" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
                     <option value="">Tous les statuts</option>
@@ -63,7 +63,7 @@
     <!-- Table -->
     <div class="bg-dark-100 rounded-xl border border-gray-700/50 overflow-hidden">
         <div class="overflow-x-auto">
-            <table class="w-full">
+            <table class="w-full min-w-[700px]">
                 <thead class="bg-gray-800/50">
                     <tr>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Utilisateur</th>

@@ -103,6 +103,9 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     Route::resource('bookmakers', BookmakerController::class)->parameters(['bookmakers' => 'id']);
     Route::post('/bookmakers/{id}/toggle', [BookmakerController::class, 'toggleActive'])->name('bookmakers.toggle');
 
+    // Paramètres
+    Route::get('/settings', [App\Http\Controllers\Admin\AdminSettingsController::class, 'index'])->name('settings.index');
+
     // Compétitions (Gestion des tendances)
     Route::resource('competitions', CompetitionController::class);
     Route::patch('/competitions/{competition}/toggle-trending', [CompetitionController::class, 'toggleTrending'])->name('competitions.toggle-trending');

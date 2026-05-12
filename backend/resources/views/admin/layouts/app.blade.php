@@ -181,8 +181,8 @@
                     
                     <!-- Paramètres -->
                     <li>
-                        <a href="#" 
-                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition">
+                        <a href="{{ route('admin.settings.index') }}"
+                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition {{ request()->routeIs('admin.settings*') ? 'active' : '' }}">
                             <i class="fa-solid fa-cog w-5"></i>
                             <span>Paramètres</span>
                         </a>
@@ -240,14 +240,14 @@
                     </button>
                     
                     <!-- Date -->
-                    <span class="text-sm text-gray-400">
+                    <span class="hidden sm:inline text-sm text-gray-400">
                         {{ now()->format('d/m/Y H:i') }}
                     </span>
                 </div>
             </header>
             
             <!-- Page Content -->
-            <main class="p-6">
+            <main class="p-3 sm:p-6">
                 <!-- Alerts -->
                 @if(session('success'))
                     <div class="mb-6 p-4 bg-success/20 border border-success/50 text-success rounded-lg flex items-center gap-3" id="alert-success">

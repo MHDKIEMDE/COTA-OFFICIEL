@@ -11,6 +11,40 @@ use Illuminate\Http\Request;
 class AdminSettingsController extends Controller
 {
     // ══════════════════════════════════════════════════════════════════
+    // VUE WEB
+    // ══════════════════════════════════════════════════════════════════
+
+    /** GET /admin/settings */
+    public function index(PaymentGatewayService $gateway)
+    {
+        $paymentData = [
+            'active_provider'   => AppConfig::get('payment.active_provider', ''),
+            'currency'          => AppConfig::get('payment.currency', 'XOF'),
+            'webhook_secret'    => AppConfig::get('payment.webhook_secret', ''),
+            'providers'         => $this->maskProviderSecrets(AppConfig::get('payment.providers', [])),
+            'available_drivers' => $gateway->availableDrivers(),
+        ];
+
+        $apiKeys = [
+            'football_api_key'    => AppConfig::get('api.football_api_key', ''),
+            'openweather_key'     => AppConfig::get('api.openweather_key', ''),
+            'termii_key'          => AppConfig::get('api.termii_key', ''),
+            'termii_sender_id'    => AppConfig::get('api.termii_sender_id', 'COTA'),
+            'facebook_app_id'     => AppConfig::get('api.facebook_app_id', ''),
+            'facebook_app_secret' => $this->mask(AppConfig::get('api.facebook_app_secret', '')),
+        ];
+
+        $appConfig = [
+            'prediction_publish_hours' => AppConfig::get('app.prediction_publish_hours', [8, 20]),
+            'premium_plans'            => AppConfig::get('app.premium_plans', []),
+        ];
+
+        $bookmakers = AppConfig::get('bookmakers.list', []);
+
+        return view('admin.settings.index', compact('paymentData', 'apiKeys', 'appConfig', 'bookmakers'));
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     // PAIEMENT
     // ══════════════════════════════════════════════════════════════════
 
