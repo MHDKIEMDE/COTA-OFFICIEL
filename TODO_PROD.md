@@ -1,6 +1,6 @@
 # COTA — Checklist Mise en Production
 
-> Dernière mise à jour : 2026-05-07
+> Dernière mise à jour : 2026-05-12
 
 ---
 
@@ -27,7 +27,7 @@
 ## 🟡 IMPORTANT — Qualité prod
 
 ### Serveur / DevOps
-- [ ] Configurer `.env` production
+- [x] Configurer `.env` production ✅ 2026-05-12
   - `APP_KEY` (générer avec `php artisan key:generate`)
   - `APP_ENV=production` + `APP_DEBUG=false`
   - `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
@@ -95,6 +95,43 @@
 
 ---
 
+## 🔵 FUTURES FEATURES (post-lancement)
+
+### Carte des agents de recharge _(v2 — hors MVP)_
+> Agents bookmakers (1xBet, BetWinner, Melbet, LineBet) — auto-inscription via l'app — statut on/off manuel — gratuit pour tous.
+> **À ne pas implémenter avant le lancement.**
+
+- [ ] Carte interactive géolocalisée agents bookmakers (dépôt / retrait)
+- [ ] Auto-inscription agent + validation admin
+- [ ] Statut disponible/indisponible en temps réel (bouton on/off)
+- [ ] Backend : modèle `Agent`, `POST /agents/register`, `GET /agents/nearby`, `PUT /agents/status`
+
+### Expérience matchs & pronostics
+- [ ] **Vue match enrichie** — pour chaque match affiché :
+  - Forme récente des deux équipes (5 derniers matchs)
+  - Confrontations directes (head-to-head)
+  - Buteurs / joueurs clés à surveiller
+  - Météo au stade (déjà intégré via OpenWeatherMap)
+  - Cote en direct bookmakers (si disponible via API)
+- [ ] **Filtres avancés** sur la liste des matchs
+  - Par ligue / pays
+  - Par niveau de confiance (1–4 étoiles)
+  - Par heure de coup d'envoi
+- [ ] **Notifications personnalisées** — alerter l'utilisateur avant ses matchs favoris
+
+### Psychologie & rétention utilisateur
+> Cible : deux profils (parieurs perso + suiveurs COTA). Style : mix gamification légère + stats sérieuses.
+> Premium justifié par : **picks haute confiance (4 étoiles) exclusifs Premium**.
+
+- [ ] **Streak quotidien** — récompenser les connexions consécutives (badge, indicateur visuel)
+- [ ] **Score de performance** — suivi des pronostics perso vs algorithme COTA (taux de réussite, ROI estimé)
+- [ ] **Push notifications contextuelles** — "Ton coupon du jour est disponible", "Match dans 1h"
+- [ ] **Classement / leaderboard** — comparaison anonyme entre utilisateurs (taux de réussite)
+- [ ] **Résumé hebdomadaire** — recap performances de la semaine envoyé le lundi matin
+- [ ] **Picks 4 étoiles verrouillés** — visibles en aperçu pour les gratuits, accessibles Premium uniquement
+
+---
+
 ## ✅ DÉJÀ FAIT (MVP)
 
 - [x] Algorithme de prédiction v3.0 (9 critères)
@@ -118,4 +155,3 @@
 1. 🔴 Implémenter **Paydunya** (sans paiement = pas de revenus)
 2. 🔴 Changer **URL API** `localhost` → prod
 3. 🔴 Configurer **`.env` production** sur le serveur
-

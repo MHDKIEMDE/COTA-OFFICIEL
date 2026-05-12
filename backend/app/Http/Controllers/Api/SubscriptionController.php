@@ -3,25 +3,19 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\PaydunyaService;
+use App\Models\AppConfig;
 use App\Models\User;
+use App\Services\Payment\PaymentGatewayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
-/**
- * Contrôleur pour la gestion des abonnements premium via Paydunya
- */
 class SubscriptionController extends Controller
 {
-    private PaydunyaService $paydunya;
+    public function __construct(private PaymentGatewayService $gateway) {}
 
-    public function __construct(PaydunyaService $paydunya)
-    {
-        $this->paydunya = $paydunya;
-    }
 
     /**
      * Initier un achat d'abonnement premium
@@ -42,60 +36,65 @@ class SubscriptionController extends Controller
 
         $user = $request->user();
         $plan = $validated['plan'];
-        $amount = $this->paydunya->getPlanPrice($plan);
 
-        // Descriptions par plan
-        $descriptions = [
-            'weekly' => 'Abonnement COTA Premium - 7 jours',
-            'monthly' => 'Abonnement COTA Premium - 30 jours',
-            'quarterly' => 'Abonnement COTA Premium - 90 jours',
-        ];
+        try {
+            $gw     = $this->gateway->gateway();
+            $amount = $gw->getPlanPrice($plan);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paiement temporairement indisponible.',
+                'error'   => $e->getMessage(),
+            ], 503);
+        }
 
-        // Créer la facture Paydunya
-        $result = $this->paydunya->createInvoice([
-            'amount' => $amount,
-            'description' => $descriptions[$plan],
-            'user_id' => $user->id,
-            'user_email' => $user->email,
-            'user_name' => $user->name ?? 'Utilisateur COTA',
-            'user_phone' => $user->phone,
-            'plan' => $plan,
+        $plans       = AppConfig::get('app.premium_plans', []);
+        $description = ($plans[$plan]['label'] ?? $plan) . ' — COTA Premium';
+
+        $result = $gw->createInvoice([
+            'amount'      => $amount,
+            'description' => $description,
+            'user_id'     => $user->id,
+            'user_email'  => $user->email,
+            'user_name'   => $user->name ?? 'Utilisateur COTA',
+            'user_phone'  => $user->phone,
+            'plan'        => $plan,
         ]);
 
         if (!$result['success']) {
             return response()->json([
                 'success' => false,
-                'message' => 'Impossible de créer la facture de paiement',
-                'error' => $result['error'] ?? 'Erreur inconnue',
+                'message' => 'Impossible de créer la facture de paiement.',
+                'error'   => $result['error'] ?? 'Erreur inconnue',
             ], 500);
         }
 
-        // Enregistrer la transaction en base (optionnel)
         DB::table('subscriptions')->insert([
-            'user_id' => $user->id,
-            'plan' => $plan,
-            'amount' => $amount,
+            'user_id'        => $user->id,
+            'plan'           => $plan,
+            'amount'         => $amount,
             'paydunya_token' => $result['token'],
-            'status' => 'pending',
-            'created_at' => now(),
-            'updated_at' => now(),
+            'status'         => 'pending',
+            'created_at'     => now(),
+            'updated_at'     => now(),
         ]);
 
-        Log::info('Subscription purchase initiated', [
-            'user_id' => $user->id,
-            'plan' => $plan,
-            'amount' => $amount,
-            'token' => $result['token'],
+        Log::info('Subscription initiated', [
+            'provider' => $this->gateway->activeProvider(),
+            'user_id'  => $user->id,
+            'plan'     => $plan,
+            'token'    => $result['token'],
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Facture créée avec succès',
-            'data' => [
-                'payment_url' => $result['url'],
-                'token' => $result['token'],
-                'amount' => $amount,
-                'plan' => $plan,
+            'message' => 'Facture créée avec succès.',
+            'data'    => [
+                'payment_url' => $result['payment_url'],
+                'token'       => $result['token'],
+                'amount'      => $amount,
+                'plan'        => $plan,
+                'provider'    => $this->gateway->activeProvider(),
             ],
         ]);
     }

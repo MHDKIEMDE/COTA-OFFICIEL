@@ -155,17 +155,36 @@ Route::middleware('auth:sanctum')->prefix('affiliate')->group(function () {
     Route::post('/verify-player', [AffiliateController::class, 'verifyPlayerId']);
 });
 
-// Routes Admin Affiliation (à protéger avec middleware admin en production)
+// Routes Admin Affiliation
 Route::middleware('auth:sanctum')->prefix('admin/affiliate')->group(function () {
     Route::get('/pending', [AffiliateController::class, 'getPendingVerifications']);
     Route::post('/approve/{id}', [AffiliateController::class, 'approveVerification']);
     Route::post('/reject/{id}', [AffiliateController::class, 'rejectVerification']);
 });
 
-// Webhooks (pas d'authentification Sanctum, mais vérification signature/IP)
+// ── Dashboard Admin Settings ─────────────────────────────────────────────────
+// Protégé : auth Sanctum + champ is_admin = true
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/settings')->group(function () {
+    Route::get('/payment',    [App\Http\Controllers\Admin\AdminSettingsController::class, 'getPayment']);
+    Route::put('/payment',    [App\Http\Controllers\Admin\AdminSettingsController::class, 'updatePayment']);
+
+    Route::get('/api-keys',   [App\Http\Controllers\Admin\AdminSettingsController::class, 'getApiKeys']);
+    Route::put('/api-keys',   [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateApiKeys']);
+
+    Route::get('/bookmakers', [App\Http\Controllers\Admin\AdminSettingsController::class, 'getBookmakers']);
+    Route::put('/bookmakers', [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateBookmakers']);
+
+    Route::get('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'getApp']);
+    Route::put('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateApp']);
+});
+
+// ── Webhooks paiement (point d'entrée unique, tous providers) ────────────────
 Route::prefix('webhooks')->group(function () {
-    Route::post('/paydunya', [App\Http\Controllers\Api\SubscriptionController::class, 'webhook']);
-    
-    // Webhook AffiliateControl - accepte GET et POST
+    // Nouveau webhook unifié — tous providers passent par là
+    Route::post('/payment', [App\Http\Controllers\Api\PaymentWebhookController::class, 'handle']);
+
+    // Ancien alias Paydunya conservé pour compatibilité
+    Route::post('/paydunya', [App\Http\Controllers\Api\PaymentWebhookController::class, 'handle']);
+
     Route::match(['get', 'post'], '/affiliate', [AffiliateController::class, 'handlePostback']);
 });
