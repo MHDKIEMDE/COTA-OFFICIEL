@@ -40,3 +40,15 @@ Schedule::job(new \App\Jobs\SendDailyNotificationJob)
     ->dailyAt('09:00')
     ->name('send-daily-notifications')
     ->onOneServer();
+
+// Rappels expiration Premium (J-7, J-3, J-1) à 10:00
+Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
+    ->dailyAt('10:00')
+    ->name('premium-expiry-reminders')
+    ->onOneServer();
+
+// Deuxième génération de prédictions à 20:00
+Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
+    ->dailyAt('20:00')
+    ->name('generate-predictions-evening')
+    ->onOneServer();

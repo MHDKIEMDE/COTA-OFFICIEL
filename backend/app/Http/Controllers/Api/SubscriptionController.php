@@ -70,13 +70,16 @@ class SubscriptionController extends Controller
         }
 
         DB::table('subscriptions')->insert([
-            'user_id'        => $user->id,
-            'plan'           => $plan,
-            'amount'         => $amount,
-            'paydunya_token' => $result['token'],
-            'status'         => 'pending',
-            'created_at'     => now(),
-            'updated_at'     => now(),
+            'user_id'          => $user->id,
+            'plan'             => $plan,
+            'amount'           => $amount,
+            'payment_token'    => $result['token'],
+            'payment_provider' => $this->gateway->activeProvider(),
+            'payment_url'      => $result['payment_url'],
+            'payment_status'   => 'pending',
+            'status'           => 'pending',
+            'created_at'       => now(),
+            'updated_at'       => now(),
         ]);
 
         Log::info('Subscription initiated', [
@@ -251,11 +254,12 @@ class SubscriptionController extends Controller
 
         // Mettre à jour le statut de la subscription en base
         DB::table('subscriptions')
-            ->where('paydunya_token', $token)
+            ->where('payment_token', $token)
             ->update([
-                'status' => 'completed',
-                'expires_at' => $expirationDate,
-                'updated_at' => now(),
+                'status'         => 'active',
+                'payment_status' => 'completed',
+                'expires_at'     => $expirationDate,
+                'updated_at'     => now(),
             ]);
 
         Log::info('Premium activated', [

@@ -34,6 +34,7 @@ class SendPremiumExpiryReminderJob implements ShouldQueue
             $users = User::where('is_premium', true)
                 ->whereDate('premium_expires_at', $targetDate)
                 ->whereNotNull('premium_expires_at')
+                ->where('premium_expires_at', '!=', null)
                 ->get();
 
             foreach ($users as $user) {
