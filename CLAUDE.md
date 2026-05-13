@@ -51,7 +51,7 @@ COTA/
 - [ ] Système de parrainage complet
 - [x] Dashboard admin — pages Abonnements (liste, filtres, graphique revenus, accord manuel)
 - [x] Dashboard admin — page Parrainages (liste, top parrains, paliers récompenses)
-- [ ] Dashboard admin — Stats avancées
+- [x] Dashboard admin — Stats avancées (taux réussite, ROI, graphiques 30j/12m, par étoiles/type/compétition)
 
 
 # CLAUDE.md — Laravel + Flutter Project

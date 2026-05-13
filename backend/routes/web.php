@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\CompetitionController;
 use App\Http\Controllers\Admin\FeedbackController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\ReferralController;
+use App\Http\Controllers\Admin\StatsController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\AuthController;
 
@@ -105,6 +106,9 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     // Bookmakers
     Route::resource('bookmakers', BookmakerController::class)->parameters(['bookmakers' => 'id']);
     Route::post('/bookmakers/{id}/toggle', [BookmakerController::class, 'toggleActive'])->name('bookmakers.toggle');
+
+    // Statistiques avancées
+    Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 
     // Abonnements
     Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscriptions.index');

@@ -175,6 +175,15 @@
                         </a>
                     </li>
                     
+                    <!-- Statistiques avancées -->
+                    <li>
+                        <a href="{{ route('admin.stats.index') }}"
+                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition {{ request()->routeIs('admin.stats*') ? 'active' : '' }}">
+                            <i class="fa-solid fa-chart-column w-5"></i>
+                            <span>Statistiques</span>
+                        </a>
+                    </li>
+
                     <!-- Abonnements -->
                     <li>
                         <a href="{{ route('admin.subscriptions.index') }}"
