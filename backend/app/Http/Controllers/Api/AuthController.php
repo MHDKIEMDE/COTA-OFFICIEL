@@ -78,8 +78,11 @@ class AuthController extends Controller
         // Si pas de code pays fourni, utiliser SN par défaut
         $countryCode = $countryCode ?? 'SN';
 
-        // Trouver ou créer l'utilisateur
-        $user = User::where('phone', $cleanPhone)->first();
+        // Trouver ou créer l'utilisateur (chercher les deux formats : avec et sans préfixe)
+        $user = User::where('phone', $cleanPhone)
+                    ->orWhere('phone', $phone)
+                    ->orWhere('phone', '+' . $countryCode . $cleanPhone)
+                    ->first();
 
         if (!$user) {
             // Créer un nouvel utilisateur
@@ -172,7 +175,14 @@ class AuthController extends Controller
             'phone' => $request->phone,
         ]);
 
-        $user = User::where('phone', $request->phone)->first();
+        $rawPhone  = preg_replace('/[\s\-\(\)]/', '', $request->phone);
+        $cleanVerify = $rawPhone;
+        if (preg_match('/^\+(\d{1,3})(.+)$/', $rawPhone, $vm)) {
+            $cleanVerify = $vm[2];
+        }
+        $user = User::where('phone', $rawPhone)
+                    ->orWhere('phone', $cleanVerify)
+                    ->first();
 
         if (!$user) {
             return response()->json([
@@ -216,27 +226,32 @@ class AuthController extends Controller
 
         // Code valide - connecter l'utilisateur
         $user->update([
-            'otp_code' => null,
+            'otp_code'       => null,
             'otp_expires_at' => null,
-            'otp_attempts' => 0,
-            'last_login_at' => Carbon::now(),
-            'device_type' => $request->device_type,
-            'fcm_token' => $request->fcm_token,
+            'otp_attempts'   => 0,
+            'last_login_at'  => Carbon::now(),
+            'device_type'    => $request->device_type,
+            'fcm_token'      => $request->fcm_token,
         ]);
 
         // Générer token Sanctum
         $token = $user->createToken('mobile-app')->plainTextToken;
 
+        $needsRegistration = !$user->registration_completed || !$user->pin_set;
+
         return response()->json([
-            'success' => true,
-            'message' => 'Connexion réussie.',
+            'success'              => true,
+            'message'              => $needsRegistration ? 'OTP vérifié. Complétez votre inscription.' : 'Connexion réussie.',
+            'needs_registration'   => $needsRegistration,
             'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'phone' => $user->phone,
-                'is_premium' => $user->isPremium(),
-                'premium_expires_at' => $user->premium_expires_at,
-                'referral_code' => $user->referral_code,
+                'id'                        => $user->id,
+                'name'                      => $user->name,
+                'phone'                     => $user->phone,
+                'is_premium'                => $user->isPremium(),
+                'premium_expires_at'        => $user->premium_expires_at,
+                'referral_code'             => $user->referral_code,
+                'registration_completed'    => $user->registration_completed,
+                'pin_set'                   => $user->pin_set,
                 'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
             ],
             'token' => $token,
@@ -403,16 +418,137 @@ class AuthController extends Controller
     }
 
     /**
+     * Vérifier si un numéro a déjà un compte
+     * POST /api/auth/check-phone
+     */
+    public function checkPhone(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'phone' => 'required|string|min:10|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $phone = preg_replace('/[\s\-\(\)]/', '', $request->phone);
+        $clean = $phone;
+        if (preg_match('/^\+(\d{1,3})(.+)$/', $phone, $m)) {
+            $clean = $m[2];
+        }
+
+        $user = User::where('phone', $phone)->orWhere('phone', $clean)->first();
+
+        return response()->json([
+            'success'       => true,
+            'exists'        => (bool) $user,
+            'pin_set'       => $user ? (bool) $user->pin_set : false,
+            'registration_completed' => $user ? (bool) $user->registration_completed : false,
+        ]);
+    }
+
+    /**
+     * Compléter l'inscription (nom + PIN)
+     * POST /api/auth/complete-registration
+     */
+    public function completeRegistration(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|min:2|max:50',
+            'pin'  => 'required|string|size:4|regex:/^\d{4}$/',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user();
+        $user->update([
+            'name'                    => $request->name,
+            'pin'                     => Hash::make($request->pin),
+            'pin_set'                 => true,
+            'registration_completed'  => true,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Inscription complétée.',
+            'user'    => [
+                'id'                     => $user->id,
+                'name'                   => $user->name,
+                'phone'                  => $user->phone,
+                'is_premium'             => $user->isPremium(),
+                'registration_completed' => true,
+                'pin_set'                => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Connexion avec PIN (après saisie du numéro)
+     * POST /api/auth/login-pin
+     */
+    public function loginWithPin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'phone' => 'required|string|min:10|max:20',
+            'pin'   => 'required|string|size:4|regex:/^\d{4}$/',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $phone = preg_replace('/[\s\-\(\)]/', '', $request->phone);
+        $clean = $phone;
+        if (preg_match('/^\+(\d{1,3})(.+)$/', $phone, $m)) {
+            $clean = $m[2];
+        }
+
+        $user = User::where('phone', $phone)->orWhere('phone', $clean)->first();
+
+        if (!$user || !$user->pin_set) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Compte introuvable ou PIN non configuré.',
+            ], 404);
+        }
+
+        if (!Hash::check($request->pin, $user->pin)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'PIN incorrect.',
+            ], 401);
+        }
+
+        $user->update(['last_login_at' => Carbon::now()]);
+        $token = $user->createToken('mobile-app')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie.',
+            'user'    => [
+                'id'                     => $user->id,
+                'name'                   => $user->name,
+                'phone'                  => $user->phone,
+                'is_premium'             => $user->isPremium(),
+                'premium_expires_at'     => $user->premium_expires_at,
+                'referral_code'          => $user->referral_code,
+                'registration_completed' => $user->registration_completed,
+                'pin_set'                => $user->pin_set,
+                'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
      * Méthode privée pour envoyer SMS (à implémenter avec Twilio/Termii)
      */
     private function sendSms($phone, $message)
     {
         // Deprecated: l'envoi SMS est désormais géré par App\Services\Sms\SmsService + provider (Termii/Log).
-        // Conservé temporairement pour éviter une rupture si du code legacy l'appelle.
-        \Log::warning('AuthController::sendSms est dépréciée; utiliser SmsService', [
-            'to' => $phone,
-        ]);
-
+        \Log::warning('AuthController::sendSms est dépréciée; utiliser SmsService', ['to' => $phone]);
         return false;
     }
 }

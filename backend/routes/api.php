@@ -45,6 +45,8 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/facebook', [AuthController::class, 'loginWithFacebook']);
+    Route::post('/check-phone', [AuthController::class, 'checkPhone']);
+    Route::post('/login-pin', [AuthController::class, 'loginWithPin']);
 });
 
 // Routes des pronostics publiques (accessibles sans authentification - mode invité)
@@ -98,6 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Authentification
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::post('/auth/complete-registration', [AuthController::class, 'completeRegistration']);
 
     // Abonnements (Paydunya Mobile Money) - nécessitent authentification
     Route::get('/subscriptions/me', [App\Http\Controllers\Api\SubscriptionController::class, 'getMySubscription']);
