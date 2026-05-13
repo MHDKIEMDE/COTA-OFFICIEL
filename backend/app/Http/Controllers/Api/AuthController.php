@@ -243,17 +243,7 @@ class AuthController extends Controller
             'success'              => true,
             'message'              => $needsRegistration ? 'OTP vérifié. Complétez votre inscription.' : 'Connexion réussie.',
             'needs_registration'   => $needsRegistration,
-            'user' => [
-                'id'                        => $user->id,
-                'name'                      => $user->name,
-                'phone'                     => $user->phone,
-                'is_premium'                => $user->isPremium(),
-                'premium_expires_at'        => $user->premium_expires_at,
-                'referral_code'             => $user->referral_code,
-                'registration_completed'    => $user->registration_completed,
-                'pin_set'                   => $user->pin_set,
-                'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
-            ],
+            'user'  => $this->userArray($user),
             'token' => $token,
         ]);
     }
@@ -348,16 +338,7 @@ class AuthController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Connexion Facebook réussie.',
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'is_premium' => $user->isPremium(),
-                    'premium_expires_at' => $user->premium_expires_at,
-                    'referral_code' => $user->referral_code,
-                    'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
-                ],
+                'user'  => $this->userArray($user),
                 'token' => $token,
             ]);
 
@@ -400,20 +381,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'is_premium' => $user->isPremium(),
-                'premium_expires_at' => $user->premium_expires_at,
-                'premium_source' => $user->premium_source,
-                'referral_code' => $user->referral_code,
-                'referral_count' => $user->referral_count,
-                'referral_days_earned' => $user->referral_days_earned,
-                'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
-                'last_login_at' => $user->last_login_at,
-            ],
+            'user' => $this->userArray($user),
         ]);
     }
 
@@ -540,6 +508,26 @@ class AuthController extends Controller
             ],
             'token' => $token,
         ]);
+    }
+
+    private function userArray(User $user): array
+    {
+        return [
+            'id'                          => $user->id,
+            'name'                        => $user->name,
+            'email'                       => $user->email,
+            'phone'                       => $user->phone,
+            'is_premium'                  => $user->isPremium(),
+            'premium_expires_at'          => $user->premium_expires_at,
+            'premium_source'              => $user->premium_source,
+            'referral_code'               => $user->referral_code ?? '',
+            'referral_count'              => $user->referral_count ?? 0,
+            'referral_days_earned'        => $user->referral_days_earned ?? 0,
+            'registration_completed'      => (bool) $user->registration_completed,
+            'pin_set'                     => (bool) $user->pin_set,
+            'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
+            'last_login_at'               => $user->last_login_at,
+        ];
     }
 
     /**
