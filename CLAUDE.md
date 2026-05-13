@@ -44,9 +44,12 @@ COTA/
 - [x] Authentification OTP + Facebook
 - [x] Endpoints prédictions (today, coupon, history)
 - [x] Matchs populaires filtrés par tier de ligue
+- [x] Dashboard admin — pages Feedbacks (liste + détail + réponse admin)
+- [x] Dashboard admin — pages Utilisateurs, Prédictions, Affiliations, Bookmakers, Compétitions, Paramètres
+- [x] Flutter analyze — 0 erreur / 0 warning (18 fichiers nettoyés)
 - [ ] Paiement Paydunya
 - [ ] Système de parrainage complet
-- [ ] Dashboard admin
+- [ ] Dashboard admin — pages Abonnements, Parrainages, Stats avancées
 
 
 # CLAUDE.md — Laravel + Flutter Project

@@ -55,12 +55,9 @@ class PredictionController extends Controller
         // OPTIMISATION: Essayer d'abord la base de données (BEAUCOUP plus rapide)
         Log::info("📊 Vérification des prédictions en base de données pour le {$dateString}");
         
-        $startDate = $selectedDate->copy()->startOfDay();
-        $endDate = $selectedDate->copy()->endOfDay();
-        
         $query = DB::table('predictions')
             ->where('is_published', true)
-            ->whereBetween('match_date', [$startDate, $endDate])
+            ->whereDate('match_date', $dateString)
             ->orderBy('match_date', 'asc');
         
         // Filtrer par compétition si fourni

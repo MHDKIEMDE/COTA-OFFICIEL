@@ -175,6 +175,19 @@
                         </a>
                     </li>
                     
+                    <!-- Feedbacks -->
+                    <li>
+                        <a href="{{ route('admin.feedbacks.index') }}"
+                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition {{ request()->routeIs('admin.feedbacks*') ? 'active' : '' }}">
+                            <i class="fa-solid fa-comment-dots w-5"></i>
+                            <span>Feedbacks</span>
+                            @php $openCount = \App\Models\Feedback::where('status','open')->count(); @endphp
+                            @if($openCount > 0)
+                                <span class="ml-auto px-2 py-0.5 text-xs bg-warning/20 text-warning rounded-full">{{ $openCount }}</span>
+                            @endif
+                        </a>
+                    </li>
+
                     <li class="pt-4 border-t border-gray-700/50 mt-4">
                         <span class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Système</span>
                     </li>

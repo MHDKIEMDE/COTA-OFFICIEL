@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AffiliateController;
 use App\Http\Controllers\Admin\BookmakerController;
 use App\Http\Controllers\Admin\CompetitionController;
+use App\Http\Controllers\Admin\FeedbackController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\AuthController;
 
@@ -102,6 +103,13 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     // Bookmakers
     Route::resource('bookmakers', BookmakerController::class)->parameters(['bookmakers' => 'id']);
     Route::post('/bookmakers/{id}/toggle', [BookmakerController::class, 'toggleActive'])->name('bookmakers.toggle');
+
+    // Feedbacks
+    Route::get('/feedbacks', [FeedbackController::class, 'index'])->name('feedbacks.index');
+    Route::get('/feedbacks/{feedback}', [FeedbackController::class, 'show'])->name('feedbacks.show');
+    Route::patch('/feedbacks/{feedback}/respond', [FeedbackController::class, 'respond'])->name('feedbacks.respond');
+    Route::patch('/feedbacks/{feedback}/status', [FeedbackController::class, 'updateStatus'])->name('feedbacks.status');
+    Route::delete('/feedbacks/{feedback}', [FeedbackController::class, 'destroy'])->name('feedbacks.destroy');
 
     // Paramètres
     Route::get('/settings', [App\Http\Controllers\Admin\AdminSettingsController::class, 'index'])->name('settings.index');

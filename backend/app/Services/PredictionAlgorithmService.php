@@ -96,7 +96,7 @@ class PredictionAlgorithmService
             'odds'           => $prediction['odds'],
             'reasoning'      => $analysis,
             'scores'         => array_map(fn($s) => round($s, 2), $scores),
-            'is_premium'     => $totalScore >= self::CONFIDENCE_THRESHOLDS['high'],
+            'is_premium'     => $stars >= 3 && $prediction['type'] !== '1X2',
             'should_publish' => $totalScore >= self::CONFIDENCE_THRESHOLDS['min_publish'],
         ];
     }
