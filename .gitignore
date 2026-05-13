@@ -8,3 +8,16 @@ dist/
 __pycache__/
 *.pyc
 .venv/
+
+# Données sensibles & personnelles
+.claude/
+.agents/
+skills-lock.json
+graphify-out/
+CDC/
+Icones.zip
+
+# Base de données locale SQLite
+backend/database/*.sqlite
+backend/database/*.sqlite-shm
+backend/database/*.sqlite-wal
