@@ -102,123 +102,60 @@ class SubscriptionController extends Controller
     /**
      * Vérifier le statut d'un paiement
      *
-     * @param Request $request
-     * @return JsonResponse
-     *
      * GET /api/subscriptions/verify/{token}
      */
     public function verifyPayment(Request $request, string $token): JsonResponse
     {
         $user = $request->user();
 
-        // Vérifier le statut du paiement
-        $result = $this->paydunya->checkPaymentStatus($token);
+        try {
+            $result = $this->gateway->gateway()->verifyTransaction($token);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Paiement temporairement indisponible.',
+                'error'   => $e->getMessage(),
+            ], 503);
+        }
 
         if (!$result['success']) {
             return response()->json([
                 'success' => false,
                 'message' => 'Impossible de vérifier le paiement',
-                'error' => $result['message'] ?? 'Erreur inconnue',
+                'error'   => $result['error'] ?? 'Erreur inconnue',
             ], 500);
         }
 
-        $status = $result['status'];
-        $isCompleted = $result['is_completed'];
-
-        // Si le paiement est complété, activer le premium
-        if ($isCompleted) {
-            $customData = $result['custom_data'];
-            $plan = $customData['plan'] ?? 'weekly';
-            $userId = $customData['user_id'] ?? $user->id;
-
-            // Vérifier que c'est bien le bon utilisateur
-            if ($userId != $user->id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Token de paiement invalide pour cet utilisateur',
-                ], 403);
-            }
-
-            // Activer le premium
-            $this->activatePremium($user, $plan, $token);
-
+        if ($result['status'] !== 'completed') {
             return response()->json([
-                'success' => true,
-                'message' => 'Paiement confirmé ! Votre abonnement premium est activé.',
-                'data' => [
-                    'is_premium' => true,
-                    'subscription_expires_at' => $user->fresh()->subscription_expires_at,
-                    'plan' => $plan,
-                ],
+                'success' => false,
+                'message' => 'Paiement non complété',
+                'data'    => ['status' => $result['status'], 'is_completed' => false],
             ]);
         }
 
-        // Paiement en attente ou échoué
+        $customData = $result['data']['custom_data'] ?? [];
+        $plan       = $customData['plan'] ?? 'weekly';
+        $userId     = $customData['user_id'] ?? $user->id;
+
+        if ((int) $userId !== $user->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token de paiement invalide pour cet utilisateur',
+            ], 403);
+        }
+
+        $this->activatePremium($user, $plan, $token);
+
         return response()->json([
-            'success' => false,
-            'message' => 'Paiement non complété',
-            'data' => [
-                'status' => $status,
-                'is_completed' => false,
+            'success' => true,
+            'message' => 'Paiement confirmé ! Votre abonnement premium est activé.',
+            'data'    => [
+                'is_premium'              => true,
+                'subscription_expires_at' => $user->fresh()->subscription_expires_at,
+                'plan'                    => $plan,
             ],
         ]);
-    }
-
-    /**
-     * Webhook Paydunya pour les notifications de paiement
-     *
-     * @param Request $request
-     * @return JsonResponse
-     *
-     * POST /api/webhooks/paydunya
-     */
-    public function webhook(Request $request): JsonResponse
-    {
-        // Récupérer la signature du header
-        $signature = $request->header('X-Paydunya-Signature', '');
-
-        // Vérifier la signature
-        if (!$this->paydunya->verifyWebhookSignature($request->all(), $signature)) {
-            Log::warning('Paydunya webhook signature invalid', [
-                'ip' => $request->ip(),
-                'data' => $request->all(),
-            ]);
-
-            return response()->json(['error' => 'Invalid signature'], 403);
-        }
-
-        $data = $request->all();
-        $status = $data['status'] ?? 'unknown';
-        $token = $data['invoice']['token'] ?? null;
-
-        Log::info('Paydunya webhook received', [
-            'status' => $status,
-            'token' => $token,
-            'data' => $data,
-        ]);
-
-        // Si paiement complété
-        if (in_array($status, ['completed', 'success']) && $token) {
-            $customData = $data['custom_data'] ?? [];
-            $userId = $customData['user_id'] ?? null;
-            $plan = $customData['plan'] ?? 'weekly';
-
-            if ($userId) {
-                $user = User::find($userId);
-
-                if ($user) {
-                    $this->activatePremium($user, $plan, $token);
-
-                    Log::info('Premium activated via webhook', [
-                        'user_id' => $userId,
-                        'plan' => $plan,
-                        'token' => $token,
-                    ]);
-                }
-            }
-        }
-
-        return response()->json(['success' => true]);
     }
 
     /**
@@ -254,58 +191,40 @@ class SubscriptionController extends Controller
      */
     public function getPlans(): JsonResponse
     {
-        $plans = [
-            [
-                'id' => 'weekly',
-                'name' => 'Hebdomadaire',
+        $default = [
+            'weekly' => [
+                'id'       => 'weekly',
+                'name'     => 'Hebdomadaire',
                 'duration' => '7 jours',
-                'price' => 2500,
+                'price'    => 2500,
                 'currency' => 'FCFA',
-                'features' => [
-                    'Tous les pronostics quotidiens',
-                    'Combinés premium',
-                    'Statistiques détaillées',
-                    'Support prioritaire',
-                ],
+                'features' => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire'],
             ],
-            [
-                'id' => 'monthly',
-                'name' => 'Mensuel',
-                'duration' => '30 jours',
-                'price' => 8000,
-                'currency' => 'FCFA',
-                'savings' => '20%',
-                'features' => [
-                    'Tous les pronostics quotidiens',
-                    'Combinés premium',
-                    'Statistiques détaillées',
-                    'Support prioritaire',
-                    'Historique complet',
-                ],
+            'monthly' => [
+                'id'          => 'monthly',
+                'name'        => 'Mensuel',
+                'duration'    => '30 jours',
+                'price'       => 8000,
+                'currency'    => 'FCFA',
+                'savings'     => '20%',
                 'recommended' => true,
+                'features'    => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire', 'Historique complet'],
             ],
-            [
-                'id' => 'quarterly',
-                'name' => 'Trimestriel',
+            'quarterly' => [
+                'id'       => 'quarterly',
+                'name'     => 'Trimestriel',
                 'duration' => '90 jours',
-                'price' => 20000,
+                'price'    => 20000,
                 'currency' => 'FCFA',
-                'savings' => '33%',
-                'features' => [
-                    'Tous les pronostics quotidiens',
-                    'Combinés premium',
-                    'Statistiques détaillées',
-                    'Support prioritaire',
-                    'Historique complet',
-                    'Analyses avancées',
-                ],
+                'savings'  => '33%',
+                'features' => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire', 'Historique complet', 'Analyses avancées'],
             ],
         ];
 
-        return response()->json([
-            'success' => true,
-            'data' => $plans,
-        ]);
+        $configured = AppConfig::get('app.premium_plans', []);
+        $plans      = array_values(array_merge($default, $configured));
+
+        return response()->json(['success' => true, 'data' => $plans]);
     }
 
     /**
@@ -318,12 +237,11 @@ class SubscriptionController extends Controller
      */
     private function activatePremium(User $user, string $plan, string $token): void
     {
-        $expirationDate = $this->paydunya->calculateExpirationDate($plan);
+        $duration       = $this->getDuration($plan);
+        $expirationDate = now()->add($duration);
 
-        // Si l'utilisateur a déjà un abonnement actif, ajouter à la date existante
         if ($user->is_premium && $user->subscription_expires_at > now()) {
-            $expirationDate = Carbon::parse($user->subscription_expires_at)
-                ->add($this->getDuration($plan));
+            $expirationDate = Carbon::parse($user->subscription_expires_at)->add($duration);
         }
 
         $user->update([

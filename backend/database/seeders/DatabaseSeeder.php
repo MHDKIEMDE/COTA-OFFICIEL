@@ -19,7 +19,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Les seeders sont désactivés - utiliser uniquement les vraies données de l'API
-        // Les pronostics sont générés automatiquement par GenerateAllPredictionsJob
+        $this->call([
+            AppConfigSeeder::class,
+            CompetitionSeeder::class,
+            AdminUserSeeder::class,
+            TestDataSeeder::class,
+        ]);
     }
 }

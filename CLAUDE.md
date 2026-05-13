@@ -47,8 +47,8 @@ COTA/
 - [x] Dashboard admin — pages Feedbacks (liste + détail + réponse admin)
 - [x] Dashboard admin — pages Utilisateurs, Prédictions, Affiliations, Bookmakers, Compétitions, Paramètres
 - [x] Flutter analyze — 0 erreur / 0 warning (18 fichiers nettoyés)
-- [ ] Paiement Paydunya
-- [ ] Système de parrainage complet
+- [x] Paiement Paydunya — architecture provider-agnostique (PaymentGatewayService + AppConfig DB), clés depuis dashboard admin, bug verifyPayment corrigé, seeder AppConfig
+- [x] Système de parrainage complet
 - [x] Dashboard admin — pages Abonnements (liste, filtres, graphique revenus, accord manuel)
 - [x] Dashboard admin — page Parrainages (liste, top parrains, paliers récompenses)
 - [x] Dashboard admin — Stats avancées (taux réussite, ROI, graphiques 30j/12m, par étoiles/type/compétition)
