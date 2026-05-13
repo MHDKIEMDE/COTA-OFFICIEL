@@ -49,7 +49,9 @@ COTA/
 - [x] Flutter analyze — 0 erreur / 0 warning (18 fichiers nettoyés)
 - [ ] Paiement Paydunya
 - [ ] Système de parrainage complet
-- [ ] Dashboard admin — pages Abonnements, Parrainages, Stats avancées
+- [x] Dashboard admin — pages Abonnements (liste, filtres, graphique revenus, accord manuel)
+- [x] Dashboard admin — page Parrainages (liste, top parrains, paliers récompenses)
+- [ ] Dashboard admin — Stats avancées
 
 
 # CLAUDE.md — Laravel + Flutter Project

@@ -9,6 +9,8 @@ use App\Http\Controllers\Admin\AffiliateController;
 use App\Http\Controllers\Admin\BookmakerController;
 use App\Http\Controllers\Admin\CompetitionController;
 use App\Http\Controllers\Admin\FeedbackController;
+use App\Http\Controllers\Admin\SubscriptionController;
+use App\Http\Controllers\Admin\ReferralController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\AuthController;
 
@@ -103,6 +105,15 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     // Bookmakers
     Route::resource('bookmakers', BookmakerController::class)->parameters(['bookmakers' => 'id']);
     Route::post('/bookmakers/{id}/toggle', [BookmakerController::class, 'toggleActive'])->name('bookmakers.toggle');
+
+    // Abonnements
+    Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscriptions.index');
+    Route::get('/subscriptions/{subscription}', [SubscriptionController::class, 'show'])->name('subscriptions.show');
+    Route::post('/subscriptions/grant', [SubscriptionController::class, 'grantManual'])->name('subscriptions.grant');
+    Route::patch('/subscriptions/{subscription}/cancel', [SubscriptionController::class, 'cancel'])->name('subscriptions.cancel');
+
+    // Parrainages
+    Route::get('/referrals', [ReferralController::class, 'index'])->name('referrals.index');
 
     // Feedbacks
     Route::get('/feedbacks', [FeedbackController::class, 'index'])->name('feedbacks.index');

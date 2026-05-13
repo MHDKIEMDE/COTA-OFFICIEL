@@ -175,6 +175,24 @@
                         </a>
                     </li>
                     
+                    <!-- Abonnements -->
+                    <li>
+                        <a href="{{ route('admin.subscriptions.index') }}"
+                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition {{ request()->routeIs('admin.subscriptions*') ? 'active' : '' }}">
+                            <i class="fa-solid fa-credit-card w-5"></i>
+                            <span>Abonnements</span>
+                        </a>
+                    </li>
+
+                    <!-- Parrainages -->
+                    <li>
+                        <a href="{{ route('admin.referrals.index') }}"
+                           class="sidebar-link flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-gray-700/50 transition {{ request()->routeIs('admin.referrals*') ? 'active' : '' }}">
+                            <i class="fa-solid fa-people-arrows w-5"></i>
+                            <span>Parrainages</span>
+                        </a>
+                    </li>
+
                     <!-- Feedbacks -->
                     <li>
                         <a href="{{ route('admin.feedbacks.index') }}"
