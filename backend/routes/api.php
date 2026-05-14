@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\PredictionController;
 use App\Http\Controllers\Api\AffiliateController;
 use App\Http\Controllers\Api\OddsController;
 use App\Http\Controllers\Api\MatchController;
+use App\Http\Controllers\Api\TeamController;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +55,15 @@ Route::get('/predictions/today', [PredictionController::class, 'today']);
 Route::get('/predictions/competitions', [PredictionController::class, 'competitions']);
 Route::get('/predictions/search', [PredictionController::class, 'search']);
 Route::get('/predictions/welcome-combined', [PredictionController::class, 'welcomeCombined']);
+
+// Teams (pages détail équipe)
+Route::get('/teams/{id}', [TeamController::class, 'show'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/stats', [TeamController::class, 'stats'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/matches', [TeamController::class, 'matches'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/squad', [TeamController::class, 'squad'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/transfers', [TeamController::class, 'transfers'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/injuries', [TeamController::class, 'injuries'])->where('id', '[0-9]+');
+Route::get('/teams/{id}/news', [TeamController::class, 'news'])->where('id', '[0-9]+');
 
 // COTA LIVE - Scores en direct (routes publiques)
 Route::get('/matches/live', [MatchController::class, 'live']);

@@ -55,9 +55,15 @@ class PredictionController extends Controller
         // OPTIMISATION: Essayer d'abord la base de données (BEAUCOUP plus rapide)
         Log::info("📊 Vérification des prédictions en base de données pour le {$dateString}");
         
+        $popularLeagueNames = array_column(config('football-api.popular_leagues', []), 'name');
+
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereDate('match_date', $dateString)
+            ->where(fn($q) =>
+                $q->where('league_tier', '<=', 3)
+                  ->orWhereIn('competition', $popularLeagueNames)
+            )
             ->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
             ->orderBy('match_time', 'asc');
@@ -117,9 +123,17 @@ class PredictionController extends Controller
         $startDate = $selectedDate->copy()->startOfDay();
         $endDate = $selectedDate->copy()->endOfDay();
 
+        $popularLeagues = array_keys(config('football-api.popular_leagues', []));
+
+        $popularLeagueNames = array_column(config('football-api.popular_leagues', []), 'name');
+
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereBetween('match_date', [$startDate, $endDate])
+            ->where(fn($q) =>
+                $q->where('league_tier', '<=', 3)
+                  ->orWhereIn('competition', $popularLeagueNames)
+            )
             ->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
             ->orderBy('match_time', 'asc');

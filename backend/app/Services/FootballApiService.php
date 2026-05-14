@@ -293,6 +293,69 @@ class FootballApiService
     }
 
     /**
+     * Récupérer les informations d'une équipe
+     */
+    public function getTeamInfo(int $teamId): ?array
+    {
+        return $this->makeRequest('/teams', ['id' => $teamId], 86400);
+    }
+
+    /**
+     * Récupérer l'effectif d'une équipe (saison en cours)
+     */
+    public function getTeamSquad(int $teamId): ?array
+    {
+        return $this->makeRequest('/players/squads', ['team' => $teamId], 43200);
+    }
+
+    /**
+     * Récupérer les joueurs d'une équipe avec stats
+     */
+    public function getTeamPlayers(int $teamId, int $season, int $leagueId): ?array
+    {
+        return $this->makeRequest('/players', [
+            'team'   => $teamId,
+            'season' => $season,
+            'league' => $leagueId,
+        ], 43200);
+    }
+
+    /**
+     * Récupérer les transferts d'une équipe
+     */
+    public function getTeamTransfers(int $teamId): ?array
+    {
+        return $this->makeRequest('/transfers', ['team' => $teamId], 86400);
+    }
+
+    /**
+     * Récupérer les blessures/suspensions d'une équipe
+     */
+    public function getTeamInjuries(int $teamId, int $season): ?array
+    {
+        return $this->makeRequest('/injuries', [
+            'team'   => $teamId,
+            'season' => $season,
+        ], 3600);
+    }
+
+    /**
+     * Récupérer les statistiques d'un match (possession, tirs, corners…)
+     */
+    public function getMatchStats(int $fixtureId): ?array
+    {
+        return $this->makeRequest('/fixtures/statistics', ['fixture' => $fixtureId], 300);
+    }
+
+    /**
+     * Récupérer les trophées d'une équipe
+     */
+    public function getTeamTrophies(int $teamId): ?array
+    {
+        return $this->makeRequest('/trophies', ['team' => $teamId], 86400);
+    }
+
+    /**
      * Récupérer les prédictions de l'API (optionnel)
      */
     public function getApiPredictions(int $fixtureId): ?array

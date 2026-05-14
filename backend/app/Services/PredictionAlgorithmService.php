@@ -138,7 +138,7 @@ class PredictionAlgorithmService
         $meetings = $data['response'] ?? [];
 
         if (empty($meetings)) {
-            return $maxScore * 0.55;
+            return $maxScore * 0.50; // neutre si pas de données H2H
         }
 
         $meetings = array_slice($meetings, 0, 8);
@@ -158,10 +158,11 @@ class PredictionAlgorithmService
         }
 
         if ($totalWeight === 0) {
-            return $maxScore * 0.55;
+            return $maxScore * 0.50;
         }
 
-        $homeRatio = ($homeWins + ($draws * 0.4)) / $totalWeight;
+        // Score centré sur 0.5 : reflète réellement l'historique des deux équipes
+        $homeRatio = ($homeWins + ($draws * 0.5)) / $totalWeight;
 
         return min(max($homeRatio * $maxScore, 0), $maxScore);
     }
@@ -172,7 +173,7 @@ class PredictionAlgorithmService
     {
         $maxScore = self::WEIGHTS['home_away'];
 
-        if (!$leagueId) return $maxScore * 0.55;
+        if (!$leagueId) return $maxScore * 0.50; // neutre si pas de ligue
 
         $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season);
         $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season);
@@ -180,8 +181,9 @@ class PredictionAlgorithmService
         $homeHomeRatio = $this->extractHomeWinRatio($homeStats);
         $awayAwayRatio = $this->extractAwayWinRatio($awayStats);
 
-        $adjustedHomeRatio = min($homeHomeRatio + 0.10, 1);
-        $diff      = $adjustedHomeRatio - $awayAwayRatio;
+        // Comparaison directe : performance dom. de l'équipe locale vs perf. ext. de l'équipe visiteuse
+        // Suppression du +0.10 artificiel qui favorisait toujours le domicile
+        $diff      = $homeHomeRatio - $awayAwayRatio;
         $baseScore = ($maxScore / 2) + ($diff * ($maxScore / 2));
 
         return min(max($baseScore, 0), $maxScore);
@@ -357,31 +359,57 @@ class PredictionAlgorithmService
 
     private function determineBetType(array $scores, float $totalScore, array $homeTeam, array $awayTeam): array
     {
-        $formAdvantage  = $scores['form'] / self::WEIGHTS['form'];
-        $h2hAdvantage   = $scores['h2h'] / self::WEIGHTS['h2h'];
-        $goalsScore     = $scores['goals'] / self::WEIGHTS['goals'];
-        $homeAdvantage  = ($formAdvantage + $h2hAdvantage + ($scores['home_away'] / self::WEIGHTS['home_away'])) / 3;
+        $formAdvantage     = $scores['form']      / self::WEIGHTS['form'];
+        $h2hAdvantage      = $scores['h2h']       / self::WEIGHTS['h2h'];
+        $homeAwayAdvantage = $scores['home_away'] / self::WEIGHTS['home_away'];
+        $goalsScore        = $scores['goals']     / self::WEIGHTS['goals'];
 
+        // Score composite centré sur 0.5 : >0.5 = avantage domicile, <0.5 = avantage extérieur
+        $homeAdvantage = ($formAdvantage + $h2hAdvantage + $homeAwayAdvantage) / 3;
+        $awayAdvantage = 1 - $homeAdvantage;
+
+        // ── Domicile nettement supérieur ──────────────────────────────────────────
         if ($totalScore >= 85 && $homeAdvantage >= 0.65) {
-            return ['type' => '1X2',          'outcome' => '1',        'odds' => round(1.40 + (mt_rand(0, 30) / 100), 2)];
+            return ['type' => '1X2', 'outcome' => '1', 'odds' => round(1.40 + (mt_rand(0, 30) / 100), 2)];
         }
         if ($totalScore >= 75 && $homeAdvantage >= 0.60) {
-            return ['type' => '1X2',          'outcome' => '1',        'odds' => round(1.55 + (mt_rand(0, 40) / 100), 2)];
-        }
-        if ($totalScore >= 70 && $homeAdvantage >= 0.55) {
-            return ['type' => 'Double Chance', 'outcome' => '1X',       'odds' => round(1.20 + (mt_rand(0, 25) / 100), 2)];
-        }
-        if ($totalScore >= 60 && $goalsScore >= 0.55) {
-            return ['type' => 'Over/Under',   'outcome' => 'Over 2.5', 'odds' => round(1.70 + (mt_rand(0, 35) / 100), 2)];
-        }
-        if ($totalScore >= 55) {
-            return ['type' => 'BTTS',         'outcome' => 'Yes',      'odds' => round(1.75 + (mt_rand(0, 30) / 100), 2)];
-        }
-        if ($goalsScore < 0.45) {
-            return ['type' => 'Over/Under',   'outcome' => 'Under 2.5','odds' => round(1.80 + (mt_rand(0, 30) / 100), 2)];
+            return ['type' => '1X2', 'outcome' => '1', 'odds' => round(1.55 + (mt_rand(0, 40) / 100), 2)];
         }
 
-        return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.25 + (mt_rand(0, 30) / 100), 2)];
+        // ── Extérieur nettement supérieur ─────────────────────────────────────────
+        if ($totalScore >= 85 && $awayAdvantage >= 0.65) {
+            return ['type' => '1X2', 'outcome' => '2', 'odds' => round(1.80 + (mt_rand(0, 50) / 100), 2)];
+        }
+        if ($totalScore >= 75 && $awayAdvantage >= 0.60) {
+            return ['type' => '1X2', 'outcome' => '2', 'odds' => round(2.00 + (mt_rand(0, 60) / 100), 2)];
+        }
+
+        // ── Domicile légèrement favori ────────────────────────────────────────────
+        if ($totalScore >= 70 && $homeAdvantage >= 0.55) {
+            return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.20 + (mt_rand(0, 25) / 100), 2)];
+        }
+
+        // ── Extérieur légèrement favori ───────────────────────────────────────────
+        if ($totalScore >= 70 && $awayAdvantage >= 0.55) {
+            return ['type' => 'Double Chance', 'outcome' => 'X2', 'odds' => round(1.30 + (mt_rand(0, 30) / 100), 2)];
+        }
+
+        // ── Match équilibré → parier sur les buts ─────────────────────────────────
+        if ($totalScore >= 60 && $goalsScore >= 0.55) {
+            return ['type' => 'Over/Under', 'outcome' => 'Over 2.5', 'odds' => round(1.70 + (mt_rand(0, 35) / 100), 2)];
+        }
+        if ($totalScore >= 55) {
+            return ['type' => 'BTTS', 'outcome' => 'Yes', 'odds' => round(1.75 + (mt_rand(0, 30) / 100), 2)];
+        }
+        if ($goalsScore < 0.45) {
+            return ['type' => 'Over/Under', 'outcome' => 'Under 2.5', 'odds' => round(1.80 + (mt_rand(0, 30) / 100), 2)];
+        }
+
+        // ── Défaut neutre (pas de biais domicile) ─────────────────────────────────
+        if ($homeAdvantage >= 0.5) {
+            return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.25 + (mt_rand(0, 30) / 100), 2)];
+        }
+        return ['type' => 'Double Chance', 'outcome' => 'X2', 'odds' => round(1.35 + (mt_rand(0, 30) / 100), 2)];
     }
 
     private function calculateStars(float $totalScore): int
@@ -412,13 +440,15 @@ class PredictionAlgorithmService
             $analysis[] = "{$home} est mieux classe au championnat";
 
         if ($scores['goals'] >= self::WEIGHTS['goals'] * 0.7)
-            $analysis[] = "Les statistiques de buts favorisent l'equipe locale";
+            $analysis[] = "Les statistiques de buts favorisent {$home}";
+        elseif ($scores['goals'] <= self::WEIGHTS['goals'] * 0.3)
+            $analysis[] = "{$away} presente de meilleures statistiques offensives";
 
         if ($scores['time'] >= self::WEIGHTS['time'] * 0.8)
             $analysis[] = "Match en prime time avec conditions optimales";
 
         if (empty($analysis))
-            $analysis[] = "Match equilibre avec un leger avantage pour {$home} a domicile";
+            $analysis[] = "Match equilibre, aucun avantage clair d'un cote";
 
         $confidenceText = $totalScore >= 80 ? "Confiance elevee" :
                          ($totalScore >= 65 ? "Confiance moyenne" : "Confiance moderee");
@@ -725,15 +755,15 @@ class PredictionAlgorithmService
     private function getDefaultPrediction(): array
     {
         return [
-            'type'           => 'Double Chance',
-            'outcome'        => '1X',
-            'confidence'     => 55,
-            'stars'          => 2,
-            'odds'           => 1.35,
-            'reasoning'      => 'Donnees insuffisantes pour une analyse complete. Leger avantage domicile par defaut.',
+            'type'           => 'Over/Under',
+            'outcome'        => 'Over 2.5',
+            'confidence'     => 52,
+            'stars'          => 1,
+            'odds'           => 1.75,
+            'reasoning'      => 'Donnees insuffisantes pour une analyse complete.',
             'scores'         => array_fill_keys(array_keys(self::WEIGHTS), 0),
             'is_premium'     => false,
-            'should_publish' => true,
+            'should_publish' => false,
         ];
     }
 }

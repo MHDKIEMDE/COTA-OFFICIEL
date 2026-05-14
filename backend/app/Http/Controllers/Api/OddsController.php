@@ -325,9 +325,10 @@ class OddsController extends Controller
 
         $data = Cache::remember($cacheKey, 3600, function () use ($region) {
             return Bookmaker::active()
-                ->ordered()
+                ->withCount('clicks')
                 ->get()
                 ->filter(fn(Bookmaker $bm) => $this->matchesRegion($bm, $region))
+                ->sortByDesc('clicks_count')
                 ->map(fn(Bookmaker $bm) => [
                     'api_id'         => (string) $bm->id,
                     'name'           => $bm->name,
@@ -339,6 +340,7 @@ class OddsController extends Controller
                     'logo_url'       => $bm->logo_url,
                     'regions'        => $bm->regions ?? [],
                     'is_configured'  => !empty($bm->affiliate_link),
+                    'clicks_count'   => $bm->clicks_count,
                 ])
                 ->values()
                 ->all();

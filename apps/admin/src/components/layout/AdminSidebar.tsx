@@ -11,6 +11,7 @@ const NAV = [
   { href: "/users", label: "Utilisateurs", icon: "👥" },
   { href: "/subscriptions", label: "Abonnements", icon: "💳" },
   { href: "/leagues", label: "Compétitions", icon: "🏆" },
+  { href: "/bookmakers", label: "Bookmakers", icon: "🎰" },
 ];
 
 export default function AdminSidebar() {

@@ -197,6 +197,52 @@ class MatchController extends Controller
     }
 
     /**
+     * GET /api/matches/{id}/stats
+     * Statistiques du match : possession, tirs, corners, fautes…
+     */
+    public function stats(Request $request, string $id): JsonResponse
+    {
+        if (!is_numeric($id)) {
+            return response()->json(['success' => false, 'message' => 'ID numérique requis'], 422);
+        }
+
+        try {
+            $response = $this->footballApi->getMatchStats((int) $id);
+            $raw      = $response['response'] ?? [];
+
+            // Transformer en [team_id => [stat_name => value]]
+            $stats = [];
+            foreach ($raw as $teamStats) {
+                $teamId   = $teamStats['team']['id'] ?? null;
+                $teamName = $teamStats['team']['name'] ?? '';
+                $teamLogo = $teamStats['team']['logo'] ?? null;
+                $items    = [];
+
+                foreach ($teamStats['statistics'] ?? [] as $stat) {
+                    $key        = $this->normalizeStatKey($stat['type'] ?? '');
+                    $items[$key] = $stat['value'];
+                }
+
+                $stats[] = [
+                    'team_id'   => $teamId,
+                    'team_name' => $teamName,
+                    'team_logo' => $teamLogo,
+                    'stats'     => $items,
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $stats,
+                'meta'    => ['fixture_id' => (int) $id],
+            ]);
+        } catch (\Exception $e) {
+            Log::error("MatchController::stats({$id}) — " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * GET /api/matches/{id}/h2h
      */
     public function h2h(Request $request, string $id): JsonResponse
@@ -226,6 +272,27 @@ class MatchController extends Controller
     }
 
     // ── Normalisation fixture API-Football → format uniforme ──────────────────
+
+    private function normalizeStatKey(string $type): string
+    {
+        return match ($type) {
+            'Ball Possession'        => 'possession',
+            'Total Shots'            => 'shots_total',
+            'Shots on Goal'          => 'shots_on_target',
+            'Shots off Goal'         => 'shots_off_target',
+            'Blocked Shots'          => 'shots_blocked',
+            'Corner Kicks'           => 'corners',
+            'Fouls'                  => 'fouls',
+            'Yellow Cards'           => 'yellow_cards',
+            'Red Cards'              => 'red_cards',
+            'Goalkeeper Saves'       => 'saves',
+            'Total passes'           => 'passes_total',
+            'Passes accurate'        => 'passes_accurate',
+            'Passes %'               => 'passes_accuracy',
+            'expected_goals'         => 'xg',
+            default                  => strtolower(str_replace(' ', '_', $type)),
+        };
+    }
 
     private function normalize(array $fixture): array
     {
