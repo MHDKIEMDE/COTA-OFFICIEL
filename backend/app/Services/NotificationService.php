@@ -63,6 +63,47 @@ class NotificationService
         return $sent;
     }
 
+    /**
+     * Envoie une notification à tous les utilisateurs, traduite selon leur locale.
+     * $translationKey doit exister dans lang/{locale}/notifications.php sous les clés {key}_title et {key}_body.
+     */
+    public function sendToAllByLocale(string $translationKey, array $data = []): int
+    {
+        $sent      = 0;
+        $supported = ['fr', 'en'];
+
+        foreach ($supported as $locale) {
+            $title = __("notifications.{$translationKey}_title", [], $locale);
+            $body  = __("notifications.{$translationKey}_body", [], $locale);
+
+            User::whereNotNull('fcm_token')
+                ->where('locale', $locale)
+                ->chunkById(200, function ($users) use ($title, $body, $data, &$sent) {
+                    foreach ($users as $user) {
+                        if ($this->sendToToken($user->fcm_token, $title, $body, $data)) {
+                            $sent++;
+                        }
+                    }
+                });
+        }
+
+        // Utilisateurs sans locale définie → français par défaut
+        $title = __('notifications.' . $translationKey . '_title', [], 'fr');
+        $body  = __('notifications.' . $translationKey . '_body', [], 'fr');
+
+        User::whereNotNull('fcm_token')
+            ->whereNotIn('locale', $supported)
+            ->chunkById(200, function ($users) use ($title, $body, $data, &$sent) {
+                foreach ($users as $user) {
+                    if ($this->sendToToken($user->fcm_token, $title, $body, $data)) {
+                        $sent++;
+                    }
+                }
+            });
+
+        return $sent;
+    }
+
     public function sendToToken(string $token, string $title, string $body, array $data = []): bool
     {
         $accessToken = $this->getAccessToken();

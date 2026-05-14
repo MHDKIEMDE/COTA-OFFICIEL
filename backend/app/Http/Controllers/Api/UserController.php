@@ -147,6 +147,26 @@ class UserController extends Controller
     }
 
     /**
+     * Mettre à jour la langue de l'utilisateur
+     *
+     * PUT /api/user/locale
+     */
+    public function updateLocale(Request $request): JsonResponse
+    {
+        $request->validate([
+            'locale' => 'required|string|in:fr,en',
+        ]);
+
+        $request->user()->update(['locale' => $request->locale]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Langue mise à jour.',
+            'locale'  => $request->locale,
+        ]);
+    }
+
+    /**
      * Consulter les données stockées de l'utilisateur (RGPD - Droit d'accès)
      * 
      * GET /api/user/data-access

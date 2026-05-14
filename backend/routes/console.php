@@ -29,26 +29,25 @@ Schedule::job(new \App\Jobs\UpdatePredictionResultsJob)
     ->withoutOverlapping()
     ->onOneServer();
 
-// Générer les prédictions quotidiennement à 08:00
+// Générer les prédictions quotidiennement à 05:00 UTC
+// Fenêtre morte mondiale (aucun match en cours) — données de veille complètes
 Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
-    ->dailyAt('08:00')
+    ->dailyAt('05:00')
+    ->timezone('UTC')
     ->name('generate-predictions')
     ->onOneServer();
 
-// Envoyer les notifications quotidiennes à 09:00
+// Envoyer les notifications quotidiennes à 06:30 UTC
+// 1h30 de marge après génération — prédictions garanties prêtes
 Schedule::job(new \App\Jobs\SendDailyNotificationJob)
-    ->dailyAt('09:00')
+    ->dailyAt('06:30')
+    ->timezone('UTC')
     ->name('send-daily-notifications')
     ->onOneServer();
 
-// Rappels expiration Premium (J-7, J-3, J-1) à 10:00
+// Rappels expiration Premium (J-7, J-3, J-1) à 07:00 UTC
 Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
-    ->dailyAt('10:00')
+    ->dailyAt('07:00')
+    ->timezone('UTC')
     ->name('premium-expiry-reminders')
-    ->onOneServer();
-
-// Deuxième génération de prédictions à 20:00
-Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
-    ->dailyAt('20:00')
-    ->name('generate-predictions-evening')
     ->onOneServer();

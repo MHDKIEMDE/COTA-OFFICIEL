@@ -47,6 +47,7 @@ class User extends Authenticatable
         'email_verified_at',
         'notification_settings',
         'preferences',
+        'locale',
     ];
 
     /**

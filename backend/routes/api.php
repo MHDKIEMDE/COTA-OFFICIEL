@@ -127,6 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/profile', [App\Http\Controllers\Api\UserController::class, 'profile']);
     Route::put('/user/profile', [App\Http\Controllers\Api\UserController::class, 'update']);
     Route::put('/user/preferences', [App\Http\Controllers\Api\UserController::class, 'updatePreferences']);
+    Route::put('/user/locale',      [App\Http\Controllers\Api\UserController::class, 'updateLocale']);
     Route::get('/user/data-access', [App\Http\Controllers\Api\UserController::class, 'dataAccess']);
     Route::post('/user/data-export', [App\Http\Controllers\Api\UserController::class, 'exportData']);
     Route::delete('/user/data-delete', [App\Http\Controllers\Api\UserController::class, 'deleteAccount']);
