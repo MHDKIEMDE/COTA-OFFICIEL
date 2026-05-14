@@ -140,13 +140,13 @@ class FootballApiService
      * Récupérer uniquement les matchs populaires du jour
      * Filtre les fixtures par les ligues configurées dans popular_leagues
      */
-    public function getPopularMatches(?string $date = null): array
+    public function getPopularMatches(?string $date = null, int $limit = 30): array
     {
         $response = $this->getUpcomingMatches(1);
         $fixtures = $response['response'] ?? [];
 
         if (empty($fixtures)) {
-            return ['response' => [], 'popular_leagues_only' => true];
+            return [];
         }
 
         $leagueConfig = config('football-api.popular_leagues', []);
@@ -164,12 +164,14 @@ class FootballApiService
         // Trier par tier croissant (1 = plus populaire en premier)
         usort($popular, fn($a, $b) => $a['_tier'] <=> $b['_tier']);
 
-        Log::info("API-Football: Popular matches filtered", [
+        $popular = array_slice($popular, 0, $limit);
+
+        Log::info('API-Football: Popular matches filtered', [
             'total'   => count($fixtures),
             'popular' => count($popular),
         ]);
 
-        return ['response' => $popular, 'popular_leagues_only' => true];
+        return $popular;
     }
 
     /**

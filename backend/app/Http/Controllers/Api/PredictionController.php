@@ -586,54 +586,110 @@ class PredictionController extends Controller
      */
     public function combinedDaily(Request $request)
     {
-        $user = auth('sanctum')->user();
+        $user      = auth('sanctum')->user();
         $isPremium = $user && $user->is_premium;
 
-        if (!$isPremium) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cette fonctionnalité est réservée aux membres premium',
-            ], 403);
-        }
-
-        $date = $request->input('date', Carbon::today()->toDateString());
+        $date       = $request->input('date', Carbon::today()->toDateString());
         $targetDate = Carbon::parse($date);
 
-        // Récupérer les pronostics du jour avec score élevé (≥80) et marqués comme combiné
-        $predictions = DB::table('predictions')
+        // ── Chercher d'abord en DB (top 5 par score, publiés aujourd'hui) ──
+        $dbPredictions = DB::table('predictions')
             ->where('is_published', true)
-            ->where('is_combined_daily', true)
-            ->whereDate('combined_date', $targetDate)
-            ->whereNotNull('combined_position')
-            ->orderBy('combined_position', 'asc')
+            ->whereDate('match_date', $targetDate)
+            ->where('total_score', '>=', 65)
             ->orderBy('total_score', 'desc')
             ->limit(5)
             ->get();
 
-        if ($predictions->isEmpty()) {
+        if ($dbPredictions->isNotEmpty()) {
+            $totalOdds     = $dbPredictions->reduce(fn($carry, $p) => $carry * (float) $p->odds, 1.0);
+            $avgConfidence = $dbPredictions->avg('total_score');
+
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'date'           => $targetDate->toDateString(),
+                    'total_odds'     => round($totalOdds, 2),
+                    'avg_confidence' => round($avgConfidence, 2),
+                    'matches'        => $dbPredictions->map(fn($p) => $this->formatPrediction($p, $isPremium))->values()->all(),
+                ],
+            ]);
+        }
+
+        // ── DB vide : premium génère à la demande, free attend ──────────────
+        if (!$isPremium) {
             return response()->json([
                 'success' => false,
-                'message' => 'Aucun combiné disponible pour cette date',
+                'message' => 'Le combiné du jour sera disponible après la génération automatique',
             ], 404);
         }
 
-        // Calculer la cote totale (produit des cotes, pas somme)
-        $totalOdds = $predictions->reduce(function ($carry, $prediction) {
-            return $carry * (float) $prediction->odds;
-        }, 1.0);
-        $avgConfidence = $predictions->avg('total_score');
+        $cacheKey = 'combined_daily_premium_' . $targetDate->format('Y-m-d');
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'date' => $targetDate->toDateString(),
-                'total_odds' => round($totalOdds, 2),
-                'avg_confidence' => round($avgConfidence, 2),
-                'matches' => $predictions->map(function ($prediction) {
-                    return $this->formatPrediction($prediction, true);
-                })->values()->all(),
-            ],
-        ]);
+        $result = Cache::remember($cacheKey, 300, function () use ($targetDate) {
+            try {
+                $fixtures = $this->footballApi->getPopularMatches($targetDate->format('Y-m-d'), 30);
+            } catch (\Throwable $e) {
+                Log::error('combinedDaily premium: getPopularMatches failed', ['error' => $e->getMessage()]);
+                return null;
+            }
+
+            if (empty($fixtures)) {
+                return ['success' => false, 'message' => 'Aucun match disponible pour cette date'];
+            }
+
+            $coupon = $this->predictionAlgorithm->generateDailyCoupon($fixtures, 3, 5, 60.0);
+
+            if (!($coupon['success'] ?? false)) {
+                return $coupon;
+            }
+
+            // Convertir les picks en format PredictionModel compatible Flutter
+            $matches = array_map(function (array $pick): array {
+                return [
+                    'id'                => 0,
+                    'match_id'          => null,
+                    'prediction_type'   => $pick['type'] ?? '1X2',
+                    'predicted_outcome' => $pick['prediction'] ?? '',
+                    'odds'              => $pick['odds'] ?? 1.0,
+                    'confidence_score'  => (int) ($pick['confidence'] ?? 0),
+                    'confidence_stars'  => $pick['stars'] ?? 1,
+                    'is_premium'        => $pick['is_premium'] ?? true,
+                    'result'            => null,
+                    'created_at'        => now()->toIso8601String(),
+                    'match'             => [
+                        'id'             => null,
+                        'fixture_id'     => null,
+                        'home_team'      => explode(' vs ', $pick['match'] ?? ' vs ')[0] ?? '',
+                        'away_team'      => explode(' vs ', $pick['match'] ?? ' vs ')[1] ?? '',
+                        'home_team_logo' => null,
+                        'away_team_logo' => null,
+                        'league'         => $pick['league'] ?? '',
+                        'league_logo'    => null,
+                        'match_date'     => $pick['date'] ?? now()->toIso8601String(),
+                        'status'         => 'NS',
+                        'home_score'     => null,
+                        'away_score'     => null,
+                    ],
+                ];
+            }, $coupon['picks']);
+
+            return [
+                'success' => true,
+                'data'    => [
+                    'date'           => $targetDate->toDateString(),
+                    'total_odds'     => $coupon['total_odds'],
+                    'avg_confidence' => $coupon['avg_confidence'],
+                    'matches'        => $matches,
+                ],
+            ];
+        });
+
+        if ($result === null) {
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la génération du combiné'], 500);
+        }
+
+        return response()->json($result, ($result['success'] ?? false) ? 200 : 404);
     }
 
     /**
