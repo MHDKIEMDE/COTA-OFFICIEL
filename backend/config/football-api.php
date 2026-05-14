@@ -62,32 +62,50 @@ return [
         848 => 'UEFA Conference League',
     ],
 
-    // Ligues populaires avec niveau de priorité (tier 1 = plus populaire)
-    'popular_leagues' => [
-        // Tier 1 — Top 5 européennes
-        2   => ['name' => 'Champions League',      'country' => 'Europe',       'tier' => 1],
-        39  => ['name' => 'Premier League',         'country' => 'England',      'tier' => 1],
-        140 => ['name' => 'La Liga',                'country' => 'Spain',        'tier' => 1],
-        135 => ['name' => 'Serie A',                'country' => 'Italy',        'tier' => 1],
-        78  => ['name' => 'Bundesliga',             'country' => 'Germany',      'tier' => 1],
-        61  => ['name' => 'Ligue 1',                'country' => 'France',       'tier' => 1],
-        // Tier 2 — Grandes compétitions européennes & ligues secondaires
-        3   => ['name' => 'Europa League',          'country' => 'Europe',       'tier' => 2],
-        848 => ['name' => 'Conference League',      'country' => 'Europe',       'tier' => 2],
-        94  => ['name' => 'Liga Portugal',          'country' => 'Portugal',     'tier' => 2],
-        88  => ['name' => 'Eredivisie',             'country' => 'Netherlands',  'tier' => 2],
-        144 => ['name' => 'Pro League',             'country' => 'Belgium',      'tier' => 2],
-        179 => ['name' => 'Scottish Premiership',   'country' => 'Scotland',     'tier' => 2],
-        307 => ['name' => 'Saudi Pro League',       'country' => 'Saudi Arabia', 'tier' => 2],
+    // Priorité des ligues par nom exact retourné par l'API (tier 1 = plus populaire, 99 = inconnu)
+    // Clé = nom exact tel que retourné par API-Football
+    'league_tiers' => [
+        // Tier 1 — Priorité absolue
+        'UEFA Champions League'  => 1,
+        'Champions League'       => 1,
+        'Premier League'         => 1,  // England uniquement — filtré par country dans le job
+        'La Liga'                => 1,
+        'Serie A'                => 1,  // Italy uniquement
+        'Bundesliga'             => 1,  // Germany uniquement
+        'Ligue 1'                => 1,  // France uniquement
+        // Tier 2 — Grandes compétitions
+        'UEFA Europa League'     => 2,
+        'Europa League'          => 2,
+        'UEFA Conference League' => 2,
+        'Conference League'      => 2,
+        'Liga Portugal'          => 2,
+        'Eredivisie'             => 2,
+        'Pro League'             => 2,
+        'Scottish Premiership'   => 2,
+        'Saudi Pro League'       => 2,
+        'Primeira Liga'          => 2,
         // Tier 3 — Ligues majeures hors Europe
-        253 => ['name' => 'MLS',                   'country' => 'USA',          'tier' => 3],
-        71  => ['name' => 'Brasileirao',            'country' => 'Brazil',       'tier' => 3],
-        262 => ['name' => 'Liga MX',               'country' => 'Mexico',       'tier' => 3],
-        203 => ['name' => 'Süper Lig',             'country' => 'Turkey',       'tier' => 3],
-        // Tier 4 — Afrique & reste du monde
-        12  => ['name' => 'AFCON',                 'country' => 'Africa',       'tier' => 4],
-        17  => ['name' => 'AFCON Qualification',   'country' => 'Africa',       'tier' => 4],
-        29  => ['name' => 'CAF Champions League',  'country' => 'Africa',       'tier' => 4],
+        'Major League Soccer'    => 3,
+        'MLS'                    => 3,
+        'Brasileirao'            => 3,
+        'Série A'                => 3,
+        'Liga MX'                => 3,
+        'Süper Lig'              => 3,
+        'Super Lig'              => 3,
+        // Tier 4 — Afrique & reste
+        'Africa Cup of Nations'  => 4,
+        'AFCON'                  => 4,
+        'CAF Champions League'   => 4,
+        'CAF Cup of Nations'     => 4,
+    ],
+
+    // Pays autorisés pour les ligues ambiguës (ex: "Premier League" existe partout)
+    'tier1_country_whitelist' => [
+        'Premier League' => 'England',
+        'Serie A'        => 'Italy',
+        'Bundesliga'     => 'Germany',
+        'Ligue 1'        => 'France',
+        'Première Division' => 'France',
     ],
 
     // Endpoints disponibles

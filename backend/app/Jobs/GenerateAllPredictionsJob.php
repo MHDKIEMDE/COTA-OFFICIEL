@@ -81,7 +81,11 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         if (!($homeTeam['id'] ?? null) || !($awayTeam['id'] ?? null)) return null;
 
-        $matchDate = Carbon::parse($fixtureInfo['date'] ?? now());
+        $matchDate    = Carbon::parse($fixtureInfo['date'] ?? now());
+        $leagueId     = $league['id'] ?? null;
+        $leagueName   = $league['name'] ?? '';
+        $leagueCountry = $league['country'] ?? '';
+        $leagueTier   = $this->resolveLeagueTier($leagueName, $leagueCountry);
 
         // Sauvegarder le match en base
         FootballMatch::updateOrCreate(
@@ -116,7 +120,8 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'home_team_id'       => $homeTeam['id'],
                 'away_team_id'       => $awayTeam['id'],
                 'competition'        => $league['name'] ?? 'Unknown',
-                'competition_id'     => $league['id'] ?? null,
+                'competition_id'     => $leagueId,
+                'league_tier'        => $leagueTier,
                 'country'            => $league['country'] ?? 'Unknown',
                 'match_date'         => $matchDate,
                 'match_time'         => $matchDate->format('H:i'),
@@ -148,6 +153,22 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'combined_position'  => null,
             ]
         );
+    }
+
+    private function resolveLeagueTier(string $name, string $country): int
+    {
+        $tiers     = config('football-api.league_tiers', []);
+        $whitelist = config('football-api.tier1_country_whitelist', []);
+
+        $tier = $tiers[$name] ?? 99;
+
+        // Pour les ligues ambiguës (ex: "Premier League" existe dans 50 pays),
+        // on n'accorde le tier configuré que si le pays correspond.
+        if ($tier === 1 && isset($whitelist[$name]) && $whitelist[$name] !== $country) {
+            return 5; // Ligue mineure homonyme
+        }
+
+        return $tier;
     }
 
     private function selectCombinedDaily(array $predictions, Carbon $date): void

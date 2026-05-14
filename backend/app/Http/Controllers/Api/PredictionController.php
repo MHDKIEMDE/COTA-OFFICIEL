@@ -58,7 +58,9 @@ class PredictionController extends Controller
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereDate('match_date', $dateString)
-            ->orderBy('match_date', 'asc');
+            ->orderBy('league_tier', 'asc')
+            ->orderBy('confidence_stars', 'desc')
+            ->orderBy('match_time', 'asc');
         
         // Filtrer par compétition si fourni
         if ($competition && $competition !== 'all') {
@@ -92,98 +94,19 @@ class PredictionController extends Controller
             return response()->json($responseData);
         }
         
-        Log::info("⚠️  Seulement " . $dbPredictions->count() . " prédictions en base, récupération depuis l'API");
+        // Base vide — les prédictions sont générées exclusivement par le job schedulé.
+        // On ne touche jamais l'API-Football depuis un endpoint utilisateur (quota 100 req/jour).
+        Log::warning("Predictions: base vide pour {$dateString}, job schedulé non encore exécuté");
 
-        // Si peu ou pas de données en base, récupérer depuis les APIs intelligentes
-        Log::info("🎯 Peu de données en base, récupération intelligente pour le {$dateString}");
+        $responseData = [
+            'success' => true,
+            'data'    => $dbPredictions->map(fn($p) => $this->formatPrediction($p, $isPremium))->values(),
+            'source'  => 'database',
+            'cached_at' => now()->toIso8601String(),
+        ];
 
-        try {
-            // Récupérer les matchs depuis API-Football
-            $apiResponse = $this->footballApi->getUpcomingMatches(1);
-            $matches = $apiResponse['response'] ?? [];
-
-            if (empty($matches)) {
-                Log::warning("⚠️ Aucune donnée récupérée depuis les APIs pour le {$dateString}");
-                // Retourner ce qu'on a en base même si c'est peu
-                $formattedPredictions = $dbPredictions->map(function ($prediction) use ($isPremium) {
-                    return $this->formatPrediction($prediction, $isPremium);
-                })->values();
-
-                $responseData = [
-                    'success' => true,
-                    'data' => $formattedPredictions,
-                    'source' => 'database_partial',
-                    'message' => 'Données partielles depuis la base de données',
-                    'cached_at' => now()->toIso8601String(),
-                ];
-
-                Cache::put($cacheKey, $responseData, $cacheTtl);
-                return response()->json($responseData);
-            }
-
-            Log::info("✅ " . count($matches) . " matchs récupérés intelligemment pour le {$dateString}");
-
-            // Générer des prédictions basiques pour les nouveaux matchs
-            $predictions = [];
-            foreach ($matches as $match) {
-                // Vérifier si une prédiction existe déjà
-                $existingPrediction = DB::table('predictions')
-                    ->where('match_id', $match['id'])
-                    ->first();
-
-                if (!$existingPrediction) {
-                    // Générer une prédiction basique
-                    $prediction = $this->generateBasicPrediction($match, $isPremium, $selectedDate);
-                    if ($prediction) {
-                        $predictions[] = $prediction;
-                    }
-                }
-            }
-
-            Log::info("📊 " . count($predictions) . " nouvelles prédictions générées");
-
-            // Combiner avec les prédictions existantes
-            $allPredictions = $dbPredictions->concat(collect($predictions));
-
-            // 5. Filtrer les prédictions premium si l'utilisateur n'est pas premium
-            if (!$isPremium) {
-                $predictions = array_filter($predictions, function($pred) {
-                    return !isset($pred['is_premium']) || !$pred['is_premium'];
-                });
-            }
-
-            // 6. Limiter à 50 prédictions maximum pour optimiser les performances
-            $predictions = array_slice($predictions, 0, 50);
-
-            // 7. Formater et retourner les prédictions
-            $formattedPredictions = array_map(function($prediction) use ($isPremium) {
-                return $this->formatPredictionFromArray($prediction, $isPremium);
-            }, array_values($predictions));
-
-            Log::info("✅ Retour de " . count($formattedPredictions) . " prédictions pour le {$dateString}");
-
-            // Préparer la réponse et la mettre en cache
-            $responseData = [
-                'success' => true,
-                'data' => $formattedPredictions,
-                'source' => 'api',
-                'cached_at' => now()->toIso8601String(),
-            ];
-
-            Cache::put($cacheKey, $responseData, $cacheTtl);
-            Log::info("💾 Cache stocké pour predictions du {$dateString} (TTL: {$cacheTtl}s)");
-
-            return response()->json($responseData);
-
-        } catch (\Exception $e) {
-            Log::error("❌ Erreur lors de la récupération depuis l'API: " . $e->getMessage(), [
-                'date' => $dateString,
-                'error' => $e->getTraceAsString()
-            ]);
-
-            // En cas d'erreur, fallback sur la base de données
-            return $this->getPredictionsFromDatabase($request, $selectedDate, $isPremium);
-        }
+        Cache::put($cacheKey, $responseData, 60); // TTL court : 1 min pour réessayer rapidement
+        return response()->json($responseData);
     }
 
     /**
@@ -197,7 +120,9 @@ class PredictionController extends Controller
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereBetween('match_date', [$startDate, $endDate])
-            ->orderBy('match_date', 'asc');
+            ->orderBy('league_tier', 'asc')
+            ->orderBy('confidence_stars', 'desc')
+            ->orderBy('match_time', 'asc');
 
         // Filtrer par compétition si fourni
         $competition = $request->query('competition');
@@ -738,7 +663,8 @@ class PredictionController extends Controller
             $dbQuery->where('is_premium', false);
         }
 
-        $predictions = $dbQuery->orderBy('match_date', 'asc')
+        $predictions = $dbQuery->orderBy('league_tier', 'asc')
+            ->orderBy('confidence_stars', 'desc')
             ->orderBy('match_time', 'asc')
             ->limit(50)
             ->get();
