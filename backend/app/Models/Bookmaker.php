@@ -24,8 +24,9 @@ class Bookmaker extends Model
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'is_active'  => 'boolean',
         'sort_order' => 'integer',
+        'regions'    => 'array',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];

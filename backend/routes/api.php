@@ -78,6 +78,12 @@ Route::get('/config/app', [App\Http\Controllers\Api\ConfigController::class, 'ge
 // Bookmakers configurables (publique - liste des bookmakers actifs)
 Route::get('/bookmakers', [App\Http\Controllers\Api\BookmakerController::class, 'index']);
 
+// Bookmakers automatiques détectés depuis les cotes du jour
+Route::get('/bookmakers/auto', [OddsController::class, 'getAutoBookmakers']);
+
+// Bookmakers filtrés par région (détection IP automatique ou ?region=west_africa)
+Route::get('/bookmakers/by-region', [OddsController::class, 'getByRegion']);
+
 // Routes protégées des pronostics (nécessitent authentification)
 // Note: Placées AVANT /predictions/{id} pour éviter conflit de routes
 Route::middleware('auth:sanctum')->group(function () {
@@ -164,6 +170,14 @@ Route::middleware('auth:sanctum')->prefix('admin/affiliate')->group(function () 
     Route::get('/pending', [AffiliateController::class, 'getPendingVerifications']);
     Route::post('/approve/{id}', [AffiliateController::class, 'approveVerification']);
     Route::post('/reject/{id}', [AffiliateController::class, 'rejectVerification']);
+});
+
+// ── Admin Bookmakers CRUD ─────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/bookmakers',       [App\Http\Controllers\Admin\AdminBookmakerController::class, 'index']);
+    Route::post('/bookmakers',      [App\Http\Controllers\Admin\AdminBookmakerController::class, 'store']);
+    Route::put('/bookmakers/{id}',  [App\Http\Controllers\Admin\AdminBookmakerController::class, 'update']);
+    Route::delete('/bookmakers/{id}', [App\Http\Controllers\Admin\AdminBookmakerController::class, 'destroy']);
 });
 
 // ── Dashboard Admin Settings ─────────────────────────────────────────────────

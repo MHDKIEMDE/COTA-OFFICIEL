@@ -52,6 +52,7 @@ COTA/
 - [x] Dashboard admin — pages Abonnements (liste, filtres, graphique revenus, accord manuel)
 - [x] Dashboard admin — page Parrainages (liste, top parrains, paliers récompenses)
 - [x] Dashboard admin — Stats avancées (taux réussite, ROI, graphiques 30j/12m, par étoiles/type/compétition)
+- [x] Bookmakers par région — détection IP automatique, groupement par continent, cards alignées (1xBet/Betwinner/Melbet Afrique de l'Ouest, Bet365/Betclic Europe…)
 
 
 # CLAUDE.md — Laravel + Flutter Project
