@@ -20,6 +20,13 @@ use App\Http\Controllers\Api\TeamController;
 |
 */
 
+// ── Proxy images logos équipes/ligues — cache Redis 30j, Cloudflare en prod ──
+// throttle:120,1 = 120 images/min par IP (carousel = nombreuses images)
+Route::middleware('throttle:120,1')->group(function () {
+    Route::get('/img/{type}/{id}', [App\Http\Controllers\Api\ImageProxyController::class, 'serve'])
+        ->where(['type' => 'team|league|flag', 'id' => '[a-z0-9]+']);
+});
+
 // Route de test pour vérifier que l'API fonctionne
 Route::get('/health', function () {
     return response()->json([
