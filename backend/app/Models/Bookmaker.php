@@ -39,6 +39,11 @@ class Bookmaker extends Model
         return $this->hasMany(BookmakerClick::class);
     }
 
+    public function blog(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(BookmakerBlog::class)->where('is_active', true);
+    }
+
     /**
      * Scope: Bookmakers actifs
      */

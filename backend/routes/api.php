@@ -97,9 +97,11 @@ Route::middleware('throttle:60,1')->group(function () {
 
     // Config & Bookmakers
     Route::get('/config/app',          [App\Http\Controllers\Api\ConfigController::class, 'getAppConfig']);
-    Route::get('/bookmakers',          [App\Http\Controllers\Api\BookmakerController::class, 'index']);
-    Route::get('/bookmakers/auto',     [OddsController::class, 'getAutoBookmakers']);
-    Route::get('/bookmakers/by-region',[OddsController::class, 'getByRegion']);
+    Route::get('/bookmakers',                [App\Http\Controllers\Api\BookmakerController::class, 'index']);
+    Route::get('/bookmakers/auto',           [OddsController::class, 'getAutoBookmakers']);
+    Route::get('/bookmakers/by-region',      [OddsController::class, 'getByRegion']);
+    Route::get('/bookmakers/blogs',          [App\Http\Controllers\Api\BookmakerBlogController::class, 'index']);
+    Route::get('/bookmakers/{id}/blog',      [App\Http\Controllers\Api\BookmakerBlogController::class, 'show']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
