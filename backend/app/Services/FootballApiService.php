@@ -362,12 +362,95 @@ class FootballApiService
      */
     public function getApiPredictions(int $fixtureId): ?array
     {
-        $params = [
-            'fixture' => $fixtureId,
-        ];
+        return $this->makeRequest('/predictions', ['fixture' => $fixtureId], 0);
+    }
 
-        // Ne pas mettre en cache les prédictions
-        return $this->makeRequest('/predictions', $params, 0);
+    /**
+     * Récupérer les cotes bookmakers pour un fixture depuis API-Football.
+     * Endpoint : /odds?fixture={id}&bookmaker=8 (Bet365, disponible plan Free)
+     * Retourne la cote 1X2 la plus pertinente selon le type de pari demandé.
+     *
+     * @param int    $fixtureId  ID du match API-Football
+     * @param string $betType    Type de pari : '1X2', 'Over/Under', 'BTTS', 'Double Chance', 'Corners', 'Cartons'
+     * @param string $outcome    Résultat attendu : '1','X','2','Over 2.5','Under 2.5','Oui','1X','X2', etc.
+     */
+    public function getFixtureOdds(int $fixtureId, string $betType, string $outcome): ?float
+    {
+        $cacheKey = "fixture_odds:{$fixtureId}";
+
+        // Cache 6h — les cotes bookmakers changent peu avant le match
+        $data = Cache::remember($cacheKey, 21600, function () use ($fixtureId) {
+            return $this->makeRequest('/odds', [
+                'fixture'   => $fixtureId,
+                'bookmaker' => 8, // Bet365 — disponible sur plan Free
+            ], 0);
+        });
+
+        if (!$data || empty($data['response'])) {
+            return null;
+        }
+
+        $bets = $data['response'][0]['bookmakers'][0]['bets'] ?? [];
+        if (empty($bets)) {
+            return null;
+        }
+
+        // Noms de marchés exacts tels que retournés par API-Football (Bet365)
+        // et valeurs correspondantes pour chaque type de pari COTA
+        $targets = match($betType) {
+            '1X2' => [
+                'market' => 'Match Winner',
+                'value'  => match($outcome) {
+                    '1'  => 'Home',
+                    '2'  => 'Away',
+                    'X'  => 'Draw',
+                    default => $outcome,
+                },
+            ],
+            'Double Chance' => [
+                'market' => 'Double Chance',
+                'value'  => match($outcome) {
+                    '1X' => 'Home/Draw',
+                    'X2' => 'Draw/Away',
+                    '12' => 'Home/Away',
+                    default => $outcome,
+                },
+            ],
+            'BTTS' => [
+                'market' => 'Both Teams Score',
+                'value'  => $outcome === 'Oui' ? 'Yes' : 'No',
+            ],
+            'Over/Under' => [
+                'market' => 'Goals Over/Under',
+                'value'  => $outcome, // "Over 2.5", "Under 2.5", etc. — exact match API
+            ],
+            'Corners' => [
+                'market' => 'Corners Over Under',
+                'value'  => $outcome, // "Over 9.5", "Under 8.5"
+            ],
+            'Cartons' => [
+                'market' => 'Cards',
+                'value'  => $outcome,
+            ],
+            default => [
+                'market' => 'Match Winner',
+                'value'  => 'Home',
+            ],
+        };
+
+        foreach ($bets as $bet) {
+            if ($bet['name'] !== $targets['market']) {
+                continue;
+            }
+            foreach ($bet['values'] ?? [] as $v) {
+                if (strcasecmp($v['value'], $targets['value']) === 0) {
+                    $odd = (float) ($v['odd'] ?? 0);
+                    return $odd > 1.0 ? round($odd, 2) : null;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

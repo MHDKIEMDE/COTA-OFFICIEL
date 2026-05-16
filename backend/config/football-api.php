@@ -62,6 +62,33 @@ return [
         848 => 'UEFA Conference League',
     ],
 
+    // Ligues populaires indexées par ID (pour filtrage et priorité appels API cotes)
+    'popular_leagues' => [
+        // Tier 1 — Top 5 européennes + Champions League
+        2   => ['name' => 'Champions League',    'country' => 'Europe',      'tier' => 1],
+        39  => ['name' => 'Premier League',      'country' => 'England',     'tier' => 1],
+        140 => ['name' => 'La Liga',             'country' => 'Spain',       'tier' => 1],
+        135 => ['name' => 'Serie A',             'country' => 'Italy',       'tier' => 1],
+        78  => ['name' => 'Bundesliga',          'country' => 'Germany',     'tier' => 1],
+        61  => ['name' => 'Ligue 1',             'country' => 'France',      'tier' => 1],
+        // Tier 2 — Compétitions européennes + ligues secondaires
+        3   => ['name' => 'Europa League',       'country' => 'Europe',      'tier' => 2],
+        848 => ['name' => 'Conference League',   'country' => 'Europe',      'tier' => 2],
+        94  => ['name' => 'Primeira Liga',       'country' => 'Portugal',    'tier' => 2],
+        88  => ['name' => 'Eredivisie',          'country' => 'Netherlands', 'tier' => 2],
+        144 => ['name' => 'Pro League',          'country' => 'Belgium',     'tier' => 2],
+        179 => ['name' => 'Scottish Premiership','country' => 'Scotland',    'tier' => 2],
+        307 => ['name' => 'Saudi Pro League',    'country' => 'Saudi Arabia','tier' => 2],
+        // Tier 3 — Ligues majeures hors Europe
+        253 => ['name' => 'MLS',                'country' => 'USA',         'tier' => 3],
+        71  => ['name' => 'Brasileirao',         'country' => 'Brazil',      'tier' => 3],
+        262 => ['name' => 'Liga MX',            'country' => 'Mexico',      'tier' => 3],
+        203 => ['name' => 'Süper Lig',          'country' => 'Turkey',      'tier' => 3],
+        // Tier 4 — Afrique & reste
+        12  => ['name' => 'AFCON',              'country' => 'Africa',      'tier' => 4],
+        29  => ['name' => 'CAF Champions League','country' => 'Africa',      'tier' => 4],
+    ],
+
     // Priorité des ligues par nom exact retourné par l'API (tier 1 = plus populaire, 99 = inconnu)
     // Clé = nom exact tel que retourné par API-Football
     'league_tiers' => [

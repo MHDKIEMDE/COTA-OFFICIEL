@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\FootballApiService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -11,17 +12,28 @@ class RegeneratePredictions extends Command
     protected $signature = 'predictions:regenerate
                             {--date= : Date cible (YYYY-MM-DD, défaut: aujourd\'hui)}
                             {--limit=0 : Limite de prédictions à traiter (0 = toutes)}
-                            {--dry-run : Afficher sans sauvegarder}';
+                            {--dry-run : Afficher sans sauvegarder}
+                            {--no-api : Ne pas appeler API-Football pour les cotes (utiliser cotes calculées)}';
 
-    protected $description = 'Régénère bet_type/prediction/odds depuis les scores DB avec diversification par IDs équipes';
+    protected $description = 'Régénère bet_type/prediction/odds — cotes récupérées depuis API-Football (fallback calculé si quota dépassé)';
+
+    private FootballApiService $footballApi;
+    private int $apiCallsUsed  = 0;
+    private int $apiCallsLimit = 80; // Garder 20 requêtes de marge sur 100/jour
 
     public function handle(): int
     {
         $date   = $this->option('date') ?? Carbon::today()->toDateString();
         $limit  = (int) $this->option('limit');
         $dryRun = $this->option('dry-run');
+        $noApi  = $this->option('no-api');
+
+        $this->footballApi = app(FootballApiService::class);
 
         $this->info("Régénération des prédictions pour le {$date}" . ($dryRun ? ' [DRY-RUN]' : ''));
+        if (!$noApi) {
+            $this->info("Mode : cotes réelles API-Football (fallback calculé si quota atteint)");
+        }
 
         $query = DB::table('predictions')
             ->whereDate('match_date', $date)
@@ -42,11 +54,29 @@ class RegeneratePredictions extends Command
         $bar = $this->output->createProgressBar($total);
         $bar->start();
 
-        $updated    = 0;
-        $typeCounts = [];
+        $updated      = 0;
+        $apiHits      = 0;
+        $apiFallbacks = 0;
+        $typeCounts   = [];
+
+        // Ligues populaires (Tier 1-3) — on priorise les appels API pour celles-ci
+        $popularLeagueIds = array_keys(config('football-api.popular_leagues', []));
 
         foreach ($rows as $row) {
             $result = $this->computeBetType($row);
+
+            // Appeler l'API uniquement pour les ligues populaires et si quota disponible
+            $isPopular = in_array((int) $row->competition_id, $popularLeagueIds);
+            if (!$noApi && $row->match_id && $this->apiCallsUsed < $this->apiCallsLimit && $isPopular) {
+                $apiOdds = $this->fetchApiOdds((int) $row->match_id, $result['type'], $result['outcome']);
+                if ($apiOdds !== null) {
+                    $result['odds'] = $apiOdds;
+                    $apiHits++;
+                    $this->apiCallsUsed++;
+                } else {
+                    $apiFallbacks++;
+                }
+            }
 
             $typeCounts[$result['type']] = ($typeCounts[$result['type']] ?? 0) + 1;
 
@@ -67,6 +97,9 @@ class RegeneratePredictions extends Command
         $this->newLine(2);
 
         $this->info("Terminé : {$updated}/{$total} mises à jour");
+        if (!$noApi) {
+            $this->info("Cotes API réelles : {$apiHits} | Cotes calculées (fallback) : {$apiFallbacks}");
+        }
         $this->newLine();
 
         arsort($typeCounts);
@@ -82,6 +115,19 @@ class RegeneratePredictions extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Appelle API-Football /odds pour récupérer la vraie cote bookmaker.
+     * Retourne null si l'API ne répond pas ou si la cote n'est pas disponible.
+     */
+    private function fetchApiOdds(int $fixtureId, string $betType, string $outcome): ?float
+    {
+        try {
+            return $this->footballApi->getFixtureOdds($fixtureId, $betType, $outcome);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
