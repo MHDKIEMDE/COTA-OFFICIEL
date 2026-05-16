@@ -11,9 +11,9 @@ export default function PredictionsList({
   isPremiumUser: boolean;
 }) {
   const [predictions, setPredictions] = useState<any[]>([]);
-  const [filtered, setFiltered] = useState<any[]>([]);
-  const [tier, setTier] = useState<Tier>("all");
-  const [status, setStatus] = useState<"loading" | "error" | "empty" | "success">("loading");
+  const [filtered, setFiltered]       = useState<any[]>([]);
+  const [tier, setTier]               = useState<Tier>("all");
+  const [status, setStatus]           = useState<"loading" | "error" | "empty" | "success">("loading");
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/predictions/today`)
@@ -28,21 +28,17 @@ export default function PredictionsList({
   }, []);
 
   useEffect(() => {
-    if (tier === "all") {
-      setFiltered(predictions);
-    } else {
-      setFiltered(
-        predictions.filter((p) => p.matches?.league_tier === Number(tier))
-      );
-    }
+    setFiltered(
+      tier === "all" ? predictions : predictions.filter((p) => p.matches?.league_tier === Number(tier))
+    );
   }, [tier, predictions]);
 
   const TIERS: { value: Tier; label: string }[] = [
     { value: "all", label: "Tous" },
-    { value: "1", label: "Tier 1" },
-    { value: "2", label: "Tier 2" },
-    { value: "3", label: "Tier 3" },
-    { value: "4", label: "Tier 4" },
+    { value: "1",   label: "Tier 1" },
+    { value: "2",   label: "Tier 2" },
+    { value: "3",   label: "Tier 3" },
+    { value: "4",   label: "Tier 4" },
   ];
 
   return (
@@ -55,8 +51,8 @@ export default function PredictionsList({
             onClick={() => setTier(t.value)}
             className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition ${
               tier === t.value
-                ? "bg-green-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
+                ? "bg-[#F9FF00] text-black font-bold"
+                : "bg-[#111111] border border-[#1E1E1E] text-[#888888] hover:border-[#F9FF00]/40 hover:text-white"
             }`}
           >
             {t.label}
@@ -64,31 +60,32 @@ export default function PredictionsList({
         ))}
       </div>
 
-      {/* États */}
       {status === "loading" && (
         <div className="flex flex-col gap-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-gray-900 rounded-2xl h-40 animate-pulse" />
+            <div key={i} className="bg-[#111111] rounded-2xl h-40 animate-pulse border border-[#1E1E1E]" />
           ))}
         </div>
       )}
 
       {status === "error" && (
-        <div className="text-center py-12 text-red-400">
-          <p className="text-lg font-semibold">Erreur de chargement</p>
-          <p className="text-sm text-gray-500 mt-1">Vérifie ta connexion et réessaie</p>
+        <div className="bg-[#111111] border border-[#FF3B30]/30 rounded-2xl p-8 text-center">
+          <p className="text-[#FF3B30] text-2xl mb-3">⚠️</p>
+          <p className="font-semibold text-white">Erreur de chargement</p>
+          <p className="text-[#888888] text-sm mt-1">Vérifie ta connexion et réessaie</p>
         </div>
       )}
 
       {status === "empty" && (
-        <div className="text-center py-12 text-gray-500">
-          <p className="text-lg font-semibold">Aucune prédiction aujourd'hui</p>
-          <p className="text-sm mt-1">Reviens plus tard</p>
+        <div className="bg-[#111111] border border-[#1E1E1E] rounded-2xl p-8 text-center">
+          <p className="text-4xl mb-4">⚽</p>
+          <p className="text-lg font-bold text-white">Aucune prédiction aujourd'hui</p>
+          <p className="text-sm text-[#888888] mt-1">Reviens demain matin</p>
         </div>
       )}
 
       {status === "success" && filtered.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-8 text-[#888888]">
           <p className="text-sm">Aucun match pour ce tier aujourd'hui</p>
         </div>
       )}

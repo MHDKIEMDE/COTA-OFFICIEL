@@ -1,41 +1,19 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const LARAVEL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000/api";
 
 export async function POST(req: NextRequest) {
-  const data = await req.json();
+  const body = await req.text();
 
-  if (data?.status !== "completed") {
-    return NextResponse.json({ received: true });
-  }
-
-  const custom = data.custom_data ?? {};
-  const userId = custom.user_id;
-  const months = Number(custom.months ?? 1);
-  const plan = custom.plan;
-
-  if (!userId) return NextResponse.json({ received: true });
-
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + months * 30 * 24 * 60 * 60 * 1000);
-
-  await supabase.from("subscriptions").upsert(
-    {
-      user_id: userId,
-      plan,
-      status: "active",
-      started_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      paydunya_token: data.invoice?.token ?? null,
+  const res = await fetch(`${LARAVEL}/payments/webhook/paydunya`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Paydunya-Secret": process.env.PAYDUNYA_MASTER_KEY ?? "",
     },
-    { onConflict: "user_id" }
-  );
+    body,
+  });
 
-  await supabase.from("profiles").update({ role: "premium" }).eq("id", userId);
-
-  return NextResponse.json({ received: true });
+  const data = await res.json().catch(() => ({ received: true }));
+  return NextResponse.json(data, { status: res.status });
 }

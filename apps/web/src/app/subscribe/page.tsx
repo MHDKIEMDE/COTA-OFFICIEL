@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { api, getToken, isAuthenticated } from "@/lib/api/client";
 
 const PLANS = [
   {
@@ -43,62 +43,38 @@ function SubscribeContent() {
   const [loading, setLoading] = useState<string | null>(null);
 
   async function handleSubscribe(planKey: string) {
-    setLoading(planKey);
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
+    if (!isAuthenticated()) {
       window.location.href = "/login?redirect=/subscribe";
       return;
     }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("id", user.id)
-      .single();
-
-    const resp = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/payments/initiate`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan: planKey,
-          user_id: user.id,
-          user_email: user.email,
-          user_name: profile?.full_name ?? user.email,
-        }),
-      }
-    );
-
-    if (!resp.ok) {
-      setLoading(null);
+    setLoading(planKey);
+    try {
+      const res = await api.post<{ checkout_url: string }>("/payments/initiate", { plan: planKey });
+      window.location.href = res.checkout_url;
+    } catch {
       alert("Erreur lors de l'initiation du paiement. Réessayez.");
-      return;
+      setLoading(null);
     }
-
-    const data = await resp.json();
-    window.location.href = data.checkout_url;
   }
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white">
+    <main className="min-h-screen bg-[#000000] text-white">
       <div className="max-w-5xl mx-auto px-4 py-12">
         <div className="text-center mb-12">
+          <p className="text-[#F9FF00] text-xs font-bold uppercase tracking-widest mb-2">⭐ Premium</p>
           <h1 className="text-4xl font-black mb-3">Passez Premium</h1>
-          <p className="text-gray-400 text-lg">
+          <p className="text-[#888888] text-lg">
             Accédez à tous nos pronostics et analyses IA sans limite
           </p>
         </div>
 
         {status === "success" && (
-          <div className="mb-8 bg-green-900/40 border border-green-700 rounded-xl p-4 text-center text-green-400 font-semibold">
+          <div className="mb-8 bg-[#00FF8C]/10 border border-[#00FF8C]/40 rounded-xl p-4 text-center text-[#00FF8C] font-semibold">
             Paiement réussi ! Votre abonnement Premium est activé.
           </div>
         )}
         {status === "cancel" && (
-          <div className="mb-8 bg-red-900/40 border border-red-700 rounded-xl p-4 text-center text-red-400 font-semibold">
+          <div className="mb-8 bg-[#FF3B30]/10 border border-[#FF3B30]/30 rounded-xl p-4 text-center text-[#FF3B30] font-semibold">
             Paiement annulé. Vous pouvez réessayer à tout moment.
           </div>
         )}
@@ -109,36 +85,36 @@ function SubscribeContent() {
               key={plan.key}
               className={`relative rounded-2xl p-6 flex flex-col gap-5 border ${
                 plan.highlight
-                  ? "bg-amber-950/40 border-amber-500 ring-2 ring-amber-500/40"
-                  : "bg-gray-900 border-gray-800"
+                  ? "bg-[#F9FF00]/5 border-[#F9FF00]/50 ring-2 ring-[#F9FF00]/20"
+                  : "bg-[#111111] border-[#1E1E1E]"
               }`}
             >
               {plan.badge && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-wide">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#F9FF00] text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-wide">
                   {plan.badge}
                 </span>
               )}
 
               <div>
-                <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-1">
+                <p className="text-sm font-semibold text-[#888888] uppercase tracking-wider mb-1">
                   {plan.label}
                 </p>
                 <div className="flex items-end gap-1">
                   <span className="text-4xl font-black">
                     {plan.amount.toLocaleString("fr-FR")}
                   </span>
-                  <span className="text-lg text-gray-400 mb-1">{plan.currency}</span>
+                  <span className="text-lg text-[#888888] mb-1">{plan.currency}</span>
                 </div>
-                <span className="text-gray-500 text-sm">{plan.period}</span>
+                <span className="text-[#888888] text-sm">{plan.period}</span>
                 {plan.saving && (
-                  <p className="mt-1 text-amber-400 text-sm font-semibold">{plan.saving}</p>
+                  <p className="mt-1 text-[#F9FF00] text-sm font-semibold">{plan.saving}</p>
                 )}
               </div>
 
               <ul className="flex flex-col gap-2 flex-1">
                 {plan.perks.map((p) => (
-                  <li key={p} className="flex items-center gap-2 text-sm text-gray-300">
-                    <span className="text-amber-400 font-bold">✓</span> {p}
+                  <li key={p} className="flex items-center gap-2 text-sm text-[#CCCCCC]">
+                    <span className="text-[#F9FF00] font-bold">✓</span> {p}
                   </li>
                 ))}
               </ul>
@@ -148,8 +124,8 @@ function SubscribeContent() {
                 disabled={loading === plan.key}
                 className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
                   plan.highlight
-                    ? "bg-amber-500 hover:bg-amber-400 text-black"
-                    : "bg-gray-700 hover:bg-gray-600 text-white"
+                    ? "bg-[#F9FF00] hover:bg-[#e8ee00] text-black"
+                    : "bg-[#1A1A1A] hover:bg-[#222222] border border-[#2A2A2A] text-white"
                 } disabled:opacity-60 disabled:cursor-not-allowed`}
               >
                 {loading === plan.key ? "Redirection..." : "S'abonner maintenant"}
@@ -158,16 +134,10 @@ function SubscribeContent() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap justify-center gap-6 text-sm text-gray-500">
-          <div className="flex items-center gap-2">
-            <span>💳</span> Wave, Orange Money, MTN, Moov
-          </div>
-          <div className="flex items-center gap-2">
-            <span>🔒</span> Paiement sécurisé via Paydunya
-          </div>
-          <div className="flex items-center gap-2">
-            <span>✓</span> Résiliation à tout moment
-          </div>
+        <div className="mt-10 flex flex-wrap justify-center gap-6 text-sm text-[#888888]">
+          <div className="flex items-center gap-2"><span>💳</span> Wave, Orange Money, MTN, Moov</div>
+          <div className="flex items-center gap-2"><span>🔒</span> Paiement sécurisé via Paydunya</div>
+          <div className="flex items-center gap-2"><span>✓</span> Résiliation à tout moment</div>
         </div>
       </div>
     </main>
