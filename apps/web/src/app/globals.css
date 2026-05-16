@@ -1,24 +1,25 @@
 @import "tailwindcss";
 
+/* ── Design tokens alignés avec l'app Flutter ───────────────── */
 :root {
-  --bg: #080C14;
-  --bg2: #0D1117;
-  --bg3: #161B22;
-  --surface: #1C2333;
-  --border: #30363D;
-  --primary: #3B82F6;
-  --primary-glow: rgba(59,130,246,0.15);
-  --accent: #10B981;
-  --gold: #F59E0B;
-  --text: #F0F6FC;
-  --text2: #C9D1D9;
-  --muted: #8B949E;
-  --dim: #484F58;
-  --live: #EF4444;
+  --bg:          #000000;              /* AppColors.background  */
+  --bg2:         #0A0A0A;
+  --surface:     #111111;              /* AppColors.surface     */
+  --border:      #1E1E1E;              /* AppColors.border      */
+  --primary:     #F9FF00;              /* AppColors.primary     */
+  --primary-dim: rgba(249,255,0,0.08);
+  --primary-mid: rgba(249,255,0,0.18);
+  --primary-glow:rgba(249,255,0,0.30);
+  --text:        #FFFFFF;              /* AppColors.textPrimary */
+  --text2:       #CCCCCC;
+  --muted:       #888888;              /* AppColors.textMuted   */
+  --dim:         #444444;
+  --live:        #FF3B30;
+  --green:       #34C759;
+  --red:         #FF3B30;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -37,14 +38,14 @@ body {
 .ticker-track { animation: ticker 28s linear infinite; }
 .ticker-track:hover { animation-play-state: paused; }
 
-/* ── Pulse dot ── */
+/* ── Pulse dot live ── */
 @keyframes pulse-live {
   0%, 100% { opacity: 1; transform: scale(1); }
   50%       { opacity: 0.4; transform: scale(0.7); }
 }
 .pulse { animation: pulse-live 1.2s ease-in-out infinite; }
 
-/* ── Counter number ── */
+/* ── Counter ── */
 @keyframes count-up {
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -56,17 +57,17 @@ body {
   from { opacity: 0; transform: translateY(32px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.reveal { animation: reveal 0.8s cubic-bezier(0.16,1,0.3,1) both; }
-.reveal-1 { animation-delay: 0.1s; }
+.reveal   { animation: reveal 0.8s cubic-bezier(0.16,1,0.3,1) both; }
+.reveal-1 { animation-delay: 0.10s; }
 .reveal-2 { animation-delay: 0.22s; }
 .reveal-3 { animation-delay: 0.36s; }
-.reveal-4 { animation-delay: 0.5s; }
+.reveal-4 { animation-delay: 0.50s; }
 .reveal-5 { animation-delay: 0.64s; }
 
-/* ── Shimmer on cards ── */
+/* ── Shimmer skeleton ── */
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  100% { background-position:  200% 0; }
 }
 .shimmer-line {
   background: linear-gradient(90deg, var(--border) 25%, var(--surface) 50%, var(--border) 75%);
@@ -75,50 +76,32 @@ body {
   border-radius: 4px;
 }
 
-/* ── Glow button ── */
-.btn-glow {
+/* ── Bouton jaune — hover lift + glow ── */
+.btn-primary {
   position: relative;
   overflow: hidden;
   transition: transform 0.15s, box-shadow 0.15s;
 }
-.btn-glow::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.12) 0%, transparent 60%);
-  pointer-events: none;
-}
-.btn-glow:hover {
+.btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(59,130,246,0.4);
+  box-shadow: 0 8px 32px var(--primary-glow);
 }
-.btn-glow:active { transform: translateY(0); }
+.btn-primary:active { transform: translateY(0); }
 
-/* ── Card hover ── */
+/* ── Card hover jaune ── */
 .card-hover {
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 .card-hover:hover {
   border-color: var(--primary) !important;
-  box-shadow: 0 0 0 1px var(--primary), 0 8px 32px rgba(59,130,246,0.15);
+  box-shadow: 0 0 0 1px var(--primary), 0 8px 24px var(--primary-dim);
   transform: translateY(-2px);
 }
 
-/* ── Noise overlay ── */
-.noise::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.4;
-}
-
 /* ── Scrollbar ── */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar       { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-/* ── Selection ── */
-::selection { background: var(--primary-glow); color: var(--text); }
+/* ── Sélection texte ── */
+::selection { background: var(--primary-mid); color: #000; }

@@ -7,40 +7,26 @@ import { useRouter } from "next/navigation";
 type Step = "email" | "otp";
 
 export default function LoginForm() {
-  const [step, setStep] = useState<Step>("email");
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const [step, setStep]       = useState<Step>("email");
+  const [email, setEmail]     = useState("");
+  const [otp, setOtp]         = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const [error, setError]     = useState<string | null>(null);
+  const router   = useRouter();
   const supabase = createClient();
 
   async function sendOtp() {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     const { error } = await supabase.auth.signInWithOtp({ email });
-    if (error) {
-      setError(error.message);
-    } else {
-      setStep("otp");
-    }
+    if (error) setError(error.message); else setStep("otp");
     setLoading(false);
   }
 
   async function verifyOtp() {
-    setLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: otp,
-      type: "email",
-    });
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/dashboard");
-      router.refresh();
-    }
+    setLoading(true); setError(null);
+    const { error } = await supabase.auth.verifyOtp({ email, token: otp, type: "email" });
+    if (error) setError(error.message);
+    else { router.push("/dashboard"); router.refresh(); }
     setLoading(false);
   }
 
@@ -53,9 +39,9 @@ export default function LoginForm() {
 
   if (step === "otp") {
     return (
-      <div className="flex flex-col gap-4 w-full max-w-sm">
-        <p className="text-sm text-gray-500 text-center">
-          Code envoyé à <strong>{email}</strong>
+      <div className="flex flex-col gap-4 w-full">
+        <p className="text-sm text-[#888888] text-center">
+          Code envoyé à <strong className="text-white">{email}</strong>
         </p>
         <input
           type="text"
@@ -63,20 +49,17 @@ export default function LoginForm() {
           value={otp}
           onChange={(e) => setOtp(e.target.value)}
           maxLength={6}
-          className="border rounded-lg px-4 py-3 text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="bg-[#111111] border border-[#1E1E1E] rounded-xl px-4 py-3 text-center text-2xl tracking-widest text-white focus:outline-none focus:border-[#F9FF00] transition"
         />
-        {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+        {error && <p className="text-[#FF3B30] text-sm text-center">{error}</p>}
         <button
           onClick={verifyOtp}
           disabled={loading || otp.length < 6}
-          className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg py-3 font-semibold transition"
+          className="bg-[#F9FF00] hover:bg-[#e8ee00] disabled:opacity-40 text-black rounded-xl py-3 font-bold transition btn-primary"
         >
-          {loading ? "Vérification..." : "Connexion"}
+          {loading ? "Vérification..." : "Se connecter"}
         </button>
-        <button
-          onClick={() => setStep("email")}
-          className="text-sm text-gray-400 hover:text-gray-600"
-        >
+        <button onClick={() => setStep("email")} className="text-sm text-[#888888] hover:text-white transition">
           Changer d'email
         </button>
       </div>
@@ -84,30 +67,32 @@ export default function LoginForm() {
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full max-w-sm">
+    <div className="flex flex-col gap-4 w-full">
       <input
         type="email"
         placeholder="Ton email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        className="border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500"
+        className="bg-[#111111] border border-[#1E1E1E] rounded-xl px-4 py-3 text-white focus:outline-none focus:border-[#F9FF00] transition placeholder:text-[#444444]"
       />
-      {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+      {error && <p className="text-[#FF3B30] text-sm text-center">{error}</p>}
       <button
         onClick={sendOtp}
         disabled={loading || !email}
-        className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg py-3 font-semibold transition"
+        className="bg-[#F9FF00] hover:bg-[#e8ee00] disabled:opacity-40 text-black rounded-xl py-3 font-bold transition btn-primary"
       >
         {loading ? "Envoi..." : "Recevoir le code"}
       </button>
+
       <div className="flex items-center gap-3">
-        <div className="flex-1 h-px bg-gray-200" />
-        <span className="text-gray-400 text-sm">ou</span>
-        <div className="flex-1 h-px bg-gray-200" />
+        <div className="flex-1 h-px bg-[#1E1E1E]" />
+        <span className="text-[#444444] text-sm">ou</span>
+        <div className="flex-1 h-px bg-[#1E1E1E]" />
       </div>
+
       <button
         onClick={loginWithGoogle}
-        className="border rounded-lg py-3 font-semibold flex items-center justify-center gap-2 hover:bg-gray-50 transition"
+        className="bg-[#111111] border border-[#1E1E1E] hover:border-[#F9FF00]/40 rounded-xl py-3 font-semibold flex items-center justify-center gap-2 text-white transition card-hover"
       >
         <svg width="18" height="18" viewBox="0 0 48 48">
           <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>

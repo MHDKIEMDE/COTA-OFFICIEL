@@ -4,7 +4,7 @@ export default function ConfidenceStars({ level }: { level: 1 | 2 | 3 | 4 }) {
       {[1, 2, 3, 4].map((i) => (
         <svg
           key={i}
-          className={`w-4 h-4 ${i <= level ? "text-yellow-400" : "text-gray-700"}`}
+          className={`w-4 h-4 ${i <= level ? "text-[#F9FF00]" : "text-[#1E1E1E]"}`}
           fill="currentColor"
           viewBox="0 0 20 20"
         >

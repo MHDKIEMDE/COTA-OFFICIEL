@@ -22,13 +22,13 @@ interface Prediction {
 }
 
 const RESULT_BADGE: Record<string, string> = {
-  win: "bg-green-500/20 text-green-400 border-green-500/30",
-  loss: "bg-red-500/20 text-red-400 border-red-500/30",
-  void: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  win:  "bg-[#34C759]/15 text-[#34C759] border-[#34C759]/30",
+  loss: "bg-[#FF3B30]/15 text-[#FF3B30] border-[#FF3B30]/30",
+  void: "bg-[#888888]/15 text-[#888888] border-[#888888]/30",
 };
 
 const RESULT_LABEL: Record<string, string> = {
-  win: "Gagné ✓",
+  win:  "Gagné ✓",
   loss: "Perdu ✗",
   void: "Nul",
 };
@@ -48,9 +48,9 @@ export default function PredictionCard({
   });
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col gap-4 hover:border-gray-700 transition">
-      {/* Header ligue + heure */}
-      <div className="flex items-center justify-between text-xs text-gray-500">
+    <div className="bg-[#111111] border border-[#1E1E1E] rounded-2xl p-4 flex flex-col gap-4 card-hover">
+      {/* Ligue + heure */}
+      <div className="flex items-center justify-between text-xs text-[#888888]">
         <span>{match.league_name ?? "Ligue"}</span>
         <span>{matchTime}</span>
       </div>
@@ -65,7 +65,7 @@ export default function PredictionCard({
             {match.home_team}
           </span>
         </div>
-        <span className="text-gray-600 font-bold text-lg">VS</span>
+        <span className="text-[#444444] font-bold text-lg">VS</span>
         <div className="flex flex-col items-center gap-1 flex-1">
           {match.away_logo_url && (
             <img src={match.away_logo_url} alt={match.away_team} className="w-8 h-8 object-contain" />
@@ -80,19 +80,19 @@ export default function PredictionCard({
       {isLocked ? (
         <PremiumLock />
       ) : (
-        <div className="flex items-center justify-between bg-gray-800/60 rounded-xl px-4 py-3">
+        <div className="flex items-center justify-between bg-[#1E1E1E] rounded-xl px-4 py-3">
           <div className="flex flex-col gap-1">
-            <span className="text-xs text-gray-500">Prédiction</span>
+            <span className="text-xs text-[#888888]">Prédiction</span>
             <span className="font-bold text-white text-lg">{prediction.prediction}</span>
           </div>
           <div className="flex flex-col items-end gap-1">
             <ConfidenceStars level={prediction.confidence} />
-            <span className="text-xs text-gray-400">Cote ~{prediction.odds.toFixed(2)}</span>
+            <span className="text-xs text-[#888888]">Cote ~{prediction.odds.toFixed(2)}</span>
           </div>
         </div>
       )}
 
-      {/* Résultat si disponible */}
+      {/* Résultat */}
       {prediction.result && (
         <div className={`text-xs font-semibold px-3 py-1.5 rounded-lg border w-fit ${RESULT_BADGE[prediction.result]}`}>
           {RESULT_LABEL[prediction.result]}
