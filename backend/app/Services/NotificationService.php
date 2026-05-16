@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Notification;
 use App\Models\User;
 use App\Services\Sms\SmsService;
 use Illuminate\Support\Facades\Http;
@@ -38,6 +39,9 @@ class NotificationService
             return false;
         }
 
+        // Persister en DB avant l'envoi push
+        $this->persist($userId, $title, $body, $data);
+
         $pushSent = false;
         if ($user->fcm_token) {
             $pushSent = $this->sendToToken($user->fcm_token, $title, $body, $data);
@@ -48,6 +52,20 @@ class NotificationService
         }
 
         return $pushSent;
+    }
+
+    /**
+     * Persiste une notification en base pour historique in-app.
+     */
+    public function persist(int $userId, string $title, string $body, array $data = []): Notification
+    {
+        return Notification::create([
+            'user_id' => $userId,
+            'type'    => $data['type'] ?? 'general',
+            'title'   => $title,
+            'body'    => $body,
+            'data'    => $data ?: null,
+        ]);
     }
 
     /**

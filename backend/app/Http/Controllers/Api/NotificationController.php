@@ -3,173 +3,149 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Resources\NotificationResource;
+use App\Models\Notification;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
-/**
- * Controller pour la gestion des notifications push (FCM)
- */
 class NotificationController extends Controller
 {
-    /**
-     * Enregistrer le token FCM de l'utilisateur
-     * 
-     * POST /api/notifications/register
-     * Body: {
-     *   "fcm_token": "string",
-     *   "device_type": "ios|android" (optionnel)
-     * }
-     */
+    // POST /api/notifications/register
     public function register(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
         $validator = Validator::make($request->all(), [
-            'fcm_token' => 'required|string|max:500',
+            'fcm_token'   => 'required|string|max:500',
             'device_type' => 'nullable|string|in:ios,android',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        // Mettre à jour le token FCM de l'utilisateur
+        $user = $request->user();
         $user->update([
-            'fcm_token' => $request->fcm_token,
+            'fcm_token'   => $request->fcm_token,
             'device_type' => $request->device_type ?? $user->device_type,
         ]);
 
-        Log::info('FCM token registered', [
-            'user_id' => $user->id,
-            'device_type' => $user->device_type,
-        ]);
+        Log::info('FCM token registered', ['user_id' => $user->id, 'device_type' => $user->device_type]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Token FCM enregistré avec succès.',
-            'data' => [
-                'fcm_token_registered' => true,
-                'device_type' => $user->device_type,
-            ],
+            'message' => 'Token FCM enregistré.',
+            'data'    => ['fcm_token_registered' => true, 'device_type' => $user->device_type],
         ]);
     }
 
-    /**
-     * Récupérer les paramètres de notifications de l'utilisateur
-     * 
-     * GET /api/notifications/settings
-     */
+    // DELETE /api/notifications/unregister
+    public function unregister(Request $request): JsonResponse
+    {
+        $request->user()->update(['fcm_token' => null]);
+
+        Log::info('FCM token unregistered', ['user_id' => $request->user()->id]);
+
+        return response()->json(['success' => true, 'message' => 'Token FCM supprimé.']);
+    }
+
+    // GET /api/notifications
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $notifications = Notification::forUser($request->user()->id)
+            ->orderByDesc('created_at')
+            ->paginate(30);
+
+        return NotificationResource::collection($notifications);
+    }
+
+    // GET /api/notifications/unread-count
+    public function unreadCount(Request $request): JsonResponse
+    {
+        $count = Notification::forUser($request->user()->id)->unread()->count();
+
+        return response()->json(['success' => true, 'data' => ['count' => $count]]);
+    }
+
+    // PUT /api/notifications/{id}/read
+    public function markRead(Request $request, int $id): JsonResponse
+    {
+        $notification = Notification::forUser($request->user()->id)->findOrFail($id);
+        $notification->markAsRead();
+
+        return response()->json(['success' => true, 'message' => 'Notification marquée comme lue.']);
+    }
+
+    // PUT /api/notifications/read-all
+    public function markAllRead(Request $request): JsonResponse
+    {
+        $count = Notification::forUser($request->user()->id)
+            ->unread()
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true, 'message' => "$count notification(s) marquée(s) comme lues."]);
+    }
+
+    // DELETE /api/notifications/{id}
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $notification = Notification::forUser($request->user()->id)->findOrFail($id);
+        $notification->delete();
+
+        return response()->json(['success' => true, 'message' => 'Notification supprimée.']);
+    }
+
+    // DELETE /api/notifications
+    public function destroyAll(Request $request): JsonResponse
+    {
+        $count = Notification::forUser($request->user()->id)->delete();
+
+        return response()->json(['success' => true, 'message' => "$count notification(s) supprimée(s)."]);
+    }
+
+    // GET /api/notifications/settings
     public function getSettings(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
-        // Pour l'instant, on stocke les settings dans une colonne JSON de users
-        // Si la colonne n'existe pas encore, on retourne des valeurs par défaut
-        $settings = $user->notification_settings ?? [
-            'push_enabled' => true,
+        $settings = $request->user()->notification_settings ?? [
+            'push_enabled'        => true,
             'predictions_enabled' => true,
             'live_scores_enabled' => true,
-            'goals_enabled' => true,
-            'combined_enabled' => true,
-            'promotions_enabled' => true,
+            'goals_enabled'       => true,
+            'combined_enabled'    => true,
+            'promotions_enabled'  => false,
         ];
 
-        return response()->json([
-            'success' => true,
-            'data' => $settings,
-        ]);
+        return response()->json(['success' => true, 'data' => ['settings' => $settings]]);
     }
 
-    /**
-     * Mettre à jour les paramètres de notifications
-     * 
-     * PUT /api/notifications/settings
-     * Body: {
-     *   "push_enabled": true|false,
-     *   "predictions_enabled": true|false,
-     *   "live_scores_enabled": true|false,
-     *   "goals_enabled": true|false,
-     *   "combined_enabled": true|false,
-     *   "promotions_enabled": true|false
-     * }
-     */
+    // PUT /api/notifications/settings
     public function updateSettings(Request $request): JsonResponse
     {
-        $user = $request->user();
-        
         $validator = Validator::make($request->all(), [
-            'push_enabled' => 'sometimes|boolean',
+            'push_enabled'        => 'sometimes|boolean',
             'predictions_enabled' => 'sometimes|boolean',
             'live_scores_enabled' => 'sometimes|boolean',
-            'goals_enabled' => 'sometimes|boolean',
-            'combined_enabled' => 'sometimes|boolean',
-            'promotions_enabled' => 'sometimes|boolean',
+            'goals_enabled'       => 'sometimes|boolean',
+            'combined_enabled'    => 'sometimes|boolean',
+            'promotions_enabled'  => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors(),
-            ], 422);
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        // Récupérer les settings actuels
-        $currentSettings = $user->notification_settings ?? [];
-        
-        // Fusionner avec les nouvelles valeurs
-        $newSettings = array_merge($currentSettings, $request->only([
-            'push_enabled',
-            'predictions_enabled',
-            'live_scores_enabled',
-            'goals_enabled',
-            'combined_enabled',
-            'promotions_enabled',
+        $user     = $request->user();
+        $current  = $user->notification_settings ?? [];
+        $updated  = array_merge($current, $request->only([
+            'push_enabled', 'predictions_enabled', 'live_scores_enabled',
+            'goals_enabled', 'combined_enabled', 'promotions_enabled',
         ]));
 
-        // Mettre à jour dans la base de données
-        // Note: Si la colonne notification_settings n'existe pas encore, il faudra créer une migration
-        // Pour l'instant, on utilise un champ JSON dans users
-        $user->update([
-            'notification_settings' => $newSettings,
-        ]);
+        $user->update(['notification_settings' => $updated]);
 
-        Log::info('Notification settings updated', [
-            'user_id' => $user->id,
-            'settings' => $newSettings,
-        ]);
+        Log::info('Notification settings updated', ['user_id' => $user->id]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Paramètres de notifications mis à jour.',
-            'data' => $newSettings,
-        ]);
-    }
-
-    /**
-     * Désinscrire le token FCM (supprimer le token)
-     * 
-     * DELETE /api/notifications/unregister
-     */
-    public function unregister(Request $request): JsonResponse
-    {
-        $user = $request->user();
-        
-        $user->update([
-            'fcm_token' => null,
-        ]);
-
-        Log::info('FCM token unregistered', [
-            'user_id' => $user->id,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Token FCM supprimé avec succès.',
-        ]);
+        return response()->json(['success' => true, 'message' => 'Paramètres mis à jour.', 'data' => ['settings' => $updated]]);
     }
 }

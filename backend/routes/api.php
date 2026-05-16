@@ -159,9 +159,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Notifications
     Route::post('/notifications/register', [App\Http\Controllers\Api\NotificationController::class, 'register']);
+    Route::delete('/notifications/unregister', [App\Http\Controllers\Api\NotificationController::class, 'unregister']);
+    Route::get('/notifications', [App\Http\Controllers\Api\NotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [App\Http\Controllers\Api\NotificationController::class, 'unreadCount']);
+    Route::put('/notifications/read-all', [App\Http\Controllers\Api\NotificationController::class, 'markAllRead']);
+    Route::put('/notifications/{id}/read', [App\Http\Controllers\Api\NotificationController::class, 'markRead']);
+    Route::delete('/notifications', [App\Http\Controllers\Api\NotificationController::class, 'destroyAll']);
+    Route::delete('/notifications/{id}', [App\Http\Controllers\Api\NotificationController::class, 'destroy']);
     Route::get('/notifications/settings', [App\Http\Controllers\Api\NotificationController::class, 'getSettings']);
     Route::put('/notifications/settings', [App\Http\Controllers\Api\NotificationController::class, 'updateSettings']);
-    Route::delete('/notifications/unregister', [App\Http\Controllers\Api\NotificationController::class, 'unregister']);
 
     // Tracking clic bookmaker (nécessite auth pour tracker l'utilisateur)
     Route::post('/bookmakers/{id}/click', [App\Http\Controllers\Api\BookmakerController::class, 'trackClick']);
