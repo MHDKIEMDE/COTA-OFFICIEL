@@ -50,54 +50,50 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/login-pin', [AuthController::class, 'loginWithPin']);
 });
 
-// Routes des pronostics publiques (accessibles sans authentification - mode invité)
-Route::get('/predictions/today', [PredictionController::class, 'today']);
-Route::get('/predictions/competitions', [PredictionController::class, 'competitions']);
-Route::get('/predictions/search', [PredictionController::class, 'search']);
-Route::get('/predictions/welcome-combined', [PredictionController::class, 'welcomeCombined']);
+// ── Routes publiques — throttle 60 req/min par IP ───────────────────────────
+Route::middleware('throttle:60,1')->group(function () {
 
-// Teams (pages détail équipe)
-Route::get('/teams/{id}', [TeamController::class, 'show'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/stats', [TeamController::class, 'stats'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/matches', [TeamController::class, 'matches'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/squad', [TeamController::class, 'squad'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/transfers', [TeamController::class, 'transfers'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/injuries', [TeamController::class, 'injuries'])->where('id', '[0-9]+');
-Route::get('/teams/{id}/news', [TeamController::class, 'news'])->where('id', '[0-9]+');
+    // Prédictions
+    Route::get('/predictions/today',            [PredictionController::class, 'today']);
+    Route::get('/predictions/coupon',           [PredictionController::class, 'coupon']);
+    Route::get('/predictions/competitions',     [PredictionController::class, 'competitions']);
+    Route::get('/predictions/search',           [PredictionController::class, 'search']);
+    Route::get('/predictions/welcome-combined', [PredictionController::class, 'welcomeCombined']);
+    Route::get('/predictions/{id}',             [PredictionController::class, 'show'])->where('id', '[0-9]+');
 
-// COTA LIVE - Scores en direct (routes publiques)
-Route::get('/matches/live', [MatchController::class, 'live']);
-Route::get('/matches/today', [MatchController::class, 'today']);
-Route::get('/matches/date/{date}', [MatchController::class, 'byDate'])
-    ->where('date', '\d{4}-\d{2}-\d{2}');
-Route::get('/matches/{id}', [MatchController::class, 'show']);
-Route::get('/matches/{id}/events', [MatchController::class, 'events']);
-Route::get('/matches/{id}/stats', [MatchController::class, 'stats']);
-Route::get('/matches/{id}/lineups', [MatchController::class, 'lineups']);
-Route::get('/matches/{id}/h2h', [MatchController::class, 'h2h']);
-Route::get('/standings/{competition}', [MatchController::class, 'standings']);
+    // Teams
+    Route::get('/teams/{id}',           [TeamController::class, 'show'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/stats',     [TeamController::class, 'stats'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/matches',   [TeamController::class, 'matches'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/squad',     [TeamController::class, 'squad'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/transfers', [TeamController::class, 'transfers'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/injuries',  [TeamController::class, 'injuries'])->where('id', '[0-9]+');
+    Route::get('/teams/{id}/news',      [TeamController::class, 'news'])->where('id', '[0-9]+');
 
-// Routes publiques pour les cotes bookmakers (pas d'auth requise, pas de stockage backend)
-Route::get('/odds/match/{matchId}', [OddsController::class, 'getMatchOdds']);
-Route::get('/odds/batch', [OddsController::class, 'getBatchOdds']);
-Route::get('/odds/bookmakers', [OddsController::class, 'getBookmakers']);
+    // Matchs en direct
+    Route::get('/matches/live',           [MatchController::class, 'live']);
+    Route::get('/matches/today',          [MatchController::class, 'today']);
+    Route::get('/matches/date/{date}',    [MatchController::class, 'byDate'])->where('date', '\d{4}-\d{2}-\d{2}');
+    Route::get('/matches/{id}',           [MatchController::class, 'show']);
+    Route::get('/matches/{id}/events',    [MatchController::class, 'events']);
+    Route::get('/matches/{id}/stats',     [MatchController::class, 'stats']);
+    Route::get('/matches/{id}/lineups',   [MatchController::class, 'lineups']);
+    Route::get('/matches/{id}/h2h',       [MatchController::class, 'h2h']);
+    Route::get('/standings/{competition}',[MatchController::class, 'standings']);
 
-// Config dynamique (publique - l'app doit charger la config au démarrage)
-Route::get('/config/app', [App\Http\Controllers\Api\ConfigController::class, 'getAppConfig']);
+    // Cotes bookmakers — throttle plus strict : 20 req/min (chaque appel consomme quota API)
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::get('/odds/match/{matchId}', [OddsController::class, 'getMatchOdds']);
+        Route::get('/odds/batch',           [OddsController::class, 'getBatchOdds']);
+        Route::get('/odds/bookmakers',      [OddsController::class, 'getBookmakers']);
+    });
 
-// Bookmakers configurables (publique - liste des bookmakers actifs)
-Route::get('/bookmakers', [App\Http\Controllers\Api\BookmakerController::class, 'index']);
-
-// Bookmakers automatiques détectés depuis les cotes du jour
-Route::get('/bookmakers/auto', [OddsController::class, 'getAutoBookmakers']);
-
-// Bookmakers filtrés par région (détection IP automatique ou ?region=west_africa)
-Route::get('/bookmakers/by-region', [OddsController::class, 'getByRegion']);
-
-// Routes protégées des pronostics (nécessitent authentification)
-// Note: Placées AVANT /predictions/{id} pour éviter conflit de routes
-// Coupon IA — public (visible sans compte, picks premium masqués par le mobile)
-Route::get('/predictions/coupon', [PredictionController::class, 'coupon']);
+    // Config & Bookmakers
+    Route::get('/config/app',          [App\Http\Controllers\Api\ConfigController::class, 'getAppConfig']);
+    Route::get('/bookmakers',          [App\Http\Controllers\Api\BookmakerController::class, 'index']);
+    Route::get('/bookmakers/auto',     [OddsController::class, 'getAutoBookmakers']);
+    Route::get('/bookmakers/by-region',[OddsController::class, 'getByRegion']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/predictions/history', [PredictionController::class, 'history']);
@@ -105,9 +101,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/predictions/feedback', [PredictionController::class, 'feedback']);
     Route::get('/predictions/combined-daily', [PredictionController::class, 'combinedDaily']);
 });
-
-// Route dynamique pour détails d'une prédiction (doit être APRÈS les routes spécifiques)
-Route::get('/predictions/{id}', [PredictionController::class, 'show'])->where('id', '[0-9]+');
 
 // Routes publiques pour abonnements (affichage des plans)
 Route::get('/subscriptions/plans', [App\Http\Controllers\Api\SubscriptionController::class, 'getPlans']);
