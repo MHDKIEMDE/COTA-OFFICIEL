@@ -42,7 +42,7 @@ return [
     'cache' => [
         'enabled' => true,
         'ttl' => [
-            'fixtures' => 300, // 5 minutes
+            'fixtures' => 86400, // 24 heures — 1 seule requête API par jour
             'live_scores' => 60, // 1 minute
             'statistics' => 3600, // 1 heure
             'standings' => 86400, // 24 heures

@@ -4,64 +4,63 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
-// Configuration des jobs schedulés pour COTA LIVE
-// Ces jobs s'exécutent automatiquement via le scheduler Laravel
-// 
-// Pour activer le scheduler, ajouter dans crontab :
-// * * * * * cd /path-to-project && php artisan schedule:run >> /dev/null 2>&1
+// ============================================================
+// COTA — Scheduler optimisé pour plan API gratuit (100 req/j)
+//
+// Stratégie quota :
+//   - 1 requête /fixtures à 05:00 UTC → cache 24h
+//   - Prédictions générées depuis ce cache → 0 requête supplémentaire
+//   - Live scores désactivé sur plan gratuit
+//   - Résultats mis à jour depuis la DB locale uniquement
+//
+// Pour activer : * * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
+// ============================================================
 
-// Récupérer les matchs depuis Sportradar toutes les heures
+// ── 05:00 UTC — Récupérer les matchs du jour (1 seule requête API)
+// Le cache 24h fait que tous les appels suivants lisent depuis Redis
 Schedule::job(new \App\Jobs\FetchMatchesJob)
-    ->hourly()
-    ->name('fetch-matches')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// Mettre à jour les scores en direct toutes les 2 minutes
-Schedule::job(new \App\Jobs\UpdateLiveScoresJob)
-    ->everyTwoMinutes()
-    ->name('update-live-scores')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// Mettre à jour les résultats des prédictions toutes les 5 minutes
-Schedule::job(new \App\Jobs\UpdatePredictionResultsJob)
-    ->everyFiveMinutes()
-    ->name('update-prediction-results')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// Générer les prédictions quotidiennement à 05:00 UTC
-// Fenêtre morte mondiale (aucun match en cours) — données de veille complètes
-Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
     ->dailyAt('05:00')
     ->timezone('UTC')
-    ->name('generate-predictions')
+    ->name('fetch-matches-daily')
+    ->withoutOverlapping()
     ->onOneServer();
 
-// Envoyer les notifications quotidiennes à 06:30 UTC
-// 1h30 de marge après génération — prédictions garanties prêtes
+// ── 05:30 UTC — Générer les prédictions (depuis le cache, 0 requête API)
+Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
+    ->dailyAt('05:30')
+    ->timezone('UTC')
+    ->name('generate-predictions')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 06:30 UTC — Envoyer les notifications quotidiennes
+// 1h de marge après génération — prédictions garanties prêtes
 Schedule::job(new \App\Jobs\SendDailyNotificationJob)
     ->dailyAt('06:30')
     ->timezone('UTC')
     ->name('send-daily-notifications')
     ->onOneServer();
 
-// Rappels expiration Premium (J-7, J-3, J-1) à 07:00 UTC
+// ── 07:00 UTC — Rappels expiration Premium (J-7, J-3, J-1)
 Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
     ->dailyAt('07:00')
     ->timezone('UTC')
     ->name('premium-expiry-reminders')
     ->onOneServer();
 
-// Horizon métriques — snapshot toutes les 5 minutes pour les graphiques
+// ── Toutes les heures — Mettre à jour les résultats (DB locale, 0 requête API)
+Schedule::job(new \App\Jobs\UpdatePredictionResultsJob)
+    ->hourly()
+    ->name('update-prediction-results')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── Horizon métriques
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 
-// Monitoring lag replica MySQL — alerte si > 30s (prod uniquement)
+// ── Monitoring lag replica MySQL
 Schedule::call(function () {
-    if (!env('DB_READ_HOST')) {
-        return; // Pas de replica configuré, skip
-    }
+    if (!env('DB_READ_HOST')) return;
     try {
         $rows = DB::select('SHOW SLAVE STATUS');
         $lag  = $rows[0]->Seconds_Behind_Master ?? null;
