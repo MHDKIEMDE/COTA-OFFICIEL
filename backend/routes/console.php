@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 // Configuration des jobs schedulés pour COTA LIVE
@@ -54,3 +56,19 @@ Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
 
 // Horizon métriques — snapshot toutes les 5 minutes pour les graphiques
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+
+// Monitoring lag replica MySQL — alerte si > 30s (prod uniquement)
+Schedule::call(function () {
+    if (!env('DB_READ_HOST')) {
+        return; // Pas de replica configuré, skip
+    }
+    try {
+        $rows = DB::select('SHOW SLAVE STATUS');
+        $lag  = $rows[0]->Seconds_Behind_Master ?? null;
+        if ($lag === null || $lag > 30) {
+            Log::error('MySQL replica lag critique', ['lag_seconds' => $lag]);
+        }
+    } catch (\Throwable $e) {
+        Log::error('MySQL replica check failed', ['error' => $e->getMessage()]);
+    }
+})->everyFiveMinutes()->name('check-replica-lag');
