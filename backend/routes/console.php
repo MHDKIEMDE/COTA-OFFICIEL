@@ -51,3 +51,6 @@ Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
     ->timezone('UTC')
     ->name('premium-expiry-reminders')
     ->onOneServer();
+
+// Horizon métriques — snapshot toutes les 5 minutes pour les graphiques
+Schedule::command('horizon:snapshot')->everyFiveMinutes();

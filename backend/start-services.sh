@@ -18,19 +18,15 @@ else
   $REDIS_CLI ping && echo "✅ Redis OK" || echo "❌ Redis KO"
 fi
 
-# 2. Queue Worker
-if pgrep -f "queue:work" > /dev/null; then
-  echo "✅ Queue worker déjà en cours"
+# 2. Horizon (remplace queue:work — dashboard sur /horizon)
+if pgrep -f "horizon" > /dev/null; then
+  echo "✅ Horizon déjà en cours"
 else
-  echo "🚀 Démarrage Queue Worker..."
+  echo "🚀 Démarrage Horizon..."
   cd "$BACKEND_DIR"
-  nohup php artisan queue:work redis \
-    --queue=default \
-    --sleep=3 \
-    --tries=3 \
-    --timeout=120 \
-    >> /tmp/cota-queue.log 2>&1 &
-  echo "✅ Queue Worker PID: $!"
+  nohup php artisan horizon \
+    >> /tmp/cota-horizon.log 2>&1 &
+  echo "✅ Horizon PID: $! — dashboard: http://localhost:8000/horizon"
 fi
 
 # 3. Scheduler (cron Laravel)
@@ -46,11 +42,11 @@ fi
 
 echo ""
 echo "=== Statut ==="
-echo "Redis   : $($REDIS_CLI ping 2>/dev/null || echo 'KO')"
-echo "Queue   : $(pgrep -f 'queue:work' > /dev/null && echo 'Running' || echo 'KO')"
+echo "Redis    : $($REDIS_CLI ping 2>/dev/null || echo 'KO')"
+echo "Horizon  : $(pgrep -f 'horizon' > /dev/null && echo 'Running → http://localhost:8000/horizon' || echo 'KO')"
 echo "Scheduler: $(pgrep -f 'schedule:work' > /dev/null && echo 'Running' || echo 'KO')"
 echo ""
 echo "Logs:"
 echo "  Redis     → /tmp/redis.log"
-echo "  Queue     → /tmp/cota-queue.log"
+echo "  Horizon   → /tmp/cota-horizon.log"
 echo "  Scheduler → /tmp/cota-scheduler.log"
