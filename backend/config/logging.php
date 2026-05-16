@@ -53,9 +53,19 @@ return [
     'channels' => [
 
         'stack' => [
-            'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'driver'   => 'stack',
+            // Sentry ajouté automatiquement si DSN configuré
+            'channels' => array_filter(
+                explode(',', (string) env('LOG_STACK', 'single')),
+                fn($c) => $c !== 'sentry' || env('SENTRY_LARAVEL_DSN')
+            ),
             'ignore_exceptions' => false,
+        ],
+
+        'sentry' => [
+            'driver' => 'sentry',
+            'level'  => env('LOG_LEVEL', 'error'),
+            'bubble' => true,
         ],
 
         'single' => [
