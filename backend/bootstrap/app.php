@@ -23,7 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Configuration Rate Limiting strict pour production
-        $middleware->throttleApi('30,1'); // 30 requêtes par minute max pour routes API authentifiées
+        $middleware->throttleApi('600,1'); // 600 req/min en dev — réduire à 60 en prod
 
         // Middleware personnalisé pour le panel admin
         $middleware->alias([

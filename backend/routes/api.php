@@ -96,12 +96,14 @@ Route::get('/bookmakers/by-region', [OddsController::class, 'getByRegion']);
 
 // Routes protégées des pronostics (nécessitent authentification)
 // Note: Placées AVANT /predictions/{id} pour éviter conflit de routes
+// Coupon IA — public (visible sans compte, picks premium masqués par le mobile)
+Route::get('/predictions/coupon', [PredictionController::class, 'coupon']);
+
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/predictions/history', [PredictionController::class, 'history']);
     Route::get('/predictions/statistics', [PredictionController::class, 'statistics']);
     Route::post('/predictions/feedback', [PredictionController::class, 'feedback']);
     Route::get('/predictions/combined-daily', [PredictionController::class, 'combinedDaily']);
-    Route::get('/predictions/coupon', [PredictionController::class, 'coupon']);
 });
 
 // Route dynamique pour détails d'une prédiction (doit être APRÈS les routes spécifiques)

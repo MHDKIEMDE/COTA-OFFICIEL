@@ -63,6 +63,8 @@ class PredictionController extends Controller
             ->where(fn($q) =>
                 $q->where('league_tier', '<=', 3)
                   ->orWhereIn('competition', $popularLeagueNames)
+                  ->orWhereNull('league_tier')
+                  ->orWhere('league_tier', 99)
             )
             ->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
@@ -133,6 +135,8 @@ class PredictionController extends Controller
             ->where(fn($q) =>
                 $q->where('league_tier', '<=', 3)
                   ->orWhereIn('competition', $popularLeagueNames)
+                  ->orWhereNull('league_tier')
+                  ->orWhere('league_tier', 99)
             )
             ->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
@@ -546,29 +550,35 @@ class PredictionController extends Controller
             ->distinct()
             ->get();
 
-        // Trier les compétitions par priorité
+        // Garder uniquement les compétitions avec une priorité connue (tier 1-3)
+        // + les pays prioritaires pour éviter un JSON énorme
+        $competitions = $competitions->filter(function ($item) use ($competitionPriorities, $countryPriorities) {
+            $hasKnownCompetition = isset($competitionPriorities[$item->competition]);
+            $hasKnownCountry     = isset($countryPriorities[$item->country]);
+            return $hasKnownCompetition || $hasKnownCountry;
+        });
+
+        // Trier par priorité combinée
         $sortedCompetitions = $competitions->sortBy(function ($item) use ($competitionPriorities, $countryPriorities) {
             $competitionPriority = $competitionPriorities[$item->competition] ?? 100;
-            $countryPriority = $countryPriorities[$item->country] ?? 50;
-            // Priorité combinée : pays * 1000 + compétition (pour grouper par pays prioritaire)
+            $countryPriority     = $countryPriorities[$item->country] ?? 50;
             return $countryPriority * 1000 + $competitionPriority;
         });
 
-        // Grouper par pays (en gardant l'ordre de priorité)
+        // Grouper par pays
         $groupedByCountry = $sortedCompetitions->groupBy('country')->map(function ($items, $country) use ($competitionPriorities) {
-            // Trier les compétitions au sein de chaque pays par priorité
             $sortedItems = $items->sortBy(function ($item) use ($competitionPriorities) {
                 return $competitionPriorities[$item->competition] ?? 100;
             });
-            
+
             return [
-                'country' => $country,
+                'country'      => $country,
                 'competitions' => $sortedItems->map(function ($item) {
                     return [
-                        'id' => $item->competition_id,
-                        'name' => $item->competition,
+                        'id'      => $item->competition_id,
+                        'name'    => $item->competition,
                         'country' => $item->country,
-                        'logo' => $item->competition_logo ?? null,
+                        'logo'    => $item->competition_logo ?? null,
                     ];
                 })->values()->all(),
             ];
@@ -576,7 +586,7 @@ class PredictionController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $groupedByCountry,
+            'data'    => $groupedByCountry,
         ]);
     }
 
@@ -754,31 +764,93 @@ class PredictionController extends Controller
      */
     public function coupon(Request $request)
     {
-        $cacheKey = 'coupon_daily_' . Carbon::today()->format('Y-m-d');
+        $date     = $request->query('date', Carbon::today()->toDateString());
+        $cacheKey = 'coupon_daily_' . $date;
 
-        $coupon = Cache::remember($cacheKey, 300, function () use ($request) {
-            $limit         = (int) $request->query('limit', 30);
-            $minPicks      = (int) $request->query('min', 4);
-            $maxPicks      = (int) $request->query('max', 5);
-            $minConfidence = (float) $request->query('confidence', 60);
+        $coupon = Cache::remember($cacheKey, 1800, function () use ($date) {
+            $minPicks = 4;
+            $maxPicks = 5;
 
-            try {
-                $fixtures = $this->footballApi->getPopularMatches(Carbon::today()->format('Y-m-d'), $limit);
-            } catch (\Throwable $e) {
-                Log::error('coupon: getPopularMatches failed', ['error' => $e->getMessage()]);
-                return null;
+            // Sélectionner les meilleures prédictions du jour depuis la DB
+            // Sans seuil rigide — prendre les top scores disponibles
+            $rows = DB::table('predictions')
+                ->where('is_published', true)
+                ->whereDate('match_date', $date)
+                ->orderBy('total_score', 'desc')
+                ->limit(50)
+                ->get();
+
+            if ($rows->count() < $minPicks) {
+                return [
+                    'success'   => false,
+                    'message'   => 'Aucune prédiction disponible pour le ' . $date,
+                    'picks'     => [],
+                    'date'      => $date,
+                ];
             }
 
-            if (empty($fixtures)) {
-                return ['success' => false, 'message' => 'Aucun match disponible aujourd\'hui', 'picks' => []];
+            // Sélectionner max 1 match par compétition
+            $selected    = [];
+            $usedLeagues = [];
+
+            foreach ($rows as $row) {
+                if (count($selected) >= $maxPicks) break;
+                $league = $row->competition ?? 'unknown';
+                if (!in_array($league, $usedLeagues)) {
+                    $selected[]    = $row;
+                    $usedLeagues[] = $league;
+                }
             }
 
-            return $this->predictionAlgorithm->generateDailyCoupon($fixtures, $minPicks, $maxPicks, $minConfidence);
+            // Compléter si pas assez de ligues distinctes
+            if (count($selected) < $minPicks) {
+                foreach ($rows as $row) {
+                    if (count($selected) >= $minPicks) break;
+                    $alreadyIn = array_filter($selected, fn($s) => $s->id === $row->id);
+                    if (empty($alreadyIn)) {
+                        $selected[] = $row;
+                    }
+                }
+            }
+
+            // Calculer la cote totale
+            $totalOdds     = array_reduce($selected, fn($carry, $p) => $carry * (float) ($p->odds ?? 1.0), 1.0);
+            $avgConfidence = array_sum(array_map(fn($p) => (float) $p->total_score, $selected)) / count($selected);
+            $stars         = match(true) {
+                $avgConfidence >= 85 => 4,
+                $avgConfidence >= 70 => 3,
+                $avgConfidence >= 60 => 2,
+                default              => 1,
+            };
+
+            $picks = array_map(fn($p) => [
+                'match'          => $p->home_team . ' vs ' . $p->away_team,
+                'league'         => $p->competition ?? null,
+                'country'        => $p->country ?? null,
+                'date'           => $p->match_date,
+                'time'           => $p->match_time ?? null,
+                'prediction'     => $p->prediction,
+                'type'           => $p->bet_type,
+                'odds'           => (float) ($p->odds ?? 1.0),
+                'confidence'     => round((float) $p->total_score, 1),
+                'stars'          => $p->confidence_stars,
+                'is_premium'     => (bool) $p->is_premium,
+                'home_team_logo' => $p->home_team_logo ?? null,
+                'away_team_logo' => $p->away_team_logo ?? null,
+            ], $selected);
+
+            return [
+                'success'             => true,
+                'date'                => $date,
+                'picks'               => $picks,
+                'matches_count'       => count($selected),
+                'total_odds'          => round($totalOdds, 2),
+                'avg_confidence'      => round($avgConfidence, 1),
+                'stars'               => $stars,
+                'potential_gain_1000' => (int) round($totalOdds * 1000),
+                'generated_at'        => Carbon::now()->toIso8601String(),
+            ];
         });
-
-        if ($coupon === null) {
-            return response()->json(['success' => false, 'message' => 'Erreur lors de la génération du coupon'], 500);
-        }
 
         return response()->json($coupon);
     }

@@ -47,114 +47,119 @@ class OddsController extends Controller
 
         $cacheKey = "odds:apifootball:{$matchId}";
 
-        $result = Cache::remember($cacheKey, 600, function () use ($matchId) {
-            try {
-                $response = Http::timeout(10)
-                    ->withHeaders(['x-apisports-key' => $this->apiKey])
-                    ->get("{$this->baseUrl}/odds", ['fixture' => $matchId]);
-
-                if (!$response->successful()) {
-                    Log::warning("Odds API-Football erreur {$response->status()} pour fixture {$matchId}");
-                    return null;
-                }
-
-                $data = $response->json();
-                $fixtures = $data['response'] ?? [];
-
-                if (empty($fixtures)) {
-                    return null;
-                }
-
-                $fixture   = $fixtures[0];
-                $bookmakers = $fixture['bookmakers'] ?? [];
-
-                if (empty($bookmakers)) {
-                    return null;
-                }
-
-                $formatted = [];
-                foreach ($bookmakers as $bm) {
-                    $bmId   = $bm['id'];
-                    $bmName = $bm['name'];
-
-                    $matchWinner = null;
-                    $btts        = null;
-                    $overUnder   = null;
-
-                    foreach ($bm['bets'] ?? [] as $bet) {
-                        if ($bet['name'] === 'Match Winner') {
-                            $matchWinner = $bet['values'];
-                        } elseif ($bet['name'] === 'Both Teams Score') {
-                            $btts = $bet['values'];
-                        } elseif (str_contains($bet['name'], 'Goals Over/Under')) {
-                            $overUnder = $bet['values'];
-                        }
-                    }
-
-                    if (!$matchWinner) continue;
-
-                    $homeOdd  = null;
-                    $drawOdd  = null;
-                    $awayOdd  = null;
-                    foreach ($matchWinner as $v) {
-                        if ($v['value'] === 'Home') $homeOdd  = (float) $v['odd'];
-                        if ($v['value'] === 'Draw') $drawOdd  = (float) $v['odd'];
-                        if ($v['value'] === 'Away') $awayOdd  = (float) $v['odd'];
-                    }
-
-                    $over25 = null; $under25 = null;
-                    foreach ($overUnder ?? [] as $v) {
-                        if (str_contains($v['value'], 'Over 2.5'))  $over25  = (float) $v['odd'];
-                        if (str_contains($v['value'], 'Under 2.5')) $under25 = (float) $v['odd'];
-                    }
-
-                    $bttsYes = null; $bttsNo = null;
-                    foreach ($btts ?? [] as $v) {
-                        if ($v['value'] === 'Yes') $bttsYes = (float) $v['odd'];
-                        if ($v['value'] === 'No')  $bttsNo  = (float) $v['odd'];
-                    }
-
-                    $formatted[] = [
-                        'id'        => (string) $bmId,
-                        'name'      => $bmName,
-                        'priority'  => isset($this->priorityBookmakers[$bmId]) ? 0 : 1,
-                        'home_win'  => $homeOdd,
-                        'draw'      => $drawOdd,
-                        'away_win'  => $awayOdd,
-                        'over_25'   => $over25,
-                        'under_25'  => $under25,
-                        'btts_yes'  => $bttsYes,
-                        'btts_no'   => $bttsNo,
-                        'last_update' => now()->toIso8601String(),
-                    ];
-                }
-
-                // Trier : bookmakers prioritaires en premier
-                usort($formatted, fn($a, $b) => $a['priority'] <=> $b['priority']);
-
-                return [
-                    'match_id'    => $matchId,
-                    'home_team'   => $fixture['fixture']['teams']['home']['name'] ?? null,
-                    'away_team'   => $fixture['fixture']['teams']['away']['name'] ?? null,
-                    'bookmakers'  => $formatted,
-                ];
-            } catch (\Exception $e) {
-                Log::error("Odds exception fixture {$matchId}: " . $e->getMessage());
-                return null;
+        // Retourner immédiatement si déjà en cache (succès ou échec temporaire)
+        $cached = Cache::get($cacheKey);
+        if ($cached !== null) {
+            if ($cached === false) {
+                return response()->json(['success' => false, 'message' => 'Cotes non disponibles pour ce match'], 404);
             }
-        });
-
-        if (!$result) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cotes non disponibles pour ce match',
-            ], 404);
+            return response()->json(['success' => true, 'data' => $cached]);
         }
 
-        return response()->json([
-            'success' => true,
-            'data'    => $result,
-        ]);
+        $result = null;
+        try {
+            $response = Http::timeout(10)
+                ->withHeaders(['x-apisports-key' => $this->apiKey])
+                ->get("{$this->baseUrl}/odds", ['fixture' => $matchId]);
+
+            if (!$response->successful()) {
+                Log::warning("Odds API-Football erreur {$response->status()} pour fixture {$matchId}");
+                // 429 = quota dépassé : ne pas cacher pour réessayer plus tard
+                if ($response->status() === 429) {
+                    return response()->json(['success' => false, 'message' => 'Quota API dépassé, réessayez plus tard'], 429);
+                }
+                Cache::put($cacheKey, false, 300); // cacher l'échec 5 min seulement
+                return response()->json(['success' => false, 'message' => 'Cotes non disponibles pour ce match'], 404);
+            }
+
+            $data     = $response->json();
+            $fixtures = $data['response'] ?? [];
+
+            if (empty($fixtures)) {
+                Cache::put($cacheKey, false, 300);
+                return response()->json(['success' => false, 'message' => 'Cotes non disponibles pour ce match'], 404);
+            }
+
+            $fixture    = $fixtures[0];
+            $bookmakers = $fixture['bookmakers'] ?? [];
+
+            if (empty($bookmakers)) {
+                Cache::put($cacheKey, false, 300);
+                return response()->json(['success' => false, 'message' => 'Cotes non disponibles pour ce match'], 404);
+            }
+
+            $formatted = [];
+            foreach ($bookmakers as $bm) {
+                $bmId   = $bm['id'];
+                $bmName = $bm['name'];
+
+                $matchWinner = null;
+                $btts        = null;
+                $overUnder   = null;
+
+                foreach ($bm['bets'] ?? [] as $bet) {
+                    if ($bet['name'] === 'Match Winner') {
+                        $matchWinner = $bet['values'];
+                    } elseif ($bet['name'] === 'Both Teams Score') {
+                        $btts = $bet['values'];
+                    } elseif (str_contains($bet['name'], 'Goals Over/Under')) {
+                        $overUnder = $bet['values'];
+                    }
+                }
+
+                if (!$matchWinner) continue;
+
+                $homeOdd = null; $drawOdd = null; $awayOdd = null;
+                foreach ($matchWinner as $v) {
+                    if ($v['value'] === 'Home') $homeOdd = (float) $v['odd'];
+                    if ($v['value'] === 'Draw') $drawOdd = (float) $v['odd'];
+                    if ($v['value'] === 'Away') $awayOdd = (float) $v['odd'];
+                }
+
+                $over25 = null; $under25 = null;
+                foreach ($overUnder ?? [] as $v) {
+                    if (str_contains($v['value'], 'Over 2.5'))  $over25  = (float) $v['odd'];
+                    if (str_contains($v['value'], 'Under 2.5')) $under25 = (float) $v['odd'];
+                }
+
+                $bttsYes = null; $bttsNo = null;
+                foreach ($btts ?? [] as $v) {
+                    if ($v['value'] === 'Yes') $bttsYes = (float) $v['odd'];
+                    if ($v['value'] === 'No')  $bttsNo  = (float) $v['odd'];
+                }
+
+                $formatted[] = [
+                    'id'          => (string) $bmId,
+                    'name'        => $bmName,
+                    'priority'    => isset($this->priorityBookmakers[$bmId]) ? 0 : 1,
+                    'home_win'    => $homeOdd,
+                    'draw'        => $drawOdd,
+                    'away_win'    => $awayOdd,
+                    'over_25'     => $over25,
+                    'under_25'    => $under25,
+                    'btts_yes'    => $bttsYes,
+                    'btts_no'     => $bttsNo,
+                    'last_update' => now()->toIso8601String(),
+                ];
+            }
+
+            usort($formatted, fn($a, $b) => $a['priority'] <=> $b['priority']);
+
+            $result = [
+                'match_id'   => $matchId,
+                'home_team'  => $fixture['fixture']['teams']['home']['name'] ?? null,
+                'away_team'  => $fixture['fixture']['teams']['away']['name'] ?? null,
+                'bookmakers' => $formatted,
+            ];
+
+            Cache::put($cacheKey, $result, 600);
+
+        } catch (\Exception $e) {
+            Log::error("Odds exception fixture {$matchId}: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur interne'], 500);
+        }
+
+        return response()->json(['success' => true, 'data' => $result]);
     }
 
     /**
