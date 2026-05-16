@@ -813,6 +813,48 @@ class PredictionAlgorithmService
         });
     }
 
+    // ==================== RÉGÉNÉRATION (scores déjà calculés) ====================
+
+    /**
+     * Recalcule bet_type/prediction/odds/analysis à partir de scores déjà stockés en DB.
+     * Utilisé par la commande predictions:regenerate pour éviter de rappeler l'API-Football.
+     *
+     * Le fixture doit contenir :
+     *   _cached_scores => tableau des 9 scores individuels
+     *   _total_score   => float score total
+     *   teams.home / teams.away => id + name
+     *   league.id + league.season
+     */
+    public function determineBetTypePublic(array $fixture): array
+    {
+        $homeTeam   = $fixture['teams']['home'] ?? [];
+        $awayTeam   = $fixture['teams']['away'] ?? [];
+        $homeTeamId = $homeTeam['id'] ?? null;
+        $awayTeamId = $awayTeam['id'] ?? null;
+        $leagueId   = $fixture['league']['id'] ?? null;
+        $season     = $fixture['league']['season'] ?? (int) Carbon::now()->year;
+
+        $scores     = $fixture['_cached_scores'] ?? [];
+        $totalScore = (float) ($fixture['_total_score'] ?? array_sum($scores));
+
+        // Récupérer les signaux supplémentaires (corners/cartons/buteurs)
+        // Depuis le cache s'il existe, sinon 0 (pas d'appel API)
+        $cornersAvg = $homeTeamId && $awayTeamId
+            ? (float) \Illuminate\Support\Facades\Cache::get("corners_avg:{$homeTeamId}:{$awayTeamId}", 0.0)
+            : 0.0;
+        $cardsAvg   = $homeTeamId && $awayTeamId
+            ? (float) \Illuminate\Support\Facades\Cache::get("cards_avg:{$homeTeamId}:{$awayTeamId}", 0.0)
+            : 0.0;
+        $topScorers = $homeTeamId && $awayTeamId && $leagueId
+            ? (array) \Illuminate\Support\Facades\Cache::get("top_scorers:{$homeTeamId}:{$awayTeamId}:{$leagueId}:{$season}", [])
+            : [];
+
+        $result   = $this->determineBetType($scores, $totalScore, $homeTeam, $awayTeam, $cornersAvg, $cardsAvg);
+        $analysis = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
+
+        return array_merge($result, ['analysis' => $analysis]);
+    }
+
     // ==================== COUPON IA ====================
 
     /**
