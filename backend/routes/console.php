@@ -55,6 +55,19 @@ Schedule::job(new \App\Jobs\UpdatePredictionResultsJob)
     ->withoutOverlapping()
     ->onOneServer();
 
+// ── Toutes les heures — Monitorer les quotas API
+Schedule::job(new \App\Jobs\MonitorApiQuotasJob)
+    ->hourly()
+    ->name('monitor-api-quotas')
+    ->onOneServer();
+
+// ── Toutes les 15 min — Précalculer les stats empty state (win rate, derniers gagnés)
+Schedule::job(new \App\Jobs\CacheEmptyStateDataJob)
+    ->everyFifteenMinutes()
+    ->name('cache-empty-state-data')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── Horizon métriques
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 

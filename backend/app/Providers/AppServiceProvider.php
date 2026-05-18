@@ -3,11 +3,16 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use App\Services\Football\ApiFootballProvider;
+use App\Services\Football\ApiFootballProvider as FootballChainProvider;
 use App\Services\Football\CacheProvider;
 use App\Services\Football\FootballDataChain;
 use App\Services\Football\SportradarProvider;
 use App\Services\FootballApiService;
+use App\Services\ApiGateway\ApiGatewayService;
+use App\Services\ApiGateway\ApiQuotaTracker;
+use App\Services\ApiGateway\ApiFallbackHandler;
+use App\Services\ApiGateway\Providers\ApiFootballProvider as GatewayApiFootballProvider;
+use App\Services\ApiGateway\Providers\FootballDataOrgProvider;
 use App\Services\Sms\SmsProviderInterface;
 use App\Services\Sms\LogSmsProvider;
 use App\Services\Sms\TermiiSmsProvider;
@@ -22,10 +27,20 @@ class AppServiceProvider extends ServiceProvider
         // Chaîne de fallback football data : ApiFootball → Sportradar → LocalCache
         $this->app->singleton(FootballDataChain::class, function ($app) {
             return new FootballDataChain([
-                new ApiFootballProvider($app->make(FootballApiService::class)),
+                new FootballChainProvider($app->make(FootballApiService::class)),
                 new SportradarProvider(),
                 new CacheProvider(),
             ]);
+        });
+
+        // ApiGatewayService — nouvelle architecture multi-API
+        $this->app->singleton(ApiGatewayService::class, function ($app) {
+            return new ApiGatewayService(
+                new GatewayApiFootballProvider($app->make(FootballApiService::class)),
+                new FootballDataOrgProvider(),
+                $app->make(ApiQuotaTracker::class),
+                $app->make(ApiFallbackHandler::class),
+            );
         });
 
         $this->app->bind(SmsProviderInterface::class, function () {

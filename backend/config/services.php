@@ -55,4 +55,20 @@ return [
         'api_key' => env('SPORTRADAR_API_KEY'),
     ],
 
+    'football_data_org' => [
+        'key' => env('FOOTBALL_DATA_ORG_KEY'),
+    ],
+
+    'the_odds_api' => [
+        'key' => env('THE_ODDS_API_KEY'),
+    ],
+
+    'gnews' => [
+        'key' => env('GNEWS_API_KEY'),
+    ],
+
+    'thesportsdb' => [
+        'key' => env('THESPORTSDB_KEY', '3'),
+    ],
+
 ];

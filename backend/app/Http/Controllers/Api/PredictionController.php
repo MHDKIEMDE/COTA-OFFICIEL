@@ -102,18 +102,33 @@ class PredictionController extends Controller
             return response()->json($responseData);
         }
         
-        // Base vide — les prédictions sont générées exclusivement par le job schedulé.
-        // On ne touche jamais l'API-Football depuis un endpoint utilisateur (quota 100 req/jour).
-        Log::warning("Predictions: base vide pour {$dateString}, job schedulé non encore exécuté");
+        // Base vide — retourner l'empty state avec stats précalculées (Redis)
+        Log::warning("Predictions: base vide pour {$dateString}, retour empty state");
+
+        $emptyState = Cache::get('empty_state_data', [
+            'win_rate_30d'  => 0.0,
+            'wins_30d'      => 0,
+            'total_30d'     => 0,
+            'last_wins'     => [],
+            'next_match_at' => null,
+        ]);
 
         $responseData = [
-            'success' => true,
-            'data'    => $dbPredictions->map(fn($p) => $this->formatPrediction($p, $isPremium))->values(),
-            'source'  => 'database',
+            'success'    => true,
+            'status'     => 'no_predictions_above_threshold',
+            'data'       => [],
+            'source'     => 'database',
+            'empty_state' => [
+                'win_rate_30d'  => $emptyState['win_rate_30d'],
+                'wins_30d'      => $emptyState['wins_30d'],
+                'total_30d'     => $emptyState['total_30d'],
+                'last_wins'     => $emptyState['last_wins'],
+                'next_match_at' => $emptyState['next_match_at'],
+            ],
             'cached_at' => now()->toIso8601String(),
         ];
 
-        Cache::put($cacheKey, $responseData, 60); // TTL court : 1 min pour réessayer rapidement
+        Cache::put($cacheKey, $responseData, 60);
         return response()->json($responseData);
     }
 
