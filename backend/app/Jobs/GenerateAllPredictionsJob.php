@@ -28,13 +28,18 @@ class GenerateAllPredictionsJob implements ShouldQueue
         Log::info('GenerateAllPredictionsJob: Début génération prédictions');
 
         $response = $footballApi->getUpcomingMatches(1);
+        $fixtures = $response['response'] ?? [];
 
-        if (!$response || empty($response['response'])) {
-            Log::warning('GenerateAllPredictionsJob: Aucun match trouvé');
-            return;
+        // Fallback DB : si API-Football ne retourne rien, on prend les matchs déjà en base
+        if (empty($fixtures)) {
+            Log::info('GenerateAllPredictionsJob: API-Football vide → fallback matchs en base');
+            $fixtures = $this->buildFixturesFromDb();
         }
 
-        $fixtures   = $response['response'];
+        if (empty($fixtures)) {
+            Log::warning('GenerateAllPredictionsJob: Aucun match trouvé (API + DB)');
+            return;
+        }
         $predictions = [];
         $processed  = 0;
         $skipped    = 0;
@@ -153,6 +158,39 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'combined_position'  => null,
             ]
         );
+    }
+
+    private function buildFixturesFromDb(): array
+    {
+        $matches = FootballMatch::whereDate('match_date', Carbon::today())
+            ->whereIn('status', ['scheduled', 'live'])
+            ->get();
+
+        return $matches->map(function (FootballMatch $m): array {
+            // Extraire l'ID numérique depuis le préfixe (apf_123 ou tsdb_123)
+            $rawId = preg_replace('/^(apf_|tsdb_)/', '', $m->match_id);
+
+            return [
+                'fixture' => [
+                    'id'       => $rawId,
+                    'date'     => $m->match_date->toIso8601String(),
+                    'timezone' => $m->timezone ?? 'UTC',
+                    'status'   => ['short' => 'NS'],
+                    'venue'    => ['name' => $m->venue_name, 'city' => $m->venue_city ?? null],
+                ],
+                'teams' => [
+                    'home' => ['id' => $m->home_team_id ?? 0, 'name' => $m->home_team],
+                    'away' => ['id' => $m->away_team_id ?? 0, 'name' => $m->away_team],
+                ],
+                'league' => [
+                    'id'      => $m->competition_id ?? 0,
+                    'name'    => $m->competition ?? 'Unknown',
+                    'country' => $m->country ?? 'Unknown',
+                ],
+                'goals' => ['home' => null, 'away' => null],
+                '_source' => 'db',
+            ];
+        })->values()->toArray();
     }
 
     private function resolveLeagueTier(string $name, string $country): int

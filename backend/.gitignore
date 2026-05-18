@@ -39,6 +39,7 @@ credentials.json
 *.key
 *.cert
 auth.json
+.api
 vps.md
 *_vps.md
 *hostinger*.md
@@ -52,6 +53,7 @@ temp/
 .DS_Store
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200" width="560" height="200">
+  
+  <text x="20" y="148" font-family="Archivo, sans-serif" font-weight="900" font-size="160" fill="currentColor" letter-spacing="-4">C</text>
+  <g transform="translate(204,90)">
+    <circle cx="0" cy="0" r="58" fill="none" stroke="currentColor" stroke-width="32"></circle>
+  </g>
+  <text x="296" y="148" font-family="Archivo, sans-serif" font-weight="900" font-size="160" fill="currentColor" letter-spacing="-4">T</text>
+  <text x="408" y="148" font-family="Archivo, sans-serif" font-weight="900" font-size="160" fill="currentColor" letter-spacing="-4">A</text>
+  <line x1="22" y1="172" x2="542" y2="172" stroke="#e8ff36" stroke-width="6" stroke-linecap="square"></line>
+  <rect x="536" y="166" width="12" height="12" fill="#e8ff36"></rect>
+</svg>

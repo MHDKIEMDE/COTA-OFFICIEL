@@ -30,18 +30,21 @@ COTA/
 │   │       └── PredictionAlgorithmService.php
 │   ├── database/
 │   └── resources/views/admin/   ← Dashboard Blade + Tailwind CDN
-└── mobile/     ← Application Flutter
-    └── lib/
-        ├── core/
-        │   ├── api/             ← ApiClient (Dio)
-        │   ├── routing/         ← GoRouter
-        │   └── services/
-        └── features/
-            ├── auth/
-            ├── predictions/
-            ├── subscription/
-            ├── referral/
-            └── profile/
+├── mobile/     ← Application Flutter
+│   └── lib/
+│       ├── core/
+│       │   ├── api/             ← ApiClient (Dio)
+│       │   ├── routing/         ← GoRouter
+│       │   └── services/
+│       └── features/
+│           ├── auth/
+│           ├── predictions/
+│           ├── subscription/
+│           ├── referral/
+│           └── profile/
+├── CDC/        ← Cahier des charges et spécifications
+├── design/     ← Assets de marque, icônes, logos et maquettes
+└── archive/    ← Anciennes bases techniques conservées pour référence
 ```
 
 ## Démarrage backend
