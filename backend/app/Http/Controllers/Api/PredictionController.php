@@ -116,28 +116,55 @@ class PredictionController extends Controller
             return response()->json($responseData);
         }
         
-        // Base vide — retourner l'empty state avec stats précalculées (Redis)
-        Log::warning("Predictions: base vide pour {$dateString}, retour empty state");
+        // Base vide — distinguer Niveau 2 (matchs analysés) vs Niveau 3 (aucun match)
+        $matchesAnalyzedCount = DB::table('matches')
+            ->whereDate('match_date', $dateString)
+            ->count();
 
-        $emptyState = Cache::get('empty_state_data', [
-            'win_rate_30d'  => 0.0,
-            'wins_30d'      => 0,
-            'total_30d'     => 0,
-            'last_wins'     => [],
-            'next_match_at' => null,
-        ]);
+        $emptyStatus = $matchesAnalyzedCount > 0
+            ? 'no_predictions_above_threshold'
+            : 'no_matches_today';
+
+        Log::warning("Predictions: empty state ({$emptyStatus}) pour {$dateString}, matchs={$matchesAnalyzedCount}");
+
+        $emptyState = Cache::get('empty_state_data');
+
+        // Cold start : déclencher le calcul immédiatement si le cache est absent
+        if ($emptyState === null) {
+            \App\Jobs\CacheEmptyStateDataJob::dispatch();
+            $emptyState = [
+                'win_rate_30d'  => 0.0,
+                'wins_30d'      => 0,
+                'total_30d'     => 0,
+                'last_wins'     => [],
+                'next_match_at' => null,
+            ];
+        }
+
+        // Prochain slot de génération (08h ou 20h UTC)
+        $now = now()->utc();
+        $slots = [
+            $now->copy()->setTime(8, 0, 0),
+            $now->copy()->setTime(20, 0, 0),
+        ];
+        $nextSlot = collect($slots)
+            ->map(fn ($s) => $s->isPast() ? $s->addDay() : $s)
+            ->sortBy(fn ($s) => $s->timestamp)
+            ->first();
 
         $responseData = [
-            'success'    => true,
-            'status'     => 'no_predictions_above_threshold',
-            'data'       => [],
-            'source'     => 'database',
-            'empty_state' => [
+            'success'             => true,
+            'status'              => $emptyStatus,
+            'matches_analyzed'    => $matchesAnalyzedCount,
+            'next_predictions_at' => $nextSlot->toIso8601String(),
+            'data'                => [],
+            'source'              => 'database',
+            'empty_state'         => [
                 'win_rate_30d'  => $emptyState['win_rate_30d'],
                 'wins_30d'      => $emptyState['wins_30d'],
                 'total_30d'     => $emptyState['total_30d'],
                 'last_wins'     => $emptyState['last_wins'],
-                'next_match_at' => $emptyState['next_match_at'],
+                'next_match_at' => $nextSlot->toIso8601String(),
             ],
             'cached_at' => now()->toIso8601String(),
         ];
@@ -1066,67 +1093,6 @@ class PredictionController extends Controller
     }
 
     /**
-     * Convertir un match API-Football en format prédiction
-     */
-    private function convertMatchToPrediction(array $match, Carbon $date): ?array
-    {
-        // Gérer les deux formats possibles : directement sport_event ou dans schedules
-        $sportEvent = $match['sport_event'] ?? $match;
-        
-        if (!isset($sportEvent['competitors']) || count($sportEvent['competitors']) < 2) {
-            return null;
-        }
-
-        $homeTeam = $sportEvent['competitors'][0] ?? null;
-        $awayTeam = $sportEvent['competitors'][1] ?? null;
-
-        if (!$homeTeam || !$awayTeam) {
-            return null;
-        }
-
-        $competition = $sportEvent['sport_event_context']['competition']['name'] ?? 'Unknown';
-        $competitionId = $sportEvent['sport_event_context']['competition']['id'] ?? '';
-        $country = $sportEvent['sport_event_context']['category']['name'] ?? 'Unknown';
-        
-        $matchDate = isset($sportEvent['start_time']) 
-            ? Carbon::parse($sportEvent['start_time']) 
-            : $date;
-
-        // Générer une prédiction basique (vous pouvez améliorer avec l'algorithme complet)
-        return [
-            'id' => 'api_' . ($sportEvent['id'] ?? uniqid()),
-            'match_id' => $sportEvent['id'] ?? '',
-            'home_team' => $homeTeam['name'] ?? 'Home',
-            'away_team' => $awayTeam['name'] ?? 'Away',
-            'home_team_id' => $homeTeam['id'] ?? '',
-            'away_team_id' => $awayTeam['id'] ?? '',
-            'competition' => $competition,
-            'competition_id' => $competitionId,
-            'country' => $country,
-            'match_date' => $matchDate->format('Y-m-d H:i:s'),
-            'match_time' => $matchDate->format('H:i'),
-            'home_score' => null,
-            'away_score' => null,
-            'bet_type' => '1X2',
-            'prediction' => '1', // Prédiction basique
-            'odds' => 1.85,
-            'confidence_stars' => 2,
-            'status' => 'pending',
-            'is_premium' => false,
-            'is_published' => true,
-            'published_at' => now()->format('Y-m-d H:i:s'),
-            'score_form' => 0,
-            'score_h2h' => 0,
-            'score_home_away' => 0,
-            'score_league' => 0,
-            'score_goals' => 0,
-            'score_time' => 0,
-            'total_score' => 50,
-            'analysis_details' => null,
-        ];
-    }
-
-    /**
      * Formater une prédiction depuis un tableau
      */
     private function formatPredictionFromArray(array $prediction, bool $isPremium): array
@@ -1412,44 +1378,6 @@ class PredictionController extends Controller
             'incorrect' => $incorrect,
             'success_rate' => $successRate,
         ];
-    }
-
-    /**
-     * Génère une prédiction basique pour un match
-     */
-    protected function generateBasicPrediction(array $match, bool $isPremium, $selectedDate): ?array
-    {
-        try {
-            return [
-                'id' => rand(10000, 99999),
-                'match_id' => $match['id'] ?? 'unknown',
-                'home_team' => $match['home_team'] ?? 'Unknown',
-                'away_team' => $match['away_team'] ?? 'Unknown',
-                'competition' => $match['competition'] ?? 'Unknown',
-                'competition_id' => $match['competition_id'] ?? 0,
-                'country' => $match['country'] ?? 'Unknown',
-                'match_date' => $match['match_date'] ?? $selectedDate->format('Y-m-d'),
-                'match_time' => '15:00', // Heure par défaut
-                'bet_type' => '1X2',
-                'prediction' => ['1', 'X', '2'][rand(0, 2)], // Aléatoire pour la démo
-                'odds' => number_format(rand(140, 350) / 100, 2),
-                'confidence_stars' => rand(1, 4),
-                'is_premium' => $isPremium && rand(0, 1),
-                'is_published' => true,
-                'total_score' => rand(50, 85),
-                'status' => 'pending',
-                'analysis_details' => json_encode([
-                    'reasoning' => 'Prédiction générée automatiquement - Analyse complète à venir',
-                    'algorithm_version' => 'basic_v1',
-                    'generated_at' => now()->toIso8601String(),
-                ]),
-                'published_at' => now(),
-                'source' => 'generated',
-            ];
-        } catch (\Exception $e) {
-            Log::error("Erreur génération prédiction basique: " . $e->getMessage());
-            return null;
-        }
     }
 
     // =========================================================================
@@ -1759,6 +1687,122 @@ PROMPT;
         }
 
         return $this->fallbackAnalysis($picks, $totalOdds, $avgConfidence);
+    }
+
+    /**
+     * POST /predictions/generate — Premium only
+     * Génère les prédictions pour une date donnée via l'algorithme IA.
+     * Utilisé par le mobile quand un premium consulte une date sans prédictions.
+     */
+    public function generateForDate(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = $request->user();
+        if (!$user || !$user->is_premium) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette fonctionnalité est réservée aux membres Premium.',
+            ], 403);
+        }
+
+        $date = $request->input('date', Carbon::tomorrow()->format('Y-m-d'));
+
+        try {
+            $targetDate = Carbon::parse($date);
+        } catch (\Exception) {
+            return response()->json(['success' => false, 'message' => 'Date invalide.'], 422);
+        }
+
+        // Sécurité : max 7 jours dans le futur
+        if ($targetDate->diffInDays(Carbon::today(), false) < -7) {
+            return response()->json(['success' => false, 'message' => 'La date ne peut pas dépasser 7 jours dans le futur.'], 422);
+        }
+
+        $dateStr = $targetDate->format('Y-m-d');
+        $cacheKey = "generated_predictions_premium_{$user->id}_{$dateStr}";
+
+        // Limite : 1 génération par user par date toutes les 30 min
+        if (Cache::has($cacheKey)) {
+            $existing = \App\Models\Prediction::whereDate('match_date', $dateStr)->get();
+            if ($existing->isNotEmpty()) {
+                return response()->json([
+                    'success'       => true,
+                    'from_cache'    => true,
+                    'date'          => $dateStr,
+                    'generated'     => $existing->count(),
+                    'predictions'   => $existing->map(fn($p) => $this->formatPrediction($p, true)),
+                ]);
+            }
+        }
+
+        Log::info("Premium generate triggered", ['user' => $user->id, 'date' => $dateStr]);
+
+        // Récupérer les matchs via API-Football pour cette date
+        $fixtures = $this->footballApi->getMatchesByDate($dateStr);
+
+        if (empty($fixtures)) {
+            return response()->json([
+                'success'   => false,
+                'message'   => 'Aucun match trouvé pour cette date via API-Football.',
+                'date'      => $dateStr,
+                'generated' => 0,
+            ]);
+        }
+
+        $generated = 0;
+        $skipped   = 0;
+
+        foreach ($fixtures as $fixture) {
+            try {
+                $prediction = $this->algorithm->generatePrediction($fixture);
+                if (!$prediction['should_publish']) {
+                    $skipped++;
+                    continue;
+                }
+
+                $fixtureInfo = $fixture['fixture'] ?? [];
+                $teams       = $fixture['teams']   ?? [];
+                $league      = $fixture['league']  ?? [];
+                $matchDate   = Carbon::parse($fixtureInfo['date'] ?? $dateStr);
+
+                \App\Models\Prediction::updateOrCreate(
+                    ['fixture_id' => $fixtureInfo['id'] ?? null],
+                    [
+                        'home_team'        => $teams['home']['name'] ?? 'Unknown',
+                        'away_team'        => $teams['away']['name'] ?? 'Unknown',
+                        'league'           => $league['name']        ?? 'Unknown',
+                        'country'          => $league['country']     ?? 'Unknown',
+                        'match_date'       => $matchDate,
+                        'prediction'       => $prediction['outcome'],
+                        'bet_type'         => $prediction['type'],
+                        'odds'             => $prediction['odds'],
+                        'confidence_score' => $prediction['confidence'],
+                        'stars'            => $prediction['stars'],
+                        'is_premium'       => $prediction['is_premium'],
+                        'status'           => 'pending',
+                    ]
+                );
+                $generated++;
+            } catch (\Exception $e) {
+                Log::warning("generateForDate: erreur fixture", ['error' => $e->getMessage()]);
+                $skipped++;
+            }
+        }
+
+        Cache::put($cacheKey, true, 1800); // 30 min cooldown
+
+        $savedPredictions = \App\Models\Prediction::whereDate('match_date', $dateStr)
+            ->orderByDesc('confidence_score')
+            ->get();
+
+        return response()->json([
+            'success'     => true,
+            'from_cache'  => false,
+            'date'        => $dateStr,
+            'analyzed'    => count($fixtures),
+            'generated'   => $generated,
+            'skipped'     => $skipped,
+            'predictions' => $savedPredictions->map(fn($p) => $this->formatPrediction($p, true)),
+        ]);
     }
 
     private function fallbackAnalysis(array $picks, float $totalOdds, float $avgConfidence): array

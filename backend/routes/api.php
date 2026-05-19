@@ -78,6 +78,7 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/teams/{id}/news',      [TeamController::class, 'news'])->where('id', '[0-9]+');
 
     // Matchs en direct
+    Route::get('/matches/featured',       [MatchController::class, 'featured']);
     Route::get('/matches/live',           [MatchController::class, 'live']);
     Route::get('/matches/today',          [MatchController::class, 'today']);
     Route::get('/matches/date/{date}',    [MatchController::class, 'byDate'])->where('date', '\d{4}-\d{2}-\d{2}');
@@ -100,8 +101,10 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/bookmakers',                [App\Http\Controllers\Api\BookmakerController::class, 'index']);
     Route::get('/bookmakers/auto',           [OddsController::class, 'getAutoBookmakers']);
     Route::get('/bookmakers/by-region',      [OddsController::class, 'getByRegion']);
+    Route::get('/bookmakers/all',            [OddsController::class, 'getAllBookmakers']);
     Route::get('/bookmakers/blogs',          [App\Http\Controllers\Api\BookmakerBlogController::class, 'index']);
     Route::get('/bookmakers/{id}/blog',      [App\Http\Controllers\Api\BookmakerBlogController::class, 'show']);
+    Route::get('/bookmakers/{id}/detail',    [OddsController::class, 'getBookmakerDetail']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -109,6 +112,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/predictions/statistics', [PredictionController::class, 'statistics']);
     Route::post('/predictions/feedback', [PredictionController::class, 'feedback']);
     Route::get('/predictions/combined-daily', [PredictionController::class, 'combinedDaily']);
+
+    // Génération premium à la demande (date future ou passée)
+    Route::post('/predictions/generate', [PredictionController::class, 'generateForDate']);
+
+    // Coupon premium
+    Route::post('/predictions/coupon/custom',        [PredictionController::class, 'couponCustom']);
+    Route::post('/predictions/coupon/analyze',       [PredictionController::class, 'couponAnalyze']);
+    Route::post('/predictions/coupon/analyze-image', [PredictionController::class, 'couponAnalyzeImage']);
+
+    // Coupons gagnants — mémoire personnelle de l'utilisateur
+    Route::get('/winning-coupons',           [App\Http\Controllers\Api\WinningCouponController::class, 'index']);
+    Route::post('/winning-coupons',          [App\Http\Controllers\Api\WinningCouponController::class, 'store']);
+    Route::delete('/winning-coupons/{id}',   [App\Http\Controllers\Api\WinningCouponController::class, 'destroy']);
+    Route::get('/winning-coupons/profile',   [App\Http\Controllers\Api\WinningCouponController::class, 'profile']);
 });
 
 // Routes publiques pour abonnements (affichage des plans)
@@ -170,6 +187,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/notifications/{id}', [App\Http\Controllers\Api\NotificationController::class, 'destroy']);
     Route::get('/notifications/settings', [App\Http\Controllers\Api\NotificationController::class, 'getSettings']);
     Route::put('/notifications/settings', [App\Http\Controllers\Api\NotificationController::class, 'updateSettings']);
+    Route::get('/notifications/routine-preferences', [App\Http\Controllers\Api\NotificationController::class, 'getRoutinePreferences']);
+    Route::put('/notifications/routine-preferences', [App\Http\Controllers\Api\NotificationController::class, 'updateRoutinePreferences']);
 
     // Tracking clic bookmaker (nécessite auth pour tracker l'utilisateur)
     Route::post('/bookmakers/{id}/click', [App\Http\Controllers\Api\BookmakerController::class, 'trackClick']);

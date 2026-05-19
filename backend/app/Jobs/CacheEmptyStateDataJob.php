@@ -54,12 +54,12 @@ class CacheEmptyStateDataJob implements ShouldQueue
             ->where('status', 'won')
             ->orderByDesc('match_date')
             ->limit(5)
-            ->get(['id', 'home_team', 'away_team', 'competition', 'prediction_outcome', 'odds', 'match_date'])
+            ->get(['id', 'home_team', 'away_team', 'competition', 'prediction', 'odds', 'match_date'])
             ->map(fn ($p) => [
                 'match'      => "{$p->home_team} vs {$p->away_team}",
                 'league'     => $p->competition,
-                'prediction' => $p->prediction_outcome,
-                'odds'       => $p->odds,
+                'prediction' => $p->prediction,
+                'odds'       => (float) $p->odds,
                 'date'       => $p->match_date,
             ])
             ->values()

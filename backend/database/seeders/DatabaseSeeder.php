@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -11,19 +10,19 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Seed the application's database.
-     * 
-     * NOTE: Les seeders sont désactivés pour utiliser uniquement les vraies données
-     * générées par les jobs automatisés (GenerateAllPredictionsJob).
-     * Les données de test doivent être créées via l'API ou l'interface d'administration.
+     * Données de configuration stables uniquement.
+     * Prédictions, matchs, utilisateurs et abonnements sont créés en temps réel
+     * via les APIs externes et l'interface d'administration.
      */
     public function run(): void
     {
         $this->call([
             AppConfigSeeder::class,
             CompetitionSeeder::class,
+            BookmakerRegionSeeder::class,
+            BookmakerPaymentMethodsSeeder::class,
+            BookmakerBlogSeeder::class,
             AdminUserSeeder::class,
-            TestDataSeeder::class,
         ]);
     }
 }

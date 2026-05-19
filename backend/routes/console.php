@@ -33,12 +33,36 @@ Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
     ->withoutOverlapping()
     ->onOneServer();
 
-// ── 06:30 UTC — Envoyer les notifications quotidiennes
+// ── 06:30 UTC — Envoyer les notifications quotidiennes (legacy)
 // 1h de marge après génération — prédictions garanties prêtes
 Schedule::job(new \App\Jobs\SendDailyNotificationJob)
     ->dailyAt('06:30')
     ->timezone('UTC')
     ->name('send-daily-notifications')
+    ->onOneServer();
+
+// ── 08:00 UTC (09h WAT) — Routine matin : pronostic phare du jour
+Schedule::job(new \App\Jobs\SendRoutineMorningJob)
+    ->dailyAt('08:00')
+    ->timezone('UTC')
+    ->name('routine-morning')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 12:00 UTC (13h WAT) — Routine après-midi : rappel coupon IA
+Schedule::job(new \App\Jobs\SendRoutineAfternoonJob)
+    ->dailyAt('12:00')
+    ->timezone('UTC')
+    ->name('routine-afternoon')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 21:00 UTC (22h WAT) — Routine soir : récap résultats du jour
+Schedule::job(new \App\Jobs\SendRoutineEveningRecapJob)
+    ->dailyAt('21:00')
+    ->timezone('UTC')
+    ->name('routine-evening')
+    ->withoutOverlapping()
     ->onOneServer();
 
 // ── 07:00 UTC — Rappels expiration Premium (J-7, J-3, J-1)
@@ -65,6 +89,17 @@ Schedule::job(new \App\Jobs\MonitorApiQuotasJob)
 Schedule::job(new \App\Jobs\CacheEmptyStateDataJob)
     ->everyFifteenMinutes()
     ->name('cache-empty-state-data')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── Dimanche 02:00 UTC — Enrichissement auto des fiches bookmakers via Claude
+// Coût : ~1 appel Claude Haiku par bookmaker (~0.001$ pièce)
+Schedule::job(new \App\Jobs\EnrichBookmakersJob)
+    ->weekly()
+    ->sundays()
+    ->at('02:00')
+    ->timezone('UTC')
+    ->name('enrich-bookmakers')
     ->withoutOverlapping()
     ->onOneServer();
 

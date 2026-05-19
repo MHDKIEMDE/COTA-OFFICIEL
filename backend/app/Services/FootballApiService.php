@@ -175,6 +175,19 @@ class FootballApiService
     }
 
     /**
+     * Récupérer les matchs pour une date spécifique (premium generate)
+     */
+    public function getMatchesByDate(string $date): array
+    {
+        $params = [
+            'date'     => $date,
+            'timezone' => config('football-api.timezone'),
+        ];
+        $result = $this->makeRequest('/fixtures', $params, 300);
+        return $result['response'] ?? [];
+    }
+
+    /**
      * Récupérer les matchs en direct
      */
     public function getLiveMatches(): ?array
