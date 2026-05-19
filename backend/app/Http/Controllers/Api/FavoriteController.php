@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\UserFavorite;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
 
@@ -26,32 +27,31 @@ class FavoriteController extends Controller
     {
         $user = $request->user();
         
-        $query = UserFavorite::forUser($user->id);
-        
-        // Filtrer par type si fourni
-        if ($request->has('type')) {
-            $type = $request->query('type');
-            if (in_array($type, ['team', 'competition', 'match'])) {
+        $type     = $request->query('type');
+        $cacheKey = "favorites:user:{$user->id}" . ($type ? ":{$type}" : '');
+
+        $favorites = Cache::remember($cacheKey, 120, function () use ($user, $type) {
+            $query = UserFavorite::forUser($user->id);
+
+            if ($type && in_array($type, ['team', 'competition', 'match'])) {
                 $query->ofType($type);
             }
-        }
-        
-        $favorites = $query->orderBy('created_at', 'desc')->get();
-        
+
+            return $query->orderBy('created_at', 'desc')->get()->map(fn($f) => [
+                'id'           => $f->id,
+                'type'         => $f->type,
+                'item_id'      => $f->item_id,
+                'item_name'    => $f->item_name,
+                'item_logo'    => $f->item_logo,
+                'item_country' => $f->item_country,
+                'created_at'   => $f->created_at->toIso8601String(),
+            ]);
+        });
+
         return response()->json([
             'success' => true,
-            'data' => $favorites->map(function ($favorite) {
-                return [
-                    'id' => $favorite->id,
-                    'type' => $favorite->type,
-                    'item_id' => $favorite->item_id,
-                    'item_name' => $favorite->item_name,
-                    'item_logo' => $favorite->item_logo,
-                    'item_country' => $favorite->item_country,
-                    'created_at' => $favorite->created_at->toIso8601String(),
-                ];
-            }),
-            'count' => $favorites->count(),
+            'data'    => $favorites,
+            'count'   => $favorites->count(),
         ]);
     }
 
@@ -104,6 +104,9 @@ class FavoriteController extends Controller
             'item_country' => $request->item_country,
         ]);
 
+        Cache::forget("favorites:user:{$user->id}");
+        Cache::forget("favorites:user:{$user->id}:{$request->type}");
+
         Log::info('Favorite added', [
             'user_id' => $user->id,
             'type' => $request->type,
@@ -145,7 +148,11 @@ class FavoriteController extends Controller
             ], 404);
         }
 
+        $type = $favorite->type;
         $favorite->delete();
+
+        Cache::forget("favorites:user:{$user->id}");
+        Cache::forget("favorites:user:{$user->id}:{$type}");
 
         Log::info('Favorite removed', [
             'user_id' => $user->id,
@@ -196,6 +203,9 @@ class FavoriteController extends Controller
         }
 
         $favorite->delete();
+
+        Cache::forget("favorites:user:{$user->id}");
+        Cache::forget("favorites:user:{$user->id}:{$request->type}");
 
         Log::info('Favorite removed by item', [
             'user_id' => $user->id,

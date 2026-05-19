@@ -7,6 +7,7 @@ use App\Services\FootballApiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class TeamController extends Controller
@@ -26,16 +27,19 @@ class TeamController extends Controller
         }
 
         try {
-            $data = $this->footballApi->getTeamInfo((int) $id);
-            $team = $data['response'][0] ?? null;
+            $normalized = Cache::remember("team:{$id}", 21600, function () use ($id) {
+                $data = $this->footballApi->getTeamInfo((int) $id);
+                $team = $data['response'][0] ?? null;
+                return $team ? $this->normalizeTeam($team) : null;
+            });
 
-            if (!$team) {
+            if (!$normalized) {
                 return response()->json(['success' => false, 'message' => 'Équipe introuvable'], 404);
             }
 
             return response()->json([
                 'success' => true,
-                'data'    => $this->normalizeTeam($team),
+                'data'    => $normalized,
             ]);
         } catch (\Exception $e) {
             Log::error("TeamController::show({$id}) — " . $e->getMessage());

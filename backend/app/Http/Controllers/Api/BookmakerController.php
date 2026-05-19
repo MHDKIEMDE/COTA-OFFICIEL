@@ -7,6 +7,7 @@ use App\Models\Bookmaker;
 use App\Models\BookmakerClick;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,29 +21,32 @@ class BookmakerController extends Controller
      * GET /api/bookmakers
      * Accessible sans authentification (liste publique)
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $bookmakers = Bookmaker::active()
-            ->ordered()
-            ->get()
-            ->map(function ($bookmaker) {
-                return [
-                    'id' => $bookmaker->id,
-                    'name' => $bookmaker->name,
-                    'slug' => $bookmaker->slug,
-                    'primary_color' => $bookmaker->primary_color,
-                    'secondary_color' => $bookmaker->secondary_color,
-                    'affiliate_link' => $bookmaker->affiliate_link,
-                    'download_link' => $bookmaker->download_link,
-                    'logo_url' => $bookmaker->logo_url,
-                    'description' => $bookmaker->description,
-                ];
-            });
+        $region = $request->query('region', 'global');
+        $cacheKey = "bookmakers:list:{$region}";
+
+        $bookmakers = Cache::remember($cacheKey, 3600, function () {
+            return Bookmaker::active()
+                ->ordered()
+                ->get()
+                ->map(fn($b) => [
+                    'id'              => $b->id,
+                    'name'            => $b->name,
+                    'slug'            => $b->slug,
+                    'primary_color'   => $b->primary_color,
+                    'secondary_color' => $b->secondary_color,
+                    'affiliate_link'  => $b->affiliate_link,
+                    'download_link'   => $b->download_link,
+                    'logo_url'        => $b->logo_url,
+                    'description'     => $b->description,
+                ]);
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $bookmakers,
-            'count' => $bookmakers->count(),
+            'data'    => $bookmakers,
+            'count'   => $bookmakers->count(),
         ]);
     }
 

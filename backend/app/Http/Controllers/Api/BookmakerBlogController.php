@@ -7,16 +7,19 @@ use App\Http\Resources\BookmakerBlogResource;
 use App\Models\BookmakerBlog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class BookmakerBlogController extends Controller
 {
     // GET /api/bookmakers/{bookmaker_id}/blog
     public function show(Request $request, int $bookmakerId): JsonResponse
     {
-        $blog = BookmakerBlog::with('bookmaker')
-            ->active()
-            ->where('bookmaker_id', $bookmakerId)
-            ->first();
+        $blog = Cache::remember("bookmaker:blog:{$bookmakerId}", 86400, function () use ($bookmakerId) {
+            return BookmakerBlog::with('bookmaker')
+                ->active()
+                ->where('bookmaker_id', $bookmakerId)
+                ->first();
+        });
 
         if (!$blog) {
             return response()->json(['success' => false, 'message' => 'Aucun blog disponible pour ce bookmaker.'], 404);

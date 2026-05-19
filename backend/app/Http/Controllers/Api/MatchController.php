@@ -7,6 +7,7 @@ use App\Services\FootballApiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class MatchController extends Controller
@@ -57,26 +58,31 @@ class MatchController extends Controller
         }
 
         $competition = $request->query('competition');
+        $cacheKey    = "matches:today:{$parsed}" . ($competition ? ":{$competition}" : '');
 
         try {
-            $target   = Carbon::parse($parsed);
-            $today    = Carbon::today();
-            $days     = max(0, (int) $today->diffInDays($target, false));
-            $response = $this->footballApi->getUpcomingMatches($days + 1);
-            $matches  = [];
+            $matches = Cache::remember($cacheKey, 300, function () use ($parsed, $competition) {
+                $target   = Carbon::parse($parsed);
+                $today    = Carbon::today();
+                $days     = max(0, (int) $today->diffInDays($target, false));
+                $response = $this->footballApi->getUpcomingMatches($days + 1);
+                $result   = [];
 
-            foreach ($response['response'] ?? [] as $fixture) {
-                $fixtureDate = Carbon::parse($fixture['fixture']['date'])->format('Y-m-d');
-                if ($fixtureDate !== $parsed) continue;
+                foreach ($response['response'] ?? [] as $fixture) {
+                    $fixtureDate = Carbon::parse($fixture['fixture']['date'])->format('Y-m-d');
+                    if ($fixtureDate !== $parsed) continue;
 
-                if ($competition) {
-                    $leagueId   = (string) ($fixture['league']['id'] ?? '');
-                    $leagueName = $fixture['league']['name'] ?? '';
-                    if ($competition !== $leagueId && $competition !== $leagueName) continue;
+                    if ($competition) {
+                        $leagueId   = (string) ($fixture['league']['id'] ?? '');
+                        $leagueName = $fixture['league']['name'] ?? '';
+                        if ($competition !== $leagueId && $competition !== $leagueName) continue;
+                    }
+
+                    $result[] = $this->normalize($fixture);
                 }
 
-                $matches[] = $this->normalize($fixture);
-            }
+                return $result;
+            });
 
             return response()->json([
                 'success' => true,

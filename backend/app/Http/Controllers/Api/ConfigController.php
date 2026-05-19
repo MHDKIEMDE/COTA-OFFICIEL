@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppConfig;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Controller pour la configuration dynamique de l'application
@@ -22,8 +23,8 @@ class ConfigController extends Controller
      */
     public function getAppConfig(): JsonResponse
     {
-        $configs = AppConfig::allAsArray();
-        
+        $configs = Cache::remember('app:config', 600, fn() => AppConfig::allAsArray());
+
         // Valeurs par défaut si aucune config n'existe
         $defaultConfigs = [
             'app_name' => 'COTA',
