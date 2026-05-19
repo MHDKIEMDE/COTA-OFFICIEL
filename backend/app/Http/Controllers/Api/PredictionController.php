@@ -55,19 +55,33 @@ class PredictionController extends Controller
         // OPTIMISATION: Essayer d'abord la base de données (BEAUCOUP plus rapide)
         Log::info("📊 Vérification des prédictions en base de données pour le {$dateString}");
         
-        $popularLeagueNames = array_column(config('football-api.popular_leagues', []), 'name');
+        // Construire un index de priorité par paire (competition, country)
+        // Les ligues populaires sont prioritaires, les autres viennent après
+        $popularPairs = config('football-api.popular_leagues', []);
+        $popularByName = [];
+        foreach ($popularPairs as $league) {
+            $key = $league['name'] . '|' . $league['country'];
+            $popularByName[$key] = $league['tier'];
+        }
+
+        // Noms des ligues populaires pour tri prioritaire
+        $popularNames = array_column($popularPairs, 'name');
+
+        // Exclure les ligues de bas niveau sans données fiables
+        $excludedLigues = ['Friendl', 'Women', 'Female', 'Youth', 'U17', 'U18', 'U19', 'U20', 'U21', 'U23', 'Reserve', 'Amateur'];
 
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereDate('match_date', $dateString)
-            ->where(fn($q) =>
-                $q->where('league_tier', '<=', 3)
-                  ->orWhereIn('competition', $popularLeagueNames)
-                  ->orWhereNull('league_tier')
-                  ->orWhere('league_tier', 99)
-            )
-            ->orderBy('league_tier', 'asc')
+            ->where('total_score', '>', 52)    // exclure prédictions sans données réelles
+            ->where(function ($q) use ($excludedLigues) {
+                foreach ($excludedLigues as $pattern) {
+                    $q->where('competition', 'not like', '%' . $pattern . '%');
+                }
+            })
+            ->orderByRaw("CASE WHEN competition IN ('" . implode("','", $popularNames) . "') THEN 1 ELSE 2 END ASC")
             ->orderBy('confidence_stars', 'desc')
+            ->orderBy('total_score', 'desc')
             ->orderBy('match_time', 'asc');
         
         // Filtrer par compétition si fourni
@@ -82,8 +96,8 @@ class PredictionController extends Controller
         
         $dbPredictions = $query->get();
         
-        // Si on a des prédictions en base (au moins 3), les utiliser directement
-        if ($dbPredictions->count() >= 3) {
+        // Si on a au moins 1 prédiction dans les ligues populaires, les retourner
+        if ($dbPredictions->count() >= 1) {
             Log::info("✅ " . $dbPredictions->count() . " prédictions trouvées en base de données (source: database) - RÉPONSE RAPIDE");
             
             $formattedPredictions = $dbPredictions->map(function ($prediction) use ($isPremium) {
@@ -786,14 +800,40 @@ class PredictionController extends Controller
             $minPicks = 4;
             $maxPicks = 5;
 
-            // Sélectionner les meilleures prédictions du jour depuis la DB
-            // Sans seuil rigide — prendre les top scores disponibles
+            // Paires (competition, country) des ligues populaires tier 1-3
+            $popularPairs = array_filter(
+                config('football-api.popular_leagues', []),
+                fn($l) => $l['tier'] <= 3
+            );
+            $popularNames = array_column($popularPairs, 'name');
+
+            // 1. Essayer d'abord avec les ligues populaires strictes (paires name+country)
             $rows = DB::table('predictions')
                 ->where('is_published', true)
                 ->whereDate('match_date', $date)
+                ->where(function ($q) use ($popularPairs) {
+                    foreach ($popularPairs as $league) {
+                        $q->orWhere(fn($sub) =>
+                            $sub->where('competition', $league['name'])
+                                ->where('country', $league['country'])
+                        );
+                    }
+                })
                 ->orderBy('total_score', 'desc')
                 ->limit(50)
                 ->get();
+
+            // 2. Fallback : si pas assez, prendre les meilleurs disponibles en prioritisant
+            //    les ligues au nom reconnu (évite les ligues totalement inconnues)
+            if ($rows->count() < $minPicks) {
+                $rows = DB::table('predictions')
+                    ->where('is_published', true)
+                    ->whereDate('match_date', $date)
+                    ->orderByRaw("CASE WHEN competition IN ('" . implode("','", $popularNames) . "') THEN 1 ELSE 2 END ASC")
+                    ->orderBy('total_score', 'desc')
+                    ->limit(50)
+                    ->get();
+            }
 
             if ($rows->count() < $minPicks) {
                 return [
@@ -1410,5 +1450,341 @@ class PredictionController extends Controller
             Log::error("Erreur génération prédiction basique: " . $e->getMessage());
             return null;
         }
+    }
+
+    // =========================================================================
+    // COUPON PREMIUM — génération sur cote cible
+    // POST /api/predictions/coupon/custom   (auth:sanctum + premium)
+    // Body : { "target_odds": 5.50, "max_picks": 5 }
+    // =========================================================================
+
+    public function couponCustom(Request $request)
+    {
+        $request->validate([
+            'target_odds' => 'required|numeric|min:1.5|max:50',
+            'max_picks'   => 'integer|min:2|max:8',
+        ]);
+
+        $targetOdds = (float) $request->input('target_odds');
+        $maxPicks   = (int)   $request->input('max_picks', 5);
+        $date       = Carbon::today()->toDateString();
+
+        // Récupérer toutes les prédictions publiées du jour
+        $rows = DB::table('predictions')
+            ->where('is_published', true)
+            ->whereDate('match_date', $date)
+            ->orderBy('total_score', 'desc')
+            ->limit(100)
+            ->get();
+
+        if ($rows->count() < 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pas assez de prédictions disponibles aujourd\'hui.',
+            ], 422);
+        }
+
+        // Algorithme glouton : on cherche la combinaison qui atteint target_odds
+        // avec le maximum de confiance, sans dépasser maxPicks
+        $best      = null;
+        $bestDelta = PHP_FLOAT_MAX;
+        $pool      = $rows->shuffle()->take(30); // limiter la recherche
+
+        // Essais avec 2 à maxPicks picks
+        for ($n = 2; $n <= min($maxPicks, $pool->count()); $n++) {
+            $picks     = $pool->take($n);
+            $totalOdds = $picks->reduce(fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
+            $delta     = abs($totalOdds - $targetOdds);
+
+            if ($delta < $bestDelta) {
+                $bestDelta = $delta;
+                $best      = $picks;
+            }
+            if ($delta < 0.5) break; // assez proche, stop
+        }
+
+        if (!$best || $best->isEmpty()) {
+            $best = $pool->take($maxPicks);
+        }
+
+        $selected      = $best->all();
+        $totalOdds     = array_reduce($selected, fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
+        $avgConfidence = array_sum(array_map(fn($p) => (float)$p->total_score, $selected)) / count($selected);
+
+        $picks = array_map(fn($p) => [
+            'match'          => $p->home_team . ' vs ' . $p->away_team,
+            'league'         => $p->competition ?? null,
+            'date'           => $p->match_date,
+            'time'           => $p->match_time ?? null,
+            'prediction'     => $p->prediction,
+            'type'           => $p->bet_type,
+            'odds'           => round((float)($p->odds ?? 1.0), 2),
+            'confidence'     => round((float)$p->total_score, 1),
+            'stars'          => $p->confidence_stars,
+            'home_team_logo' => $p->home_team_logo ?? null,
+            'away_team_logo' => $p->away_team_logo ?? null,
+        ], $selected);
+
+        // Analyse IA du coupon généré
+        $analysis = $this->analyzeCouponWithClaude($picks, $totalOdds, $avgConfidence);
+
+        return response()->json([
+            'success'             => true,
+            'mode'                => 'custom',
+            'target_odds'         => $targetOdds,
+            'picks'               => $picks,
+            'matches_count'       => count($picks),
+            'total_odds'          => round($totalOdds, 2),
+            'avg_confidence'      => round($avgConfidence, 1),
+            'potential_gain_1000' => (int) round($totalOdds * 1000),
+            'analysis'            => $analysis,
+            'generated_at'        => Carbon::now()->toIso8601String(),
+        ]);
+    }
+
+    // =========================================================================
+    // COUPON PREMIUM — analyse d'un coupon saisi manuellement
+    // POST /api/predictions/coupon/analyze   (auth:sanctum + premium)
+    // Body : { "picks": [ { "match": "PSG vs Lyon", "prediction": "1", "odds": 1.8 } ] }
+    // =========================================================================
+
+    public function couponAnalyze(Request $request)
+    {
+        $request->validate([
+            'picks'             => 'required|array|min:1|max:20',
+            'picks.*.match'     => 'required|string|max:100',
+            'picks.*.prediction'=> 'required|string|max:50',
+            'picks.*.odds'      => 'required|numeric|min:1.01|max:1000',
+        ]);
+
+        $picks     = $request->input('picks');
+        $totalOdds = array_reduce($picks, fn($c, $p) => $c * (float)$p['odds'], 1.0);
+
+        // Calcul confiance moyen estimé (heuristique sur les cotes)
+        $avgConfidence = array_sum(array_map(function ($p) {
+            $odds = (float)$p['odds'];
+            // Cote < 1.5 → forte confiance implicite du marché
+            if ($odds < 1.3)  return 85.0;
+            if ($odds < 1.5)  return 75.0;
+            if ($odds < 2.0)  return 62.0;
+            if ($odds < 3.0)  return 50.0;
+            return 35.0;
+        }, $picks)) / count($picks);
+
+        $analysis = $this->analyzeCouponWithClaude($picks, $totalOdds, $avgConfidence);
+
+        return response()->json([
+            'success'             => true,
+            'picks_count'         => count($picks),
+            'total_odds'          => round($totalOdds, 2),
+            'avg_confidence'      => round($avgConfidence, 1),
+            'potential_gain_1000' => (int) round($totalOdds * 1000),
+            'analysis'            => $analysis,
+        ]);
+    }
+
+    // =========================================================================
+    // COUPON PREMIUM — analyse d'une image de ticket (OCR + IA)
+    // POST /api/predictions/coupon/analyze-image   (auth:sanctum + premium)
+    // Body : multipart/form-data  { "image": <file> }
+    // =========================================================================
+
+    public function couponAnalyzeImage(Request $request)
+    {
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
+        ]);
+
+        $key = config('services.anthropic.key', env('ANTHROPIC_API_KEY', ''));
+        if (empty($key)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Service d\'analyse non configuré.',
+            ], 503);
+        }
+
+        // Lire et encoder l'image en base64
+        $file     = $request->file('image');
+        $mime     = $file->getMimeType();
+        $b64      = base64_encode(file_get_contents($file->getRealPath()));
+
+        $prompt = <<<PROMPT
+Tu es un expert en paris sportifs. Analyse cette image d'un ticket de pari sportif.
+
+Extrait toutes les informations visibles et retourne UNIQUEMENT un JSON valide :
+
+{
+  "picks": [
+    {
+      "match": "Équipe A vs Équipe B",
+      "prediction": "1 (ou X, 2, Plus de 2.5, BTTS Oui, etc.)",
+      "odds": 1.85,
+      "league": "Ligue 1",
+      "status": "pending"
+    }
+  ],
+  "total_odds": 12.50,
+  "stake": 1000,
+  "potential_gain": 12500,
+  "bookmaker": "1xBet",
+  "ticket_date": "2026-05-18",
+  "confidence_score": 62,
+  "analysis": {
+    "verdict": "RISQUÉ",
+    "percentage_win": 38,
+    "strengths": ["Cote raisonnable sur le pick 1", "Équipe domicile en forme"],
+    "weaknesses": ["Cote totale trop élevée", "Pick 3 très incertain"],
+    "advice": "Conseil court en français (max 150 caractères)"
+  }
+}
+
+Règles :
+- Si tu ne vois pas clairement une valeur, mets null
+- verdict : "EXCELLENT" (>70%), "BON" (55-70%), "RISQUÉ" (40-55%), "TRÈS RISQUÉ" (<40%)
+- percentage_win : estimation du % de chances de gagner ce coupon
+- Réponds uniquement avec le JSON, sans explication
+PROMPT;
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'x-api-key'         => $key,
+                'anthropic-version' => '2023-06-01',
+                'content-type'      => 'application/json',
+            ])->timeout(45)->post('https://api.anthropic.com/v1/messages', [
+                'model'      => 'claude-haiku-4-5-20251001',
+                'max_tokens' => 1200,
+                'messages'   => [[
+                    'role'    => 'user',
+                    'content' => [
+                        [
+                            'type'   => 'image',
+                            'source' => [
+                                'type'       => 'base64',
+                                'media_type' => $mime,
+                                'data'       => $b64,
+                            ],
+                        ],
+                        ['type' => 'text', 'text' => $prompt],
+                    ],
+                ]],
+            ]);
+
+            $content = $response->json('content.0.text', '{}');
+            $content = trim($content);
+
+            if (!str_starts_with($content, '{')) {
+                preg_match('/\{.*\}/s', $content, $m);
+                $content = $m[0] ?? '{}';
+            }
+
+            $data = json_decode($content, true) ?? [];
+
+            return response()->json([
+                'success'  => true,
+                'source'   => 'image_ocr',
+                'data'     => $data,
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('[couponAnalyzeImage] ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de l\'analyse de l\'image.',
+            ], 500);
+        }
+    }
+
+    // =========================================================================
+    // HELPER PRIVÉ — analyse Claude d'un coupon (picks + cote + confiance)
+    // =========================================================================
+
+    private function analyzeCouponWithClaude(array $picks, float $totalOdds, float $avgConfidence): array
+    {
+        $key = config('services.anthropic.key', env('ANTHROPIC_API_KEY', ''));
+        if (empty($key)) {
+            return $this->fallbackAnalysis($picks, $totalOdds, $avgConfidence);
+        }
+
+        $picksJson = json_encode($picks, JSON_UNESCAPED_UNICODE);
+
+        $prompt = <<<PROMPT
+Tu es un analyste de paris sportifs expert. Analyse ce coupon de paris :
+
+Picks : {$picksJson}
+Cote totale : {$totalOdds}
+Score de confiance moyen : {$avgConfidence}/100
+
+Réponds UNIQUEMENT avec ce JSON valide :
+{
+  "verdict": "BON",
+  "percentage_win": 52,
+  "confidence_label": "Confiance modérée",
+  "strengths": ["Point fort 1", "Point fort 2"],
+  "weaknesses": ["Point faible 1"],
+  "advice": "Conseil concis en français (max 120 caractères)",
+  "risk_level": "MODÉRÉ"
+}
+
+Règles :
+- verdict : "EXCELLENT" (>70%), "BON" (55-70%), "RISQUÉ" (40-55%), "TRÈS RISQUÉ" (<40%)
+- percentage_win : % de chances de gagner ce coupon (tiens compte de la cote totale ET de la confiance)
+- risk_level : "FAIBLE", "MODÉRÉ", "ÉLEVÉ", "TRÈS ÉLEVÉ"
+- strengths et weaknesses : max 3 items chacun, en français
+- Réponds uniquement avec le JSON
+PROMPT;
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withHeaders([
+                'x-api-key'         => $key,
+                'anthropic-version' => '2023-06-01',
+                'content-type'      => 'application/json',
+            ])->timeout(20)->post('https://api.anthropic.com/v1/messages', [
+                'model'      => 'claude-haiku-4-5-20251001',
+                'max_tokens' => 400,
+                'messages'   => [['role' => 'user', 'content' => $prompt]],
+            ]);
+
+            $content = trim($response->json('content.0.text', '{}'));
+            if (!str_starts_with($content, '{')) {
+                preg_match('/\{.*\}/s', $content, $m);
+                $content = $m[0] ?? '{}';
+            }
+
+            $data = json_decode($content, true);
+            if (is_array($data) && !empty($data)) {
+                return $data;
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[analyzeCoupon] Claude error: ' . $e->getMessage());
+        }
+
+        return $this->fallbackAnalysis($picks, $totalOdds, $avgConfidence);
+    }
+
+    private function fallbackAnalysis(array $picks, float $totalOdds, float $avgConfidence): array
+    {
+        $pct = match(true) {
+            $avgConfidence >= 75 && $totalOdds <= 5  => 65,
+            $avgConfidence >= 65 && $totalOdds <= 8  => 52,
+            $avgConfidence >= 55 && $totalOdds <= 15 => 40,
+            default                                   => 28,
+        };
+
+        $verdict = match(true) {
+            $pct >= 70 => 'EXCELLENT',
+            $pct >= 55 => 'BON',
+            $pct >= 40 => 'RISQUÉ',
+            default    => 'TRÈS RISQUÉ',
+        };
+
+        return [
+            'verdict'          => $verdict,
+            'percentage_win'   => $pct,
+            'confidence_label' => $pct >= 55 ? 'Confiance satisfaisante' : 'Confiance faible',
+            'strengths'        => $avgConfidence >= 65 ? ['Picks à confiance élevée'] : [],
+            'weaknesses'       => $totalOdds > 10 ? ['Cote totale très élevée'] : [],
+            'advice'           => $pct >= 55 ? 'Coupon intéressant, mise raisonnable conseillée.' : 'Cote trop élevée, préférer un coupon plus prudent.',
+            'risk_level'       => $totalOdds > 15 ? 'TRÈS ÉLEVÉ' : ($totalOdds > 8 ? 'ÉLEVÉ' : 'MODÉRÉ'),
+        ];
     }
 }

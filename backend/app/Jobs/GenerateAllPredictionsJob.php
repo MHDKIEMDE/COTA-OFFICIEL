@@ -92,6 +92,14 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $leagueCountry = $league['country'] ?? '';
         $leagueTier   = $this->resolveLeagueTier($leagueName, $leagueCountry);
 
+        // Exclure les ligues de basse qualité qui ne fournissent pas de données utiles
+        $excludedPatterns = ['Friendl', 'Women', 'Female', 'Youth', 'U17', 'U18', 'U19', 'U20', 'U21', 'U23', 'Reserve', 'Amateur'];
+        foreach ($excludedPatterns as $pattern) {
+            if (stripos($leagueName, $pattern) !== false) {
+                return null;
+            }
+        }
+
         // Sauvegarder le match en base
         FootballMatch::updateOrCreate(
             ['match_id' => (string) $fixtureId],
