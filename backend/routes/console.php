@@ -92,6 +92,16 @@ Schedule::job(new \App\Jobs\CacheEmptyStateDataJob)
     ->withoutOverlapping()
     ->onOneServer();
 
+// ── Lundi 06:00 UTC — Auto-découverte bookmakers + notification admin si nouveau
+Schedule::command('bookmakers:discover --notify')
+    ->weekly()
+    ->mondays()
+    ->at('06:00')
+    ->timezone('UTC')
+    ->name('discover-bookmakers')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── Dimanche 02:00 UTC — Enrichissement auto des fiches bookmakers via Claude
 // Coût : ~1 appel Claude Haiku par bookmaker (~0.001$ pièce)
 Schedule::job(new \App\Jobs\EnrichBookmakersJob)

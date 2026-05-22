@@ -136,6 +136,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/winning-coupons',          [App\Http\Controllers\Api\WinningCouponController::class, 'store']);
     Route::delete('/winning-coupons/{id}',   [App\Http\Controllers\Api\WinningCouponController::class, 'destroy']);
     Route::get('/winning-coupons/profile',   [App\Http\Controllers\Api\WinningCouponController::class, 'profile']);
+
+    // Mes Coupons — coupons perso créés depuis les prédictions du jour
+    Route::get('/user-coupons',                        [App\Http\Controllers\Api\UserCouponController::class, 'index']);
+    Route::post('/user-coupons',                       [App\Http\Controllers\Api\UserCouponController::class, 'store']);
+    Route::put('/user-coupons/{id}/result',            [App\Http\Controllers\Api\UserCouponController::class, 'updateResult']);
+    Route::delete('/user-coupons/{id}',                [App\Http\Controllers\Api\UserCouponController::class, 'destroy']);
+    Route::get('/user-coupons/stats',                  [App\Http\Controllers\Api\UserCouponController::class, 'stats']);
 });
 
 // Routes publiques pour abonnements (affichage des plans)
