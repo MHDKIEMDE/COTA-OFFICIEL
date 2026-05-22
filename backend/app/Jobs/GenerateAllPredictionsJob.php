@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Services\FootballApiService;
 use App\Services\PredictionAlgorithmService;
+use App\Services\RapidApiService;
 use App\Models\Prediction;
 use App\Models\FootballMatch;
 use Illuminate\Bus\Queueable;
@@ -23,7 +24,7 @@ class GenerateAllPredictionsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm): void
+    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi): void
     {
         Log::info('GenerateAllPredictionsJob: Début génération prédictions');
 
@@ -46,9 +47,12 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         Log::info('GenerateAllPredictionsJob: ' . count($fixtures) . ' matchs à traiter');
 
+        // Précharger toutes les prédictions tierces du jour en 1 seul appel API
+        $rapidApi->loadDailyThirdPartyPredictions(Carbon::today()->format('Y-m-d'));
+
         foreach ($fixtures as $fixture) {
             try {
-                $prediction = $this->generatePredictionForFixture($fixture, $algorithm);
+                $prediction = $this->generatePredictionForFixture($fixture, $algorithm, $rapidApi);
                 if ($prediction) {
                     $predictions[] = $prediction;
                     $processed++;
@@ -73,7 +77,7 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $this->cleanOldPredictions();
     }
 
-    private function generatePredictionForFixture(array $fixture, PredictionAlgorithmService $algorithm): ?Prediction
+    private function generatePredictionForFixture(array $fixture, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi): ?Prediction
     {
         $fixtureInfo = $fixture['fixture'] ?? [];
         $fixtureId   = $fixtureInfo['id'] ?? null;
@@ -125,6 +129,14 @@ class GenerateAllPredictionsJob implements ShouldQueue
             return null;
         }
 
+        // Enrichir avec les prédictions tierces (déjà en cache → 0 appel réseau)
+        $predictionData = $rapidApi->enrichPredictionWithThirdParty(
+            $predictionData,
+            $homeTeam['name'] ?? '',
+            $awayTeam['name'] ?? '',
+            $matchDate->format('Y-m-d')
+        );
+
         return Prediction::updateOrCreate(
             ['match_id' => (string) $fixtureId],
             [
@@ -158,7 +170,8 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'analysis_details'   => json_encode([
                     'reasoning'         => $predictionData['reasoning'] ?? '',
                     'scores_breakdown'  => $predictionData['scores'] ?? [],
-                    'algorithm_version' => '3.0',
+                    'third_party'       => $predictionData['third_party'] ?? null,
+                    'algorithm_version' => '3.1',
                 ]),
                 'published_at'       => now(),
                 'is_combined_daily'  => false,

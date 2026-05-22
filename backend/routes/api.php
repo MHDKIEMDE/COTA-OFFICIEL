@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AffiliateController;
 use App\Http\Controllers\Api\OddsController;
 use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\TeamController;
+use App\Http\Controllers\Api\MediaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +80,7 @@ Route::middleware('throttle:60,1')->group(function () {
 
     // Matchs en direct
     Route::get('/matches/featured',       [MatchController::class, 'featured']);
+    Route::get('/stats/accuracy',         [PredictionController::class, 'accuracy']);
     Route::get('/matches/live',           [MatchController::class, 'live']);
     Route::get('/matches/today',          [MatchController::class, 'today']);
     Route::get('/matches/date/{date}',    [MatchController::class, 'byDate'])->where('date', '\d{4}-\d{2}-\d{2}');
@@ -88,6 +90,14 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/matches/{id}/lineups',   [MatchController::class, 'lineups']);
     Route::get('/matches/{id}/h2h',       [MatchController::class, 'h2h']);
     Route::get('/standings/{competition}',[MatchController::class, 'standings']);
+
+    // Highlights vidéo & streams live — throttle 30 req/min (cache agressif côté service)
+    Route::middleware('throttle:30,1')->group(function () {
+        Route::get('/media/highlights',         [MediaController::class, 'highlights']);
+        Route::get('/media/highlights/latest',  [MediaController::class, 'latestHighlights']);
+        Route::get('/media/streams',            [MediaController::class, 'streams']);
+        Route::get('/media/streams/match',      [MediaController::class, 'streamForMatch']);
+    });
 
     // Cotes bookmakers — throttle plus strict : 20 req/min (chaque appel consomme quota API)
     Route::middleware('throttle:20,1')->group(function () {

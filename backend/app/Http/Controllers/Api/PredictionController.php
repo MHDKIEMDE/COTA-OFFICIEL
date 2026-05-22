@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -74,6 +75,12 @@ class PredictionController extends Controller
             ->where('is_published', true)
             ->whereDate('match_date', $dateString)
             ->where('total_score', '>', 52)    // exclure prédictions sans données réelles
+            ->where(function ($q) {
+                // Exclure les matchs déjà commencés ou terminés
+                $now = Carbon::now()->format('H:i:s');
+                $q->whereNull('match_time')
+                  ->orWhere('match_time', '>', $now);
+            })
             ->where(function ($q) use ($excludedLigues) {
                 foreach ($excludedLigues as $pattern) {
                     $q->where('competition', 'not like', '%' . $pattern . '%');
@@ -374,6 +381,59 @@ class PredictionController extends Controller
      *
      * Cache: 10 minutes par compétition
      */
+    /**
+     * GET /api/stats/accuracy  (public, cache 1h)
+     * Chiffres affichés sur le slide 2 de l'onboarding :
+     *   - accuracy_30d  : taux de réussite sur 30 jours (ex: 74)
+     *   - roi_season    : ROI depuis le début de la saison en % (ex: +18)
+     *   - total_30d     : nombre de prédictions terminées sur 30 jours
+     */
+    public function accuracy(): JsonResponse
+    {
+        $data = Cache::remember('stats:accuracy:public', 3600, function () {
+            $now       = Carbon::now();
+            $month_ago = $now->copy()->subDays(30);
+            $season    = Carbon::createFromDate($now->month >= 7 ? $now->year : $now->year - 1, 7, 1);
+
+            // ── Taux de réussite 30 jours ─────────────────────────────────────
+            $month = DB::table('predictions')
+                ->where('is_published', true)
+                ->whereIn('status', ['won', 'lost'])
+                ->whereBetween('match_date', [$month_ago, $now])
+                ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = \'won\' THEN 1 ELSE 0 END) as won')
+                ->first();
+
+            $total30   = (int) ($month->total ?? 0);
+            $won30     = (int) ($month->won   ?? 0);
+            $accuracy  = $total30 > 0 ? (int) round($won30 / $total30 * 100) : 0;
+
+            // ── ROI saison (mise fictive 1 unité par pari, cote réelle) ───────
+            $season_preds = DB::table('predictions')
+                ->where('is_published', true)
+                ->whereIn('status', ['won', 'lost'])
+                ->where('match_date', '>=', $season)
+                ->select('status', 'odds')
+                ->get();
+
+            $stakes  = $season_preds->count();         // 1 unité par pari
+            $returns = $season_preds
+                ->where('status', 'won')
+                ->sum('odds');                          // retour brut des paris gagnés
+
+            $roi = $stakes > 0
+                ? (int) round(($returns - $stakes) / $stakes * 100)
+                : 0;
+
+            return [
+                'accuracy_30d' => $accuracy,
+                'roi_season'   => $roi,
+                'total_30d'    => $total30,
+            ];
+        });
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
     public function statistics(Request $request)
     {
         $user = $request->user();
@@ -823,8 +883,10 @@ class PredictionController extends Controller
         $date     = $request->query('date', Carbon::today()->toDateString());
         $cacheKey = 'coupon_daily_' . $date;
 
-        $coupon = Cache::remember($cacheKey, 1800, function () use ($date) {
-            $minPicks = 4;
+        // TTL jusqu'à minuit — le coupon ne se recalcule qu'une fois par jour
+        $ttl = Carbon::tomorrow()->startOfDay()->diffInSeconds(Carbon::now());
+
+        $coupon = Cache::remember($cacheKey, $ttl, function () use ($date) {
             $maxPicks = 5;
 
             // Paires (competition, country) des ligues populaires tier 1-3
@@ -850,9 +912,8 @@ class PredictionController extends Controller
                 ->limit(50)
                 ->get();
 
-            // 2. Fallback : si pas assez, prendre les meilleurs disponibles en prioritisant
-            //    les ligues au nom reconnu (évite les ligues totalement inconnues)
-            if ($rows->count() < $minPicks) {
+            // 2. Fallback : si pas assez, prendre les meilleurs disponibles toutes ligues
+            if ($rows->count() < 2) {
                 $rows = DB::table('predictions')
                     ->where('is_published', true)
                     ->whereDate('match_date', $date)
@@ -862,7 +923,8 @@ class PredictionController extends Controller
                     ->get();
             }
 
-            if ($rows->count() < $minPicks) {
+            // Aucune prédiction du tout
+            if ($rows->count() === 0) {
                 return [
                     'success'   => false,
                     'message'   => 'Aucune prédiction disponible pour le ' . $date,
@@ -870,6 +932,9 @@ class PredictionController extends Controller
                     'date'      => $date,
                 ];
             }
+
+            // minPicks adaptatif : idéalement 4, minimum 2 si peu de matchs dispo
+            $minPicks = max(2, min(4, $rows->count()));
 
             // Sélectionner max 1 match par compétition
             $selected    = [];
@@ -905,21 +970,33 @@ class PredictionController extends Controller
                 default              => 1,
             };
 
-            $picks = array_map(fn($p) => [
-                'match'          => $p->home_team . ' vs ' . $p->away_team,
-                'league'         => $p->competition ?? null,
-                'country'        => $p->country ?? null,
-                'date'           => $p->match_date,
-                'time'           => $p->match_time ?? null,
-                'prediction'     => $p->prediction,
-                'type'           => $p->bet_type,
-                'odds'           => (float) ($p->odds ?? 1.0),
-                'confidence'     => round((float) $p->total_score, 1),
-                'stars'          => $p->confidence_stars,
-                'is_premium'     => (bool) $p->is_premium,
-                'home_team_logo' => $p->home_team_logo ?? null,
-                'away_team_logo' => $p->away_team_logo ?? null,
-            ], $selected);
+            $picks = array_map(function ($p) {
+                $analysis  = $p->analysis_details ? json_decode($p->analysis_details, true) : [];
+                $reasoning = $analysis['reasoning'] ?? [];
+                $scores    = $analysis['scores'] ?? [];
+
+                return [
+                    'match'          => $p->home_team . ' vs ' . $p->away_team,
+                    'home_team'      => $p->home_team,
+                    'away_team'      => $p->away_team,
+                    'league'         => $p->competition ?? null,
+                    'country'        => $p->country ?? null,
+                    'date'           => $p->match_date,
+                    'time'           => $p->match_time ?? null,
+                    'prediction'     => $p->prediction,
+                    'type'           => $p->bet_type,
+                    'odds'           => (float) ($p->odds ?? 1.0),
+                    'confidence'     => round((float) $p->total_score, 1),
+                    'stars'          => $p->confidence_stars,
+                    'is_premium'     => (bool) $p->is_premium,
+                    'home_team_logo' => $p->home_team_logo ?? null,
+                    'away_team_logo' => $p->away_team_logo ?? null,
+                    'reasoning'      => is_array($reasoning) ? $reasoning : [],
+                    'scores'         => is_array($scores) ? array_map('floatval', $scores) : [],
+                    'corners_avg'    => $analysis['corners_avg'] ?? null,
+                    'cards_avg'      => $analysis['cards_avg'] ?? null,
+                ];
+            }, $selected);
 
             return [
                 'success'             => true,
@@ -987,6 +1064,8 @@ class PredictionController extends Controller
                 'home_score' => $prediction->home_score,
                 'away_score' => $prediction->away_score,
                 'status' => $matchStatus,
+                'venue' => $prediction->venue ?? null,
+                'referee' => $prediction->referee ?? null,
             ],
             'bet_type' => $prediction->bet_type,
             'prediction' => $isLocked ? null : $prediction->prediction,
@@ -1002,18 +1081,32 @@ class PredictionController extends Controller
         // Ajouter les détails complets si non verrouillé
         if (!$isLocked) {
             $data['scores'] = [
-                'form' => $prediction->score_form,
-                'h2h' => $prediction->score_h2h,
+                'form'      => $prediction->score_form,
+                'h2h'       => $prediction->score_h2h,
                 'home_away' => $prediction->score_home_away,
-                'league' => $prediction->score_league,
-                'goals' => $prediction->score_goals,
-                'time' => $prediction->score_time,
-                'total' => $prediction->total_score,
+                'league'    => $prediction->score_league,
+                'goals'     => $prediction->score_goals,
+                'time'      => $prediction->score_time,
+                'total'     => $prediction->total_score,
             ];
 
-            $data['analysis_details'] = $prediction->analysis_details
+            $details = $prediction->analysis_details
                 ? json_decode($prediction->analysis_details, true)
                 : null;
+
+            $data['analysis_details'] = $details;
+
+            // Exposer les données tierces directement au niveau racine pour le mobile
+            $thirdParty = $details['third_party'] ?? null;
+            $data['third_party'] = $thirdParty ? [
+                'prediction'   => $thirdParty['prediction']   ?? null,
+                'home_win_pct' => $thirdParty['home_win_pct'] ?? null,
+                'draw_pct'     => $thirdParty['draw_pct']     ?? null,
+                'away_win_pct' => $thirdParty['away_win_pct'] ?? null,
+                'btts'         => $thirdParty['btts']         ?? null,
+                'over25'       => $thirdParty['over25']       ?? null,
+                'agreement'    => $thirdParty['agreement']    ?? null,
+            ] : null;
         }
 
         return $data;

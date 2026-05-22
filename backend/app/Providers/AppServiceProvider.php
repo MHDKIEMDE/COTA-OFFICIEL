@@ -13,6 +13,8 @@ use App\Services\ApiGateway\ApiQuotaTracker;
 use App\Services\ApiGateway\ApiFallbackHandler;
 use App\Services\ApiGateway\Providers\ApiFootballProvider as GatewayApiFootballProvider;
 use App\Services\ApiGateway\Providers\FootballDataOrgProvider;
+use App\Services\RapidApiService;
+use App\Services\PredictionAlgorithmService;
 use App\Services\Sms\SmsProviderInterface;
 use App\Services\Sms\LogSmsProvider;
 use App\Services\Sms\TermiiSmsProvider;
@@ -40,6 +42,16 @@ class AppServiceProvider extends ServiceProvider
                 new FootballDataOrgProvider(),
                 $app->make(ApiQuotaTracker::class),
                 $app->make(ApiFallbackHandler::class),
+            );
+        });
+
+        $this->app->singleton(RapidApiService::class, fn() => new RapidApiService());
+
+        // PredictionAlgorithmService avec injection du 10ème critère (RapidAPI)
+        $this->app->singleton(PredictionAlgorithmService::class, function ($app) {
+            return new PredictionAlgorithmService(
+                $app->make(FootballApiService::class),
+                $app->make(RapidApiService::class),
             );
         });
 

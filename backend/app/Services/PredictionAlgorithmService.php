@@ -27,17 +27,19 @@ use Carbon\Carbon;
 class PredictionAlgorithmService
 {
     private FootballApiService $footballApi;
+    private ?RapidApiService $rapidApi;
 
     const WEIGHTS = [
-        'form'      => 25,
-        'h2h'       => 20,
-        'home_away' => 15,
-        'league'    => 12,
-        'goals'     => 10,
-        'time'      => 8,
-        'weather'   => 5,
-        'shots'     => 3,
-        'physical'  => 2,
+        'form'        => 25,
+        'h2h'         => 20,
+        'home_away'   => 15,
+        'league'      => 12,
+        'goals'       => 10,
+        'time'        => 8,
+        'weather'     => 5,
+        'shots'       => 3,
+        'physical'    => 2,
+        'third_party' => 7,   // 10ème critère — confirmation prédictions tierces
     ];
 
     const CONFIDENCE_THRESHOLDS = [
@@ -48,9 +50,10 @@ class PredictionAlgorithmService
         'min_publish' => 50,
     ];
 
-    public function __construct(FootballApiService $footballApi)
+    public function __construct(FootballApiService $footballApi, ?RapidApiService $rapidApi = null)
     {
         $this->footballApi = $footballApi;
+        $this->rapidApi    = $rapidApi;
     }
 
     /**
@@ -81,16 +84,29 @@ class PredictionAlgorithmService
             'weather'   => $this->calculateWeatherScore($fixture['fixture']['venue'] ?? []),
             'shots'     => $this->calculateShotsScore($homeTeamId, $awayTeamId, $leagueId, $season),
             'physical'  => $this->calculatePhysicalScore($homeTeamId, $awayTeamId),
+            // 10ème critère — calculé après determineBetType pour connaître notre outcome
+            'third_party' => 0.0,
         ];
-
-        $totalScore = array_sum($scores);
 
         // Signaux supplémentaires (pas dans le score total, mais utilisés pour le choix du marché)
         $cornersAvg  = $this->getAverageCornersPerMatch($homeTeamId, $awayTeamId);
         $cardsAvg    = $this->getAverageCardsPerMatch($homeTeamId, $awayTeamId);
         $topScorers  = $this->getTopScorersForMatch($homeTeamId, $awayTeamId, $leagueId, $season);
 
-        $prediction = $this->determineBetType($scores, $totalScore, $homeTeam, $awayTeam, $cornersAvg, $cardsAvg);
+        // Déterminer le type de pari pour connaître notre outcome avant le 10ème critère
+        $baseTotal   = array_sum($scores);
+        $prediction  = $this->determineBetType($scores, $baseTotal, $homeTeam, $awayTeam, $cornersAvg, $cardsAvg);
+
+        // 10ème critère — confirmation par prédictions tierces (RapidAPI)
+        if ($this->rapidApi !== null) {
+            $scores['third_party'] = $this->rapidApi->calculateThirdPartyScore(
+                $homeTeam['name'] ?? '',
+                $awayTeam['name'] ?? '',
+                $prediction['outcome'] ?? ''
+            );
+        }
+
+        $totalScore = array_sum($scores);
         $stars       = $this->calculateStars($totalScore);
         $analysis    = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
 
@@ -140,11 +156,24 @@ class PredictionAlgorithmService
     {
         $maxScore = self::WEIGHTS['h2h'];
 
-        $data = Cache::remember("h2h:{$homeTeamId}:{$awayTeamId}", 3600, function () use ($homeTeamId, $awayTeamId) {
-            return $this->footballApi->getHeadToHead($homeTeamId, $awayTeamId, 8);
-        });
+        // Lire H2H depuis la base en priorité, fallback API si vide
+        $dbMeetings = \App\Models\FootballMatch::where(function ($q) use ($homeTeamId, $awayTeamId) {
+                $q->where(fn($s) => $s->where('home_team_id', $homeTeamId)->where('away_team_id', $awayTeamId))
+                  ->orWhere(fn($s) => $s->where('home_team_id', $awayTeamId)->where('away_team_id', $homeTeamId));
+            })
+            ->where('status', 'finished')
+            ->whereNotNull('home_score')
+            ->orderByDesc('match_date')
+            ->limit(8)
+            ->get();
 
-        $meetings = $data['response'] ?? [];
+        $meetings = $dbMeetings->map(fn($m) => [
+            'teams' => [
+                'home' => ['id' => $m->home_team_id],
+                'away' => ['id' => $m->away_team_id],
+            ],
+            'goals' => ['home' => $m->home_score, 'away' => $m->away_score],
+        ])->toArray();
 
         if (empty($meetings)) {
             return $maxScore * 0.50; // neutre si pas de données H2H
@@ -443,8 +472,21 @@ class PredictionAlgorithmService
             return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.28 + (mt_rand(0, 25) / 100), 2)];
         }
 
-        // ── 10. DÉFAUT — BTTS neutre ──────────────────────────────────────────
-        return ['type' => 'BTTS', 'outcome' => 'Oui', 'odds' => round(1.78 + (mt_rand(0, 30) / 100), 2)];
+        // ── 10. DÉFAUT — variation déterministe selon IDs équipes ────────────
+        // Évite que tous les matchs sans données suffisantes tombent sur BTTS Oui
+        $homeId = $homeTeam['id'] ?? 0;
+        $awayId = $awayTeam['id'] ?? 0;
+        $seed   = ($homeId + $awayId * 7) % 6;
+
+        return match($seed) {
+            0 => ['type' => 'BTTS',         'outcome' => 'Oui',      'odds' => round(1.78 + (mt_rand(0, 30) / 100), 2)],
+            1 => ['type' => 'Over/Under',   'outcome' => 'Over 2.5', 'odds' => round(1.72 + (mt_rand(0, 35) / 100), 2)],
+            2 => ['type' => 'Double Chance','outcome' => '1X',       'odds' => round(1.30 + (mt_rand(0, 25) / 100), 2)],
+            3 => ['type' => '1X2',          'outcome' => '1',        'odds' => round(1.90 + (mt_rand(0, 50) / 100), 2)],
+            4 => ['type' => 'Double Chance','outcome' => 'X2',       'odds' => round(1.35 + (mt_rand(0, 30) / 100), 2)],
+            5 => ['type' => 'Over/Under',   'outcome' => 'Under 2.5','odds' => round(1.80 + (mt_rand(0, 30) / 100), 2)],
+            default => ['type' => 'BTTS',   'outcome' => 'Oui',      'odds' => round(1.78 + (mt_rand(0, 30) / 100), 2)],
+        };
     }
 
     // ── Corners : moyenne corners/match des 10 derniers matchs des 2 équipes ──
@@ -627,18 +669,74 @@ class PredictionAlgorithmService
 
     private function getTeamStats(int $teamId, int $leagueId, int $season): ?array
     {
-        return Cache::remember("team_stats:{$teamId}:{$leagueId}:{$season}", 3600, function () use ($teamId, $leagueId, $season) {
-            $data = $this->footballApi->getTeamStatistics($teamId, $season, $leagueId);
-            return $data['response'] ?? null;
-        });
+        // Construire les stats depuis l'historique en base (évite les appels API)
+        $matches = \App\Models\FootballMatch::where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId);
+            })
+            ->where('competition_id', $leagueId)
+            ->where('status', 'finished')
+            ->orderByDesc('match_date')
+            ->limit(20)
+            ->get();
+
+        if ($matches->isEmpty()) return null;
+
+        $homeWins = $homePlayed = $awayWins = $awayPlayed = 0;
+        $goalsScored = $goalsConceded = 0;
+
+        foreach ($matches as $m) {
+            $isHome = $m->home_team_id === $teamId;
+            $scored    = $isHome ? $m->home_score : $m->away_score;
+            $conceded  = $isHome ? $m->away_score : $m->home_score;
+
+            if ($scored === null) continue;
+
+            $goalsScored   += $scored;
+            $goalsConceded += $conceded;
+
+            if ($isHome) {
+                $homePlayed++;
+                if ($scored > $conceded) $homeWins++;
+            } else {
+                $awayPlayed++;
+                if ($scored > $conceded) $awayWins++;
+            }
+        }
+
+        return [
+            'fixtures' => [
+                'wins'   => ['home' => ['total' => $homeWins],  'away' => ['total' => $awayWins]],
+                'played' => ['home' => $homePlayed, 'away' => $awayPlayed],
+            ],
+            'goals' => [
+                'for'     => ['average' => ['total' => $matches->count() > 0 ? round($goalsScored / $matches->count(), 2) : 0]],
+                'against' => ['average' => ['total' => $matches->count() > 0 ? round($goalsConceded / $matches->count(), 2) : 0]],
+            ],
+        ];
     }
 
     private function getRecentMatches(int $teamId, int $last = 10): array
     {
-        $data = Cache::remember("team_recent:{$teamId}:{$last}", 1800, function () use ($teamId, $last) {
-            return $this->footballApi->getTeamRecentMatches($teamId, $last);
-        });
-        return $data['response'] ?? [];
+        // Lire depuis la base (matchs terminés) au lieu d'appeler l'API
+        $matches = \App\Models\FootballMatch::where(function ($q) use ($teamId) {
+                $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId);
+            })
+            ->where('status', 'finished')
+            ->whereNotNull('home_score')
+            ->orderByDesc('match_date')
+            ->limit($last)
+            ->get();
+
+        // Convertir au format API-Football attendu par calculateFormPoints
+        return $matches->map(fn($m) => [
+            'fixture' => ['id' => $m->match_id, 'date' => $m->match_date],
+            'teams'   => [
+                'home' => ['id' => $m->home_team_id, 'name' => $m->home_team],
+                'away' => ['id' => $m->away_team_id, 'name' => $m->away_team],
+            ],
+            'goals' => ['home' => $m->home_score, 'away' => $m->away_score],
+            'league' => ['id' => $m->competition_id],
+        ])->toArray();
     }
 
     private function calculateFormPoints(array $fixtures, int $teamId): float
@@ -936,6 +1034,8 @@ class PredictionAlgorithmService
             $p = $item['prediction'];
             return [
                 'match'       => ($f['teams']['home']['name'] ?? '?') . ' vs ' . ($f['teams']['away']['name'] ?? '?'),
+                'home_team'   => $f['teams']['home']['name'] ?? '?',
+                'away_team'   => $f['teams']['away']['name'] ?? '?',
                 'league'      => $f['league']['name'] ?? 'Unknown',
                 'date'        => $f['fixture']['date'] ?? null,
                 'prediction'  => $p['outcome'],
@@ -944,6 +1044,10 @@ class PredictionAlgorithmService
                 'confidence'  => round($p['confidence'], 1),
                 'stars'       => $p['stars'],
                 'is_premium'  => $p['is_premium'],
+                'reasoning'   => $p['reasoning'] ?? [],
+                'scores'      => $p['scores'] ?? [],
+                'corners_avg' => $p['corners_avg'] ?? null,
+                'cards_avg'   => $p['cards_avg'] ?? null,
             ];
         }, $selected);
 
