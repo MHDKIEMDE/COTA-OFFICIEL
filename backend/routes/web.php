@@ -7,11 +7,15 @@ use App\Http\Controllers\Admin\PredictionController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\AffiliateController;
 use App\Http\Controllers\Admin\BookmakerController;
+use App\Http\Controllers\Admin\AdminBookmakerController;
+use App\Http\Controllers\Admin\BookmakerCandidateController;
+use App\Http\Controllers\Admin\BookmakerBlogController;
 use App\Http\Controllers\Admin\CompetitionController;
 use App\Http\Controllers\Admin\FeedbackController;
 use App\Http\Controllers\Admin\SubscriptionController;
 use App\Http\Controllers\Admin\ReferralController;
 use App\Http\Controllers\Admin\StatsController;
+use App\Http\Controllers\Admin\ApiMonitorController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\AuthController;
 
@@ -20,6 +24,19 @@ use App\Http\Controllers\Web\AuthController;
 | Web Routes - Frontend Public (Blade + Livewire)
 |--------------------------------------------------------------------------
 */
+
+// ── Well-Known (App Links Android + Universal Links iOS) ─────────────────────
+Route::get('/.well-known/assetlinks.json', function () {
+    return response()->file(public_path('.well-known/assetlinks.json'), ['Content-Type' => 'application/json']);
+});
+Route::get('/.well-known/apple-app-site-association', function () {
+    return response()->file(public_path('.well-known/apple-app-site-association'), ['Content-Type' => 'application/json']);
+});
+
+// ── Page Politique de confidentialité ────────────────────────────────────────
+Route::get('/privacy', function () {
+    return view('privacy');
+})->name('privacy');
 
 // Public pages (Guest mode allowed)
 Route::middleware(['web'])->group(function () {
@@ -103,12 +120,37 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     Route::post('/affiliates/{affiliation}/reject', [AffiliateController::class, 'reject'])->name('affiliates.reject');
     Route::post('/affiliates/bulk-verify', [AffiliateController::class, 'bulkVerify'])->name('affiliates.bulkVerify');
 
-    // Bookmakers
-    Route::resource('bookmakers', BookmakerController::class)->parameters(['bookmakers' => 'id']);
-    Route::post('/bookmakers/{id}/toggle', [BookmakerController::class, 'toggleActive'])->name('bookmakers.toggle');
+    // Bookmakers — CRUD complet (vues Blade)
+    Route::get('/bookmakers', [AdminBookmakerController::class, 'listView'])->name('admin.bookmakers.list');
+    Route::get('/bookmakers/{bookmaker}/edit', [AdminBookmakerController::class, 'editView'])->name('admin.bookmakers.edit');
+    Route::put('/bookmakers/{bookmaker}', [AdminBookmakerController::class, 'updateFull'])->name('admin.bookmakers.update');
+    Route::post('/bookmakers/{bookmaker}/toggle', [AdminBookmakerController::class, 'toggleActive'])->name('admin.bookmakers.toggle');
+    // (garde l'ancienne resource pour l'API JSON admin)
+    Route::resource('bookmakers-api', BookmakerController::class)->parameters(['bookmakers-api' => 'id']);
+
+    // Bookmakers — Blogs marketing (guides, vidéos, promos, tutoriels)
+    Route::resource('bookmaker-blogs', BookmakerBlogController::class)
+        ->names('admin.bookmaker-blogs')
+        ->parameters(['bookmaker-blogs' => 'bookmakerBlog']);
+    Route::post('/bookmaker-blogs/{bookmakerBlog}/toggle-featured', [BookmakerBlogController::class, 'toggleFeatured'])
+        ->name('admin.bookmaker-blogs.toggle-featured');
+
+    // Bookmakers — Liste d'attente (candidats depuis APIs)
+    Route::prefix('bookmaker-candidates')->name('admin.bookmaker-candidates.')->group(function () {
+        Route::get('/',                                          [BookmakerCandidateController::class, 'index'])->name('index');
+        Route::get('/{candidate}',                              [BookmakerCandidateController::class, 'show'])->name('show');
+        Route::post('/fetch',                                   [BookmakerCandidateController::class, 'fetch'])->name('fetch');
+        Route::post('/{candidate}/approve',                     [BookmakerCandidateController::class, 'approve'])->name('approve');
+        Route::post('/{candidate}/reject',                      [BookmakerCandidateController::class, 'reject'])->name('reject');
+        Route::post('/{candidate}/reset',                       [BookmakerCandidateController::class, 'resetStatus'])->name('reset');
+        Route::delete('/{candidate}',                           [BookmakerCandidateController::class, 'destroy'])->name('destroy');
+    });
 
     // Statistiques avancées
     Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
+
+    // Monitoring APIs
+    Route::get('/api-monitor', [ApiMonitorController::class, 'index'])->name('api-monitor.index');
 
     // Abonnements
     Route::get('/subscriptions', [SubscriptionController::class, 'index'])->name('subscriptions.index');
