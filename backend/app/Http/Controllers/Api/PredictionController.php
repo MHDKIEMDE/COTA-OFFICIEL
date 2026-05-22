@@ -1016,6 +1016,47 @@ class PredictionController extends Controller
                 ];
             }, $selected);
 
+            $buildVariant = function (string $name, float $minOdds, float $maxOdds) use ($rows, $maxPicks, $minPicks) {
+                $pool = $rows->filter(fn($r) => (float)($r->odds ?? 1.0) >= $minOdds && (float)($r->odds ?? 1.0) < $maxOdds)->values();
+                if ($pool->count() < 2) return null;
+
+                $sel = []; $usedLeagues = [];
+                foreach ($pool as $row) {
+                    if (count($sel) >= $maxPicks) break;
+                    $lg = $row->competition ?? 'unknown';
+                    if (!in_array($lg, $usedLeagues)) { $sel[] = $row; $usedLeagues[] = $lg; }
+                }
+                if (count($sel) < 2) return null;
+
+                $vOdds = array_reduce($sel, fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
+                $vConf = array_sum(array_map(fn($p) => (float)$p->total_score, $sel)) / count($sel);
+                $vStars = match(true) { $vConf >= 85 => 4, $vConf >= 70 => 3, $vConf >= 60 => 2, default => 1 };
+
+                return [
+                    'name'                => $name,
+                    'picks'               => array_map(fn($p) => [
+                        'match'      => $p->home_team . ' vs ' . $p->away_team,
+                        'prediction' => $p->prediction,
+                        'type'       => $p->bet_type,
+                        'odds'       => (float)($p->odds ?? 1.0),
+                        'confidence' => round((float)$p->total_score, 1),
+                        'stars'      => $p->confidence_stars,
+                        'league'     => $p->competition ?? null,
+                    ], $sel),
+                    'matches_count'       => count($sel),
+                    'total_odds'          => round($vOdds, 2),
+                    'avg_confidence'      => round($vConf, 1),
+                    'stars'               => $vStars,
+                    'potential_gain_1000' => (int) round($vOdds * 1000),
+                ];
+            };
+
+            $variants = array_values(array_filter([
+                $buildVariant('Prudent',   1.5, 4.0),
+                $buildVariant('Équilibré', 4.0, 10.0),
+                $buildVariant('Audacieux', 10.0, 999.0),
+            ]));
+
             return [
                 'success'             => true,
                 'date'                => $date,
@@ -1025,6 +1066,7 @@ class PredictionController extends Controller
                 'avg_confidence'      => round($avgConfidence, 1),
                 'stars'               => $stars,
                 'potential_gain_1000' => (int) round($totalOdds * 1000),
+                'variants'            => $variants,
                 'generated_at'        => Carbon::now()->toIso8601String(),
             ];
         });
