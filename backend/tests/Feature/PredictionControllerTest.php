@@ -23,7 +23,7 @@ class PredictionControllerTest extends TestCase
             'competition_id'   => 39,
             'country'          => 'England',
             'match_date'       => now()->addHours(2),
-            'match_time'       => '20:00',
+            'match_time'       => now()->addHours(2)->format('H:i'),
             'bet_type'         => '1X2',
             'prediction'       => '1',
             'odds'             => 1.80,

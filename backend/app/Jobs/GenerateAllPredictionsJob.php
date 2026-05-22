@@ -50,9 +50,17 @@ class GenerateAllPredictionsJob implements ShouldQueue
         // Précharger toutes les prédictions tierces du jour en 1 seul appel API
         $rapidApi->loadDailyThirdPartyPredictions(Carbon::today()->format('Y-m-d'));
 
+        // Précharger les cotes 1xBet (cache 2 min) — indexées par "home vs away" lowercase
+        $liveOdds = $rapidApi->get1xBetLiveOdds();
+        $oddsIndex = [];
+        foreach ($liveOdds as $entry) {
+            $key = strtolower($entry['match'] ?? '');
+            if ($key) $oddsIndex[$key] = $entry;
+        }
+
         foreach ($fixtures as $fixture) {
             try {
-                $prediction = $this->generatePredictionForFixture($fixture, $algorithm, $rapidApi);
+                $prediction = $this->generatePredictionForFixture($fixture, $algorithm, $rapidApi, $oddsIndex);
                 if ($prediction) {
                     $predictions[] = $prediction;
                     $processed++;
@@ -77,7 +85,7 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $this->cleanOldPredictions();
     }
 
-    private function generatePredictionForFixture(array $fixture, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi): ?Prediction
+    private function generatePredictionForFixture(array $fixture, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi, array $oddsIndex = []): ?Prediction
     {
         $fixtureInfo = $fixture['fixture'] ?? [];
         $fixtureId   = $fixtureInfo['id'] ?? null;
@@ -137,6 +145,23 @@ class GenerateAllPredictionsJob implements ShouldQueue
             $matchDate->format('Y-m-d')
         );
 
+        // Remplacer la cote algo par la cote 1xBet réelle si disponible
+        $oddsKey  = strtolower(($homeTeam['name'] ?? '') . ' vs ' . ($awayTeam['name'] ?? ''));
+        $realOdds = $oddsIndex[$oddsKey] ?? null;
+        if ($realOdds) {
+            $outcome = $predictionData['outcome'] ?? '1';
+            $mapped  = match($outcome) {
+                '1'    => $realOdds['home'],
+                'X'    => $realOdds['draw'],
+                '2'    => $realOdds['away'],
+                default => null,
+            };
+            if ($mapped && $mapped > 1.0) {
+                $predictionData['odds']       = round($mapped, 2);
+                $predictionData['odds_source'] = '1xbet';
+            }
+        }
+
         return Prediction::updateOrCreate(
             ['match_id' => (string) $fixtureId],
             [
@@ -172,6 +197,7 @@ class GenerateAllPredictionsJob implements ShouldQueue
                     'scores_breakdown'  => $predictionData['scores'] ?? [],
                     'third_party'       => $predictionData['third_party'] ?? null,
                     'algorithm_version' => '3.1',
+                    'odds_source'       => $predictionData['odds_source'] ?? 'algo',
                 ]),
                 'published_at'       => now(),
                 'is_combined_daily'  => false,

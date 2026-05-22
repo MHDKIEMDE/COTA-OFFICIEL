@@ -71,10 +71,11 @@ class PredictionController extends Controller
         // Exclure les ligues de bas niveau sans données fiables
         $excludedLigues = ['Friendl', 'Women', 'Female', 'Youth', 'U17', 'U18', 'U19', 'U20', 'U21', 'U23', 'Reserve', 'Amateur'];
 
+        // Seuil de base : 40 pts. Le filtrage tierce (élever à 52 si absent) se fait en PHP.
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereDate('match_date', $dateString)
-            ->where('total_score', '>', 52)    // exclure prédictions sans données réelles
+            ->where('total_score', '>', 40)
             ->where(function ($q) {
                 // Exclure les matchs déjà commencés ou terminés
                 $now = Carbon::now()->format('H:i:s');
@@ -101,8 +102,18 @@ class PredictionController extends Controller
             $query->where('is_premium', false);
         }
         
-        $dbPredictions = $query->get();
-        
+        $dbPredictions = $query->get()->filter(function ($p) {
+            $score    = (float) ($p->total_score ?? 0);
+            $analysis = $p->analysis_details ? json_decode($p->analysis_details, true) : [];
+            $tp       = $analysis['third_party'] ?? null;
+            // Score ≥ 52 : toujours accepté
+            if ($score > 52) return true;
+            // Score 40–52 : accepté uniquement si tierce présente et non contradictoire
+            return $tp !== null
+                && !empty($tp['prediction'])
+                && ($tp['agreement'] ?? '') !== 'contradicts';
+        })->values();
+
         // Si on a au moins 1 prédiction dans les ligues populaires, les retourner
         if ($dbPredictions->count() >= 1) {
             Log::info("✅ " . $dbPredictions->count() . " prédictions trouvées en base de données (source: database) - RÉPONSE RAPIDE");
@@ -935,6 +946,13 @@ class PredictionController extends Controller
 
             // minPicks adaptatif : idéalement 4, minimum 2 si peu de matchs dispo
             $minPicks = max(2, min(4, $rows->count()));
+
+            // Exclure les picks dont la tierce partie contredit notre algorithme
+            $rows = $rows->filter(function ($row) {
+                $analysis  = $row->analysis_details ? json_decode($row->analysis_details, true) : [];
+                $agreement = $analysis['third_party']['agreement'] ?? null;
+                return $agreement !== 'contradicts';
+            })->values();
 
             // Sélectionner max 1 match par compétition
             $selected    = [];
