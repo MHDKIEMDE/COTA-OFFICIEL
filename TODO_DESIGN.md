@@ -200,11 +200,11 @@ php artisan test   # 0 régression
 |---|---|---|
 | B-01 | Live screen V6 (cards DAZN, filtre Tous / Mes prédictions) | ✅ Sprint 9 |
 | B-02 | Détail match live (onglets STREAM / HIGHLIGHTS / CLASSEMENT) | ✅ Sprint 9 |
-| B-03 | Écran premium V6 (paywall sobre, pas de gradients excessifs) | Sprint 10 |
-| B-04 | Splash animation — vérification visuelle sur device | Sprint 10 |
-| B-05 | Confidence reveal — vérification visuelle sur device | Sprint 10 |
-| B-06 | Coupon validé overlay — vérification visuelle sur device | Sprint 10 |
-| B-07 | Icône app — vérification sur écran d'accueil device | Sprint 10 |
+| B-03 | Écran premium V6 (paywall sobre, pas de gradients excessifs) | ✅ Sprint 10 |
+| B-04 | Splash animation — fontFamily SpaceGrotesk ajouté, label sobre | ✅ Sprint 10 |
+| B-05 | Confidence reveal — ring supprimé → CotaConfidenceBarAnimated | ✅ Sprint 10 |
+| B-06 | Coupon validé overlay — conforme V6 (badges courts tolérés) | ✅ Sprint 10 |
+| B-07 | Icône app — vérification visuelle sur device (pas de code) | — |
 
 ---
 
@@ -221,3 +221,4 @@ php artisan test   # 0 régression
 | Sprint 7 | Historique / Notifs / Bookmakers V6 | ✅ pushé 2026-05-25 |
 | Sprint 8 | Admin web | ✅ pushé 2026-05-25 |
 | Sprint 9 | Live V6 (live_screen + live_match_detail) | ✅ pushé 2026-05-25 |
+| Sprint 10 | Premium paywall, splash, confidence reveal, coupon overlay | ✅ pushé 2026-05-25 |
