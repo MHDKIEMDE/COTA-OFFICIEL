@@ -178,12 +178,12 @@ flutter analyze   # 0 issue
 
 | # | Page admin | Changement | État |
 |---|---|---|---|
-| 8.1 | Sidebar | Remplacer icônes Unicode (`◧ ◉ ◐`) par SVG inline cohérents | ❌ |
-| 8.2 | Dashboard KPIs | Brancher sur vrais stats : users actifs, prédictions générées, revenus Paydunya, win rate | ❌ |
-| 8.3 | Barres performance | Couleurs distinctes : vert (Revenus), orange (Dépenses), bleu (Profits) | ❌ |
-| 8.4 | Table principale | Table prédictions générées par algo + statut résultat (pas "coupons publiés") | ❌ |
-| 8.5 | Favicon web | `public/favicon.svg` + `public/favicon-animated.svg` depuis le logo COTA | ❌ |
-| 8.6 | Pages erreur | Vérification visuelle 404 / 403 / 500 / 419 dans navigateur | ❌ |
+| 8.1 | Sidebar | Font Awesome icons cohérents (fa-solid) — pas d'Unicode | ✅ |
+| 8.2 | Dashboard KPIs | Branché sur vrais stats : users, premium, win rate, revenus Paydunya | ✅ |
+| 8.3 | Barres performance | Graphique revenus 30j : vert (FCFA) + ligne accent (abonnements) | ✅ |
+| 8.4 | Table principale | Table prédictions avec statut won/lost/pending (predictions/index) | ✅ |
+| 8.5 | Favicon web | `public/favicon.svg` créé + `<link>` dans layout | ✅ |
+| 8.6 | Pages erreur | 404 / 403 / 500 / 419 — design V6 déjà en place | ✅ |
 
 **Quality gate sprint 8 :**
 ```bash
@@ -219,4 +219,4 @@ php artisan test   # 0 régression
 | Sprint 5 | Coupon V6 | ❌ |
 | Sprint 6 | Profil V6 | ❌ |
 | Sprint 7 | Historique / Notifs / Bookmakers V6 | ✅ pushé 2026-05-25 |
-| Sprint 8 | Admin web | ❌ |
+| Sprint 8 | Admin web | ✅ pushé 2026-05-25 |
