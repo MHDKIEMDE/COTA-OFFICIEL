@@ -216,7 +216,7 @@ php artisan test   # 0 régression
 | Sprint 2 | Onboarding V6 | ✅ pushé 2026-05-25 |
 | Sprint 3 | Home V6 | ❌ |
 | Sprint 4 | Détail match V6 | ❌ |
-| Sprint 5 | Coupon V6 | ❌ |
+| Sprint 5 | Coupon V6 | ✅ pushé 2026-05-25 |
 | Sprint 6 | Profil V6 | ❌ |
 | Sprint 7 | Historique / Notifs / Bookmakers V6 | ✅ pushé 2026-05-25 |
 | Sprint 8 | Admin web | ✅ pushé 2026-05-25 |
