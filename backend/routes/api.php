@@ -9,6 +9,8 @@ use App\Http\Controllers\Api\OddsController;
 use App\Http\Controllers\Api\MatchController;
 use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\MediaController;
+use App\Http\Controllers\Api\NewsController;
+use App\Http\Controllers\Api\PlayerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,7 +91,8 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/matches/{id}/stats',     [MatchController::class, 'stats']);
     Route::get('/matches/{id}/lineups',   [MatchController::class, 'lineups']);
     Route::get('/matches/{id}/h2h',       [MatchController::class, 'h2h']);
-    Route::get('/standings/{competition}',[MatchController::class, 'standings']);
+    Route::get('/standings/{competition}',             [MatchController::class, 'standings']);
+    Route::get('/standings/{competition}/top-scorers', [MatchController::class, 'topScorers']);
 
     // Highlights vidéo & streams live — throttle 30 req/min (cache agressif côté service)
     Route::middleware('throttle:30,1')->group(function () {
@@ -105,6 +108,18 @@ Route::middleware('throttle:60,1')->group(function () {
         Route::get('/odds/batch',           [OddsController::class, 'getBatchOdds']);
         Route::get('/odds/bookmakers',      [OddsController::class, 'getBookmakers']);
     });
+
+    // News sport — Google News RSS (gratuit, sans clé)
+    Route::get('/news',                    [NewsController::class, 'index']);
+    Route::get('/news/football',           [NewsController::class, 'football']);
+    Route::get('/news/search',             [NewsController::class, 'search']);
+    Route::get('/news/player/{name}',      [NewsController::class, 'player']);
+    Route::get('/news/competition/{name}', [NewsController::class, 'competition']);
+
+    // Joueurs — recherche AllSportsAPI2 + détails Flashscore4
+    Route::get('/players/search',                            [PlayerController::class, 'search']);
+    Route::get('/players/details',                           [PlayerController::class, 'details']);
+    Route::get('/players/standings/{tournamentId}/{seasonId}', [PlayerController::class, 'standings']);
 
     // Config & Bookmakers
     Route::get('/config/app',          [App\Http\Controllers\Api\ConfigController::class, 'getAppConfig']);
@@ -155,6 +170,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/complete-registration', [AuthController::class, 'completeRegistration']);
+    Route::post('/auth/set-pin', [AuthController::class, 'setPin']);
+    Route::post('/auth/reset-pin', [AuthController::class, 'resetPin']);
 
     // Abonnements (Paydunya Mobile Money) - nécessitent authentification
     Route::get('/subscriptions/me', [App\Http\Controllers\Api\SubscriptionController::class, 'getMySubscription']);
@@ -250,6 +267,15 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/settings')->group(fu
 
     Route::get('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'getApp']);
     Route::put('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateApp']);
+});
+
+// ── Anomalies de cotes + Coups sûrs (public pour l'instant) ──────────────────
+Route::get('/odds-anomalies/live',   [App\Http\Controllers\Api\OddsAnomalyController::class, 'live']);
+Route::get('/predictions/sure-bets', [App\Http\Controllers\Api\OddsAnomalyController::class, 'sureBets']);
+
+// ── Dashboard Value Betting (admin uniquement) ────────────────────────────────
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/my-bets')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\Admin\MyBetsDashboardController::class, 'dashboard']);
 });
 
 // ── Webhooks paiement (point d'entrée unique, tous providers) ────────────────

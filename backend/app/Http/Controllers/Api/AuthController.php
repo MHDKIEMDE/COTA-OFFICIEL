@@ -456,11 +456,17 @@ class AuthController extends Controller
      * Connexion avec PIN (après saisie du numéro)
      * POST /api/auth/login-pin
      */
+    /**
+     * POST /api/auth/login-pin
+     * Connexion rapide par PIN (§14.2 CDC V2).
+     * Verrouillage après 5 tentatives erronées → OTP obligatoire.
+     */
     public function loginWithPin(Request $request): \Illuminate\Http\JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string|min:10|max:20',
-            'pin'   => 'required|string|size:4|regex:/^\d{4}$/',
+            'phone'     => 'required|string|min:10|max:20',
+            'pin'       => 'required|string|size:4|regex:/^\d{4}$/',
+            'device_id' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -482,31 +488,140 @@ class AuthController extends Controller
             ], 404);
         }
 
-        if (!Hash::check($request->pin, $user->pin)) {
+        // Verrouillage actif → forcer OTP
+        if ($user->pin_locked_until && $user->pin_locked_until->isFuture()) {
             return response()->json([
-                'success' => false,
-                'message' => 'PIN incorrect.',
+                'success'      => false,
+                'message'      => 'Trop de tentatives incorrectes. Réinitialisez votre PIN via OTP.',
+                'pin_locked'   => true,
+                'locked_until' => $user->pin_locked_until->toIso8601String(),
+            ], 403);
+        }
+
+        // Nouvel appareil → OTP obligatoire (§14.2)
+        $deviceId = $request->input('device_id');
+        if ($deviceId && $user->last_device_id && $user->last_device_id !== $deviceId) {
+            return response()->json([
+                'success'           => false,
+                'message'           => 'Nouvel appareil détecté. Veuillez vous connecter via OTP.',
+                'requires_otp'      => true,
+                'new_device'        => true,
+            ], 403);
+        }
+
+        if (!Hash::check($request->pin, $user->pin)) {
+            $attempts = ($user->pin_attempts ?? 0) + 1;
+
+            if ($attempts >= 5) {
+                // Verrouillage — OTP requis pour débloquer
+                $user->update([
+                    'pin_attempts'     => $attempts,
+                    'pin_locked_until' => Carbon::now()->addHours(1),
+                ]);
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'Compte verrouillé après 5 tentatives. Réinitialisez votre PIN via OTP.',
+                    'pin_locked' => true,
+                ], 403);
+            }
+
+            $user->update(['pin_attempts' => $attempts]);
+            return response()->json([
+                'success'           => false,
+                'message'           => 'PIN incorrect.',
+                'attempts_left'     => 5 - $attempts,
             ], 401);
         }
 
-        $user->update(['last_login_at' => Carbon::now()]);
+        // PIN correct — réinitialiser le compteur et mettre à jour l'appareil
+        $user->update([
+            'last_login_at'   => Carbon::now(),
+            'pin_attempts'    => 0,
+            'pin_locked_until' => null,
+            'last_device_id'  => $deviceId ?? $user->last_device_id,
+        ]);
+
         $token = $user->createToken('mobile-app')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Connexion réussie.',
             'user'    => [
-                'id'                     => $user->id,
-                'name'                   => $user->name,
-                'phone'                  => $user->phone,
-                'is_premium'             => $user->isPremium(),
-                'premium_expires_at'     => $user->premium_expires_at,
-                'referral_code'          => $user->referral_code,
-                'registration_completed' => $user->registration_completed,
-                'pin_set'                => $user->pin_set,
+                'id'                          => $user->id,
+                'name'                        => $user->name,
+                'phone'                       => $user->phone,
+                'is_premium'                  => $user->isPremium(),
+                'premium_expires_at'          => $user->premium_expires_at,
+                'referral_code'               => $user->referral_code,
+                'registration_completed'      => $user->registration_completed,
+                'pin_set'                     => $user->pin_set,
                 'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
             ],
             'token' => $token,
+        ]);
+    }
+
+    /**
+     * POST /api/auth/set-pin   (auth:sanctum)
+     * Création du PIN après premier OTP réussi (§14.2 CDC V2).
+     */
+    public function setPin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'pin'        => 'required|string|size:4|regex:/^\d{4}$/',
+            'pin_confirm' => 'required|string|same:pin',
+            'device_id'  => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user();
+
+        $user->update([
+            'pin'              => Hash::make($request->pin),
+            'pin_set'          => true,
+            'pin_attempts'     => 0,
+            'pin_locked_until' => null,
+            'last_device_id'   => $request->input('device_id'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PIN créé avec succès.',
+        ]);
+    }
+
+    /**
+     * POST /api/auth/reset-pin   (auth:sanctum — après re-OTP vérifié)
+     * Réinitialisation du PIN suite à "PIN oublié" ou verrouillage (§14.2 CDC V2).
+     */
+    public function resetPin(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'pin'         => 'required|string|size:4|regex:/^\d{4}$/',
+            'pin_confirm' => 'required|string|same:pin',
+            'device_id'   => 'nullable|string|max:255',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user();
+
+        $user->update([
+            'pin'              => Hash::make($request->pin),
+            'pin_set'          => true,
+            'pin_attempts'     => 0,
+            'pin_locked_until' => null,
+            'last_device_id'   => $request->input('device_id') ?? $user->last_device_id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'PIN réinitialisé avec succès.',
         ]);
     }
 

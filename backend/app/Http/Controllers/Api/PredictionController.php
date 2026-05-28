@@ -97,11 +97,7 @@ class PredictionController extends Controller
             $query->where('competition', $competition);
         }
         
-        // Si l'utilisateur n'est pas premium, exclure les pronostics premium
-        if (!$isPremium) {
-            $query->where('is_premium', false);
-        }
-        
+        // TODO: réactiver après dev — $query->where('is_premium', false) si !$isPremium
         $dbPredictions = $query->get()->filter(function ($p) {
             $score    = (float) ($p->total_score ?? 0);
             $analysis = $p->analysis_details ? json_decode($p->analysis_details, true) : [];
@@ -222,11 +218,7 @@ class PredictionController extends Controller
             $query->where('competition', $competition);
         }
 
-        // Si l'utilisateur n'est pas premium, exclure les pronostics premium
-        if (!$isPremium) {
-            $query->where('is_premium', false);
-        }
-
+        // TODO: réactiver après dev — $query->where('is_premium', false) si !$isPremium
         $predictions = $query->get();
 
         return response()->json([
@@ -361,11 +353,7 @@ class PredictionController extends Controller
             $query->where('competition', $competition);
         }
 
-        // Si l'utilisateur n'est pas premium, exclure les pronostics premium
-        if (!$isPremium) {
-            $query->where('is_premium', false);
-        }
-
+        // TODO: réactiver après dev — $query->where('is_premium', false) si !$isPremium
         $total = $query->count();
         $predictions = $query
             ->skip(($page - 1) * $perPage)
@@ -533,7 +521,7 @@ class PredictionController extends Controller
         $data = Cache::remember($cacheKey, 3600, function () {
             $predictions = DB::table('predictions')
                 ->where('is_published', true)
-                ->where('is_premium', false)
+                // TODO: réactiver après dev — ->where('is_premium', false)
                 ->whereDate('match_date', Carbon::today())
                 ->orderBy('confidence_stars', 'desc')
                 ->orderBy('total_score', 'desc')
@@ -865,11 +853,7 @@ class PredictionController extends Controller
             $dbQuery->whereDate('match_date', $date);
         }
 
-        // Si l'utilisateur n'est pas premium, exclure les pronostics premium
-        if (!$isPremium) {
-            $dbQuery->where('is_premium', false);
-        }
-
+        // TODO: réactiver après dev — $dbQuery->where('is_premium', false) si !$isPremium
         $predictions = $dbQuery->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
             ->orderBy('match_time', 'asc')
@@ -888,198 +872,133 @@ class PredictionController extends Controller
     /**
      * Coupon du jour : sélection des meilleurs pronostics combinés
      * GET /api/predictions/coupon
+     * Retourne les 3 variantes du coupon IA (§14.4 CDC V2) :
+     *   prudent   (gratuit) · équilibré (premium) · audacieux (premium)
      */
     public function coupon(Request $request)
     {
         $date     = $request->query('date', Carbon::today()->toDateString());
-        $cacheKey = 'coupon_daily_' . $date;
+        $cacheKey = 'coupon_v2_daily_' . $date;
+        $ttl      = Carbon::tomorrow()->startOfDay()->diffInSeconds(Carbon::now());
 
-        // TTL jusqu'à minuit — le coupon ne se recalcule qu'une fois par jour
-        $ttl = Carbon::tomorrow()->startOfDay()->diffInSeconds(Carbon::now());
+        $result = Cache::remember($cacheKey, $ttl, function () use ($date) {
 
-        $coupon = Cache::remember($cacheKey, $ttl, function () use ($date) {
-            $maxPicks = 5;
-
-            // Paires (competition, country) des ligues populaires tier 1-3
-            $popularPairs = array_filter(
-                config('football-api.popular_leagues', []),
-                fn($l) => $l['tier'] <= 3
-            );
-            $popularNames = array_column($popularPairs, 'name');
-
-            // 1. Essayer d'abord avec les ligues populaires strictes (paires name+country)
+            // Charger toutes les prédictions publiées du jour depuis la DB
             $rows = DB::table('predictions')
                 ->where('is_published', true)
                 ->whereDate('match_date', $date)
-                ->where(function ($q) use ($popularPairs) {
-                    foreach ($popularPairs as $league) {
-                        $q->orWhere(fn($sub) =>
-                            $sub->where('competition', $league['name'])
-                                ->where('country', $league['country'])
-                        );
-                    }
-                })
                 ->orderBy('total_score', 'desc')
-                ->limit(50)
+                ->limit(100)
                 ->get();
 
-            // 2. Fallback : si pas assez, prendre les meilleurs disponibles toutes ligues
-            if ($rows->count() < 2) {
-                $rows = DB::table('predictions')
-                    ->where('is_published', true)
-                    ->whereDate('match_date', $date)
-                    ->orderByRaw("CASE WHEN competition IN ('" . implode("','", $popularNames) . "') THEN 1 ELSE 2 END ASC")
-                    ->orderBy('total_score', 'desc')
-                    ->limit(50)
-                    ->get();
-            }
-
-            // Aucune prédiction du tout
             if ($rows->count() === 0) {
                 return [
-                    'success'   => false,
-                    'message'   => 'Aucune prédiction disponible pour le ' . $date,
-                    'picks'     => [],
-                    'date'      => $date,
+                    'success' => false,
+                    'message' => 'Aucune prédiction disponible pour le ' . $date,
+                    'date'    => $date,
+                    'prudent' => null, 'equilibre' => null, 'audacieux' => null,
                 ];
             }
 
-            // minPicks adaptatif : idéalement 4, minimum 2 si peu de matchs dispo
-            $minPicks = max(2, min(4, $rows->count()));
-
-            // Exclure les picks dont la tierce partie contredit notre algorithme
-            $rows = $rows->filter(function ($row) {
-                $analysis  = $row->analysis_details ? json_decode($row->analysis_details, true) : [];
-                $agreement = $analysis['third_party']['agreement'] ?? null;
-                return $agreement !== 'contradicts';
-            })->values();
-
-            // Sélectionner max 1 match par compétition
-            $selected    = [];
-            $usedLeagues = [];
-
-            foreach ($rows as $row) {
-                if (count($selected) >= $maxPicks) break;
-                $league = $row->competition ?? 'unknown';
-                if (!in_array($league, $usedLeagues)) {
-                    $selected[]    = $row;
-                    $usedLeagues[] = $league;
-                }
-            }
-
-            // Compléter si pas assez de ligues distinctes
-            if (count($selected) < $minPicks) {
-                foreach ($rows as $row) {
-                    if (count($selected) >= $minPicks) break;
-                    $alreadyIn = array_filter($selected, fn($s) => $s->id === $row->id);
-                    if (empty($alreadyIn)) {
-                        $selected[] = $row;
-                    }
-                }
-            }
-
-            // Calculer la cote totale
-            $totalOdds     = array_reduce($selected, fn($carry, $p) => $carry * (float) ($p->odds ?? 1.0), 1.0);
-            $avgConfidence = array_sum(array_map(fn($p) => (float) $p->total_score, $selected)) / count($selected);
-            $stars         = match(true) {
-                $avgConfidence >= 85 => 4,
-                $avgConfidence >= 70 => 3,
-                $avgConfidence >= 60 => 2,
-                default              => 1,
-            };
-
-            $picks = array_map(function ($p) {
-                $analysis  = $p->analysis_details ? json_decode($p->analysis_details, true) : [];
-                $reasoning = $analysis['reasoning'] ?? [];
-                $scores    = $analysis['scores'] ?? [];
-
-                return [
-                    'match'          => $p->home_team . ' vs ' . $p->away_team,
-                    'home_team'      => $p->home_team,
-                    'away_team'      => $p->away_team,
-                    'league'         => $p->competition ?? null,
-                    'country'        => $p->country ?? null,
-                    'date'           => $p->match_date,
-                    'time'           => $p->match_time ?? null,
-                    'prediction'     => $p->prediction,
-                    'type'           => $p->bet_type,
-                    'odds'           => (float) ($p->odds ?? 1.0),
-                    'confidence'     => round((float) $p->total_score, 1),
-                    'stars'          => $p->confidence_stars,
-                    'is_premium'     => (bool) $p->is_premium,
-                    'home_team_logo' => $p->home_team_logo ?? null,
-                    'away_team_logo' => $p->away_team_logo ?? null,
-                    'reasoning'      => is_array($reasoning) ? $reasoning : [],
-                    'scores'         => is_array($scores) ? array_map('floatval', $scores) : [],
-                    'corners_avg'    => $analysis['corners_avg'] ?? null,
-                    'cards_avg'      => $analysis['cards_avg'] ?? null,
-                ];
-            }, $selected);
-
-            $buildVariant = function (string $name, float $minOdds, float $maxOdds) use ($rows, $maxPicks, $minPicks) {
-                $pool = $rows->filter(fn($r) => (float)($r->odds ?? 1.0) >= $minOdds && (float)($r->odds ?? 1.0) < $maxOdds)->values();
-                if ($pool->count() < 2) return null;
-
-                $sel = []; $usedLeagues = [];
-                foreach ($pool as $row) {
-                    if (count($sel) >= $maxPicks) break;
-                    $lg = $row->competition ?? 'unknown';
-                    if (!in_array($lg, $usedLeagues)) { $sel[] = $row; $usedLeagues[] = $lg; }
-                }
-                if (count($sel) < 2) return null;
-
-                $vOdds = array_reduce($sel, fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
-                $vConf = array_sum(array_map(fn($p) => (float)$p->total_score, $sel)) / count($sel);
-                $vStars = match(true) { $vConf >= 85 => 4, $vConf >= 70 => 3, $vConf >= 60 => 2, default => 1 };
-
-                return [
-                    'name'                => $name,
-                    'picks'               => array_map(fn($p) => [
-                        'match'      => $p->home_team . ' vs ' . $p->away_team,
-                        'prediction' => $p->prediction,
-                        'type'       => $p->bet_type,
-                        'odds'       => (float)($p->odds ?? 1.0),
-                        'confidence' => round((float)$p->total_score, 1),
-                        'stars'      => $p->confidence_stars,
-                        'league'     => $p->competition ?? null,
-                    ], $sel),
-                    'matches_count'       => count($sel),
-                    'total_odds'          => round($vOdds, 2),
-                    'avg_confidence'      => round($vConf, 1),
-                    'stars'               => $vStars,
-                    'potential_gain_1000' => (int) round($vOdds * 1000),
-                ];
-            };
-
-            $variants = array_values(array_filter([
-                $buildVariant('Prudent',   1.5, 4.0),
-                $buildVariant('Équilibré', 4.0, 10.0),
-                $buildVariant('Audacieux', 10.0, 999.0),
-            ]));
-
-            return [
-                'success'             => true,
-                'date'                => $date,
-                'picks'               => $picks,
-                'matches_count'       => count($selected),
-                'total_odds'          => round($totalOdds, 2),
-                'avg_confidence'      => round($avgConfidence, 1),
-                'stars'               => $stars,
-                'potential_gain_1000' => (int) round($totalOdds * 1000),
-                'variants'            => $variants,
-                'generated_at'        => Carbon::now()->toIso8601String(),
+            $variants = [
+                'prudent'   => ['min_conf' => 75.0, 'odds_target_min' => 3.00,  'odds_target_max' => 6.00,  'is_premium' => false, 'label' => 'Prudent'],
+                'equilibre' => ['min_conf' => 65.0, 'odds_target_min' => 8.00,  'odds_target_max' => 15.00, 'is_premium' => true,  'label' => 'Équilibré'],
+                'audacieux' => ['min_conf' => 60.0, 'odds_target_min' => 15.00, 'odds_target_max' => 40.00, 'is_premium' => true,  'label' => 'Audacieux'],
             ];
+
+            $output = ['success' => true, 'date' => $date, 'generated_at' => Carbon::now()->toIso8601String()];
+
+            foreach ($variants as $key => $cfg) {
+                $pool = $rows->filter(fn($r) => (float) $r->total_score >= $cfg['min_conf'])->values();
+
+                if ($pool->count() < 4) {
+                    $output[$key] = null;
+                    continue;
+                }
+
+                // Max 2 picks/compétition, pas de doublon de match
+                $selected    = [];
+                $leagueCnt   = [];
+                $usedMatches = [];
+
+                foreach ($pool as $row) {
+                    if (count($selected) >= 5) break;
+                    $lg = $row->competition ?? 'unknown';
+                    $mid = $row->match_id ?? null;
+                    if (($leagueCnt[$lg] ?? 0) >= 2) continue;
+                    if ($mid && in_array($mid, $usedMatches)) continue;
+                    $selected[]      = $row;
+                    $leagueCnt[$lg]  = ($leagueCnt[$lg] ?? 0) + 1;
+                    if ($mid) $usedMatches[] = $mid;
+                }
+
+                if (count($selected) < 4) {
+                    $output[$key] = null;
+                    continue;
+                }
+
+                $totalOdds     = array_reduce($selected, fn($c, $r) => $c * (float) ($r->odds ?? 1.0), 1.0);
+                $avgConf       = array_sum(array_map(fn($r) => (float) $r->total_score, $selected)) / count($selected);
+                $stars         = match(true) { $avgConf >= 85 => 4, $avgConf >= 70 => 3, $avgConf >= 60 => 2, default => 1 };
+
+                $picks = array_map(function ($r) use ($cfg) {
+                    return [
+                        'match'          => $r->home_team . ' vs ' . $r->away_team,
+                        'home_team'      => $r->home_team,
+                        'away_team'      => $r->away_team,
+                        'home_team_logo' => $r->home_team_logo ?? null,
+                        'away_team_logo' => $r->away_team_logo ?? null,
+                        'league'         => $r->competition ?? null,
+                        'country'        => $r->country ?? null,
+                        'date'           => $r->match_date,
+                        'time'           => $r->match_time ?? null,
+                        'prediction'     => $r->prediction,
+                        'type'           => $r->bet_type,
+                        'engine'         => $r->engine_used ?? 'force',
+                        'odds'           => (float) ($r->odds ?? 1.0),
+                        'confidence'     => round((float) $r->total_score, 1),
+                        'stars'          => $r->confidence_stars,
+                        'is_premium'     => $cfg['is_premium'],
+                    ];
+                }, $selected);
+
+                $output[$key] = [
+                    'success'             => true,
+                    'variant'             => $key,
+                    'label'               => $cfg['label'],
+                    'is_premium'          => $cfg['is_premium'],
+                    'warning'             => $key === 'audacieux'
+                        ? 'Variante à risque élevé — cotes hautes, taux de réussite plus faible.'
+                        : null,
+                    'picks'               => $picks,
+                    'picks_count'         => count($picks),
+                    'total_odds'          => round($totalOdds, 2),
+                    'total_odds_target'   => ['min' => $cfg['odds_target_min'], 'max' => $cfg['odds_target_max']],
+                    'avg_confidence'      => round($avgConf, 1),
+                    'stars'               => $stars,
+                    'potential_gain_1000' => (int) round($totalOdds * 1000),
+                ];
+            }
+
+            return $output;
         });
 
-        return response()->json($coupon);
+        return response()->json($result);
     }
 
     /**
      * Formater un pronostic pour la réponse
      */
+    private function extractOddsSource(mixed $analysisDetails): string
+    {
+        if (!$analysisDetails) return 'estimated';
+        $details = is_string($analysisDetails) ? json_decode($analysisDetails, true) : $analysisDetails;
+        return $details['odds_source'] ?? 'estimated';
+    }
+
     private function formatPrediction($prediction, $isPremium)
     {
-        $isLocked = $prediction->is_premium && !$isPremium;
+        $isLocked = false; // TODO: réactiver après dev — $prediction->is_premium && !$isPremium
 
         // Déterminer le statut du match
         $matchStatus = 'NS'; // Not Started par défaut
@@ -1113,11 +1032,14 @@ class PredictionController extends Controller
                 'away_team' => $prediction->away_team,
                 'home_team_id' => $prediction->home_team_id,
                 'away_team_id' => $prediction->away_team_id,
-                'home_team_logo' => $prediction->home_team_logo ?? null,
-                'away_team_logo' => $prediction->away_team_logo ?? null,
+                'home_team_logo' => $prediction->home_team_logo
+                    ?? ($prediction->home_team_id > 0 ? 'https://media.api-sports.io/football/teams/' . $prediction->home_team_id . '.png' : null),
+                'away_team_logo' => $prediction->away_team_logo
+                    ?? ($prediction->away_team_id > 0 ? 'https://media.api-sports.io/football/teams/' . $prediction->away_team_id . '.png' : null),
                 'competition' => $prediction->competition,
                 'competition_id' => $prediction->competition_id,
-                'competition_logo' => $prediction->competition_logo ?? null,
+                'competition_logo' => $prediction->competition_logo
+                    ?? ($prediction->competition_id > 0 ? 'https://media.api-sports.io/football/leagues/' . $prediction->competition_id . '.png' : null),
                 'country' => $prediction->country,
                 'match_date' => $prediction->match_date,
                 'match_time' => $prediction->match_time,
@@ -1129,13 +1051,22 @@ class PredictionController extends Controller
             ],
             'bet_type' => $prediction->bet_type,
             'prediction' => $isLocked ? null : $prediction->prediction,
-            'odds' => $isLocked ? null : $prediction->odds,
+            'odds_source' => $this->extractOddsSource($prediction->analysis_details),
+            'odds' => $isLocked ? null : (
+                $this->extractOddsSource($prediction->analysis_details) === 'estimated'
+                    ? null
+                    : $prediction->odds
+            ),
             'confidence_stars' => $prediction->confidence_stars,
             'status' => $prediction->status,
             'is_correct' => $prediction->status === 'won' ? true : ($prediction->status === 'lost' ? false : null),
             'is_premium' => $prediction->is_premium,
             'is_locked' => $isLocked,
             'published_at' => $prediction->published_at,
+            'value_score'     => $prediction->value_score,
+            'kelly_fraction'  => $prediction->kelly_fraction,
+            'ev_positive'     => (bool) $prediction->ev_positive,
+            'sure_bet_level'  => $prediction->sure_bet_level,
         ];
 
         // Ajouter les détails complets si non verrouillé
@@ -1250,7 +1181,7 @@ class PredictionController extends Controller
      */
     private function formatPredictionFromArray(array $prediction, bool $isPremium): array
     {
-        $isLocked = isset($prediction['is_premium']) && $prediction['is_premium'] && !$isPremium;
+        $isLocked = false; // TODO: réactiver après dev — isset($prediction['is_premium']) && $prediction['is_premium'] && !$isPremium
 
         // Déterminer le statut du match
         $matchStatus = $prediction['status'] ?? 'NS'; // Utiliser le statut si disponible

@@ -16,6 +16,16 @@ use Illuminate\Support\Facades\Schedule;
 // Pour activer : * * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
 // ============================================================
 
+// ── 00:05 UTC — Peuplement auto BD dès que le quota se renouvelle (minuit UTC)
+// Si quota ok : peupler BD historique top ligues + régénérer prédictions algo complet
+// Si quota encore vide : skip silencieux (fallback RapidAPI prend le relais à 05:30)
+Schedule::job(new \App\Jobs\RefreshDatabaseWhenQuotaRestoredJob)
+    ->dailyAt('00:05')
+    ->timezone('UTC')
+    ->name('refresh-db-quota-restored')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── 05:00 UTC — Récupérer les matchs du jour (1 seule requête API)
 // Le cache 24h fait que tous les appels suivants lisent depuis Redis
 Schedule::job(new \App\Jobs\FetchMatchesJob)
@@ -25,7 +35,18 @@ Schedule::job(new \App\Jobs\FetchMatchesJob)
     ->withoutOverlapping()
     ->onOneServer();
 
-// ── 05:30 UTC — Générer les prédictions (depuis le cache, 0 requête API)
+// ── 05:10 UTC — Récupérer les résultats d'hier (TheSportsDB, gratuit, 0 quota)
+// Doit tourner AVANT GenerateAllPredictionsJob pour que l'algo ait l'historique frais
+Schedule::command('matches:fetch-history --days=1')
+    ->dailyAt('05:10')
+    ->timezone('UTC')
+    ->name('fetch-yesterday-results')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 05:30 UTC — Générer les prédictions
+// Quota dispo  → algo 9 critères complet (données réelles API-Football)
+// Quota épuisé → fallback prédictions tierces RapidAPI (abonnés ont toujours du contenu)
 Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
     ->dailyAt('05:30')
     ->timezone('UTC')
@@ -41,9 +62,33 @@ Schedule::job(new \App\Jobs\SendDailyNotificationJob)
     ->name('send-daily-notifications')
     ->onOneServer();
 
-// ── 08:00 UTC (09h WAT) — Routine matin : pronostic phare du jour
-Schedule::job(new \App\Jobs\SendRoutineMorningJob)
+// ── Toutes les 15 min — Détection anomalies de cotes (live 1xBet vs marché)
+Schedule::job(new \App\Jobs\DetectOddsAnomalyJob)
+    ->everyFifteenMinutes()
+    ->timezone('UTC')
+    ->name('detect-odds-anomaly')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 09:00 UTC (10h WAT) — Analyse coups sûrs (après génération des prédictions)
+Schedule::job(new \App\Jobs\RunSureBetAnalysisJob)
+    ->dailyAt('09:00')
+    ->timezone('UTC')
+    ->name('run-sure-bet-analysis')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 08:00 UTC (09h WAT) — Pari du Jour : meilleur pari EV+ (Value Betting)
+Schedule::job(new \App\Jobs\SendBestValueBetNotificationJob)
     ->dailyAt('08:00')
+    ->timezone('UTC')
+    ->name('send-best-value-bet')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 08:30 UTC (09h30 WAT) — Routine matin : pronostic phare du jour
+Schedule::job(new \App\Jobs\SendRoutineMorningJob)
+    ->dailyAt('08:30')
     ->timezone('UTC')
     ->name('routine-morning')
     ->withoutOverlapping()
@@ -70,6 +115,13 @@ Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
     ->dailyAt('07:00')
     ->timezone('UTC')
     ->name('premium-expiry-reminders')
+    ->onOneServer();
+
+// ── Toutes les heures — Vérifier inscriptions bookmakers → activer 7j Premium (§21.3 CDC V2)
+Schedule::job(new \App\Jobs\CheckBookmakerRegistrationsJob)
+    ->hourly()
+    ->name('check-bookmaker-registrations')
+    ->withoutOverlapping()
     ->onOneServer();
 
 // ── Toutes les heures — Mettre à jour les résultats (DB locale, 0 requête API)

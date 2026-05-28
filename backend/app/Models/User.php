@@ -23,7 +23,9 @@ class User extends Authenticatable
         'email',
         'password',
         'phone',
+        'google_id',
         'facebook_id',
+        'avatar',
         'otp_code',
         'otp_expires_at',
         'otp_attempts',
@@ -48,6 +50,12 @@ class User extends Authenticatable
         'notification_settings',
         'preferences',
         'locale',
+        'bookmaker_slug',
+        'parieur_profil',
+        'detected_region',
+        'pin_attempts',
+        'pin_locked_until',
+        'last_device_id',
     ];
 
     /**
@@ -83,7 +91,9 @@ class User extends Authenticatable
             'welcome_combined_used' => 'boolean',
             'admin_last_login_at' => 'datetime',
             'notification_settings' => 'array',
-            'preferences' => 'array',
+            'preferences'           => 'array',
+            'pin_locked_until'      => 'datetime',
+            'pin_attempts'          => 'integer',
         ];
     }
 

@@ -30,16 +30,15 @@ class PredictionAlgorithmService
     private ?RapidApiService $rapidApi;
 
     const WEIGHTS = [
-        'form'        => 25,
-        'h2h'         => 20,
-        'home_away'   => 15,
-        'league'      => 12,
-        'goals'       => 10,
-        'time'        => 8,
-        'weather'     => 5,
-        'shots'       => 3,
-        'physical'    => 2,
-        'third_party' => 7,   // 10ème critère — confirmation prédictions tierces
+        'form'      => 25,
+        'h2h'       => 20,
+        'home_away' => 15,
+        'league'    => 12,
+        'goals'     => 10,
+        'time'      => 8,
+        'weather'   => 5,
+        'shots'     => 3,
+        'physical'  => 2,
     ];
 
     const CONFIDENCE_THRESHOLDS = [
@@ -48,6 +47,16 @@ class PredictionAlgorithmService
         'medium'      => 60,
         'low'         => 50,
         'min_publish' => 50,
+    ];
+
+    // Bandes de cotes valides par marché (§10.2 CDC V2)
+    const ODDS_BANDS = [
+        '1X2'           => ['min' => 1.40, 'max' => 3.50],
+        'Double Chance' => ['min' => 1.40, 'max' => 3.50],
+        'Handicap'      => ['min' => 1.50, 'max' => 2.50],
+        'Over/Under'    => ['min' => 1.50, 'max' => 2.30],
+        'BTTS'          => ['min' => 1.50, 'max' => 2.30],
+        'Score Exact'   => ['min' => 5.00, 'max' => 12.00],
     ];
 
     public function __construct(FootballApiService $footballApi, ?RapidApiService $rapidApi = null)
@@ -74,66 +83,61 @@ class PredictionAlgorithmService
             return $this->getDefaultPrediction();
         }
 
+        $homeName = $homeTeam['name'] ?? '';
+        $awayName = $awayTeam['name'] ?? '';
+
         $scores = [
-            'form'      => $this->calculateFormScore($homeTeamId, $awayTeamId, $leagueId, $season),
-            'h2h'       => $this->calculateH2HScore($homeTeamId, $awayTeamId),
-            'home_away' => $this->calculateHomeAwayScore($homeTeamId, $awayTeamId, $leagueId, $season),
-            'league'    => $this->calculateLeagueScore($homeTeamId, $awayTeamId, $leagueId, $season),
-            'goals'     => $this->calculateGoalsScore($homeTeamId, $awayTeamId, $leagueId, $season),
+            'form'      => $this->calculateFormScore($homeTeamId, $awayTeamId, $leagueId, $season, $homeName, $awayName),
+            'h2h'       => $this->calculateH2HScore($homeTeamId, $awayTeamId, $homeName, $awayName),
+            'home_away' => $this->calculateHomeAwayScore($homeTeamId, $awayTeamId, $leagueId, $season, $homeName, $awayName),
+            'league'    => $this->calculateLeagueScore($homeTeamId, $awayTeamId, $leagueId, $season, $homeName, $awayName),
+            'goals'     => $this->calculateGoalsScore($homeTeamId, $awayTeamId, $leagueId, $season, $homeName, $awayName),
             'time'      => $this->calculateTimeScore($fixture['fixture'] ?? []),
             'weather'   => $this->calculateWeatherScore($fixture['fixture']['venue'] ?? []),
-            'shots'     => $this->calculateShotsScore($homeTeamId, $awayTeamId, $leagueId, $season),
-            'physical'  => $this->calculatePhysicalScore($homeTeamId, $awayTeamId),
+            'shots'     => $this->calculateShotsScore($homeTeamId, $awayTeamId, $leagueId, $season, $homeName, $awayName),
+            'physical'  => $this->calculatePhysicalScore($homeTeamId, $awayTeamId, $homeName, $awayName),
             // 10ème critère — calculé après determineBetType pour connaître notre outcome
             'third_party' => 0.0,
         ];
 
-        // Signaux supplémentaires (pas dans le score total, mais utilisés pour le choix du marché)
-        $cornersAvg  = $this->getAverageCornersPerMatch($homeTeamId, $awayTeamId);
-        $cardsAvg    = $this->getAverageCardsPerMatch($homeTeamId, $awayTeamId);
-        $topScorers  = $this->getTopScorersForMatch($homeTeamId, $awayTeamId, $leagueId, $season);
-
-        // Déterminer le type de pari pour connaître notre outcome avant le 10ème critère
-        $baseTotal   = array_sum($scores);
-        $prediction  = $this->determineBetType($scores, $baseTotal, $homeTeam, $awayTeam, $cornersAvg, $cardsAvg);
-
-        // 10ème critère — confirmation par prédictions tierces (RapidAPI)
-        if ($this->rapidApi !== null) {
-            $scores['third_party'] = $this->rapidApi->calculateThirdPartyScore(
-                $homeTeam['name'] ?? '',
-                $awayTeam['name'] ?? '',
-                $prediction['outcome'] ?? ''
-            );
-        }
+        // Signaux supplémentaires utilisés par les moteurs
+        $cornersAvg = $this->getAverageCornersPerMatch($homeTeamId, $awayTeamId, $homeName, $awayName);
+        $cardsAvg   = $this->getAverageCardsPerMatch($homeTeamId, $awayTeamId);
+        $topScorers = $this->getTopScorersForMatch($homeTeamId, $awayTeamId, $leagueId, $season);
 
         $totalScore = array_sum($scores);
-        $stars       = $this->calculateStars($totalScore);
-        $analysis    = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
+
+        // Cascade multi-marchés (§7 CDC V2) — sélecteur retourne le meilleur marché
+        $selected   = $this->selectBestMarket($scores, $totalScore, $homeTeam, $awayTeam);
+        $stars      = $this->calculateStars($totalScore);
+        $analysis   = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
 
         return [
-            'type'           => $prediction['type'],
-            'outcome'        => $prediction['outcome'],
-            'confidence'     => round($totalScore, 2),
-            'stars'          => $stars,
-            'odds'           => $prediction['odds'],
-            'reasoning'      => $analysis,
-            'scores'         => array_map(fn($s) => round($s, 2), $scores),
-            'is_premium'     => $stars >= 3,
-            'should_publish' => $totalScore >= self::CONFIDENCE_THRESHOLDS['min_publish'],
-            'top_scorers'    => $topScorers,
-            'corners_avg'    => $cornersAvg,
-            'cards_avg'      => $cardsAvg,
+            'type'             => $selected['type'],
+            'outcome'          => $selected['outcome'],
+            'confidence'       => round($totalScore, 2),
+            'stars'            => $stars,
+            'odds'             => $selected['odds'],
+            'engine'           => $selected['engine'],
+            'market_value'     => $selected['market_value'],
+            'reasoning'        => $analysis,
+            'scores'           => array_map(fn($s) => round($s, 2), $scores),
+            'is_premium'       => $stars >= 3,
+            'should_publish'   => $totalScore >= self::CONFIDENCE_THRESHOLDS['min_publish'],
+            'top_scorers'      => $topScorers,
+            'corners_avg'      => $cornersAvg,
+            'cards_avg'        => $cardsAvg,
         ];
     }
 
     // ==================== CRITERE 1: FORME RECENTE (25 pts) ====================
 
-    private function calculateFormScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season): float
+    private function calculateFormScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['form'];
 
-        $homeMatches = $this->getRecentMatches($homeTeamId, 10);
-        $awayMatches = $this->getRecentMatches($awayTeamId, 10);
+        $homeMatches = $this->getRecentMatches($homeTeamId, 10, $homeName);
+        $awayMatches = $this->getRecentMatches($awayTeamId, 10, $awayName);
 
         $homeFormPoints = $this->calculateFormPoints($homeMatches, $homeTeamId);
         $awayFormPoints = $this->calculateFormPoints($awayMatches, $awayTeamId);
@@ -152,14 +156,19 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 2: H2H (20 pts) ====================
 
-    private function calculateH2HScore(int $homeTeamId, int $awayTeamId): float
+    private function calculateH2HScore(int $homeTeamId, int $awayTeamId, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['h2h'];
 
-        // Lire H2H depuis la base en priorité, fallback API si vide
-        $dbMeetings = \App\Models\FootballMatch::where(function ($q) use ($homeTeamId, $awayTeamId) {
+        $dbMeetings = \App\Models\FootballMatch::where(function ($q) use ($homeTeamId, $awayTeamId, $homeName, $awayName) {
+                // Cherche par IDs
                 $q->where(fn($s) => $s->where('home_team_id', $homeTeamId)->where('away_team_id', $awayTeamId))
                   ->orWhere(fn($s) => $s->where('home_team_id', $awayTeamId)->where('away_team_id', $homeTeamId));
+                // Fallback par noms (matchs TheSportsDB)
+                if ($homeName !== '' && $awayName !== '') {
+                    $q->orWhere(fn($s) => $s->where('home_team', $homeName)->where('away_team', $awayName))
+                      ->orWhere(fn($s) => $s->where('home_team', $awayName)->where('away_team', $homeName));
+                }
             })
             ->where('status', 'finished')
             ->whereNotNull('home_score')
@@ -169,8 +178,8 @@ class PredictionAlgorithmService
 
         $meetings = $dbMeetings->map(fn($m) => [
             'teams' => [
-                'home' => ['id' => $m->home_team_id],
-                'away' => ['id' => $m->away_team_id],
+                'home' => ['id' => $m->home_team_id ?? 0, 'name' => $m->home_team],
+                'away' => ['id' => $m->away_team_id ?? 0, 'name' => $m->away_team],
             ],
             'goals' => ['home' => $m->home_score, 'away' => $m->away_score],
         ])->toArray();
@@ -188,7 +197,7 @@ class PredictionAlgorithmService
         foreach ($meetings as $index => $meeting) {
             $weight = 8 - $index;
             $totalWeight += $weight;
-            $result = $this->extractH2HResult($meeting, $homeTeamId);
+            $result = $this->extractH2HResult($meeting, $homeTeamId, $homeName);
 
             if ($result === 'home')      $homeWins += $weight;
             elseif ($result === 'away')  $awayWins += $weight;
@@ -207,14 +216,14 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 3: DOMICILE/EXTERIEUR (15 pts) ====================
 
-    private function calculateHomeAwayScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season): float
+    private function calculateHomeAwayScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['home_away'];
 
-        if (!$leagueId) return $maxScore * 0.50; // neutre si pas de ligue
+        if (!$leagueId) return $maxScore * 0.50;
 
-        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season);
-        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season);
+        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season, $homeName);
+        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season, $awayName);
 
         $homeHomeRatio = $this->extractHomeWinRatio($homeStats);
         $awayAwayRatio = $this->extractAwayWinRatio($awayStats);
@@ -229,7 +238,7 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 4: CLASSEMENT (12 pts) ====================
 
-    private function calculateLeagueScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season): float
+    private function calculateLeagueScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['league'];
 
@@ -263,14 +272,14 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 5: BUTS (10 pts) ====================
 
-    private function calculateGoalsScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season): float
+    private function calculateGoalsScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['goals'];
 
         if (!$leagueId) return $maxScore * 0.5;
 
-        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season);
-        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season);
+        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season, $homeName);
+        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season, $awayName);
 
         $homeGoalsFor     = $this->extractGoalsFor($homeStats);
         $awayGoalsFor     = $this->extractGoalsFor($awayStats);
@@ -352,14 +361,14 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 8: TIRS CADRES (3 pts) ====================
 
-    private function calculateShotsScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season): float
+    private function calculateShotsScore(int $homeTeamId, int $awayTeamId, ?int $leagueId, int $season, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['shots'];
 
         if (!$leagueId) return $maxScore * 0.5;
 
-        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season);
-        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season);
+        $homeStats = $this->getTeamStats($homeTeamId, $leagueId, $season, $homeName);
+        $awayStats = $this->getTeamStats($awayTeamId, $leagueId, $season, $awayName);
 
         $homeShotsOnTarget = $this->extractShotsOnTarget($homeStats);
         $awayShotsOnTarget = $this->extractShotsOnTarget($awayStats);
@@ -375,12 +384,12 @@ class PredictionAlgorithmService
 
     // ==================== CRITERE 9: FORME PHYSIQUE (2 pts) ====================
 
-    private function calculatePhysicalScore(int $homeTeamId, int $awayTeamId): float
+    private function calculatePhysicalScore(int $homeTeamId, int $awayTeamId, string $homeName = '', string $awayName = ''): float
     {
         $maxScore = self::WEIGHTS['physical'];
 
-        $homeMatches = $this->getRecentMatches($homeTeamId, 10);
-        $awayMatches = $this->getRecentMatches($awayTeamId, 10);
+        $homeMatches = $this->getRecentMatches($homeTeamId, 10, $homeName);
+        $awayMatches = $this->getRecentMatches($awayTeamId, 10, $awayName);
 
         $homeRecentCount = $this->countMatchesInLastDays($homeMatches, 7);
         $awayRecentCount = $this->countMatchesInLastDays($awayMatches, 7);
@@ -393,110 +402,162 @@ class PredictionAlgorithmService
         return min(max($baseScore, 0), $maxScore);
     }
 
-    // ==================== BET TYPE & ANALYSE ====================
+    // ==================== CASCADE MULTI-MARCHÉS (§7 CDC V2) ====================
 
-    private function determineBetType(
+    /**
+     * Sélecteur cascade : évalue tous les marchés, retourne le meilleur
+     * par équilibre confiance × valeur de cote, dans la bande valide (§10.2).
+     *
+     * Deux moteurs spécialisés (§7.2) :
+     *   - Moteur Force  : 1X2, Double Chance, Handicap
+     *   - Moteur Buts   : Over/Under, BTTS
+     * Haute variance    : Score Exact (signal exceptionnel uniquement)
+     *
+     * @return array{type:string, outcome:string, odds:float, engine:string, market_value:float}
+     */
+    private function selectBestMarket(
         array $scores,
         float $totalScore,
         array $homeTeam,
-        array $awayTeam,
-        float $cornersAvg,
-        float $cardsAvg
+        array $awayTeam
     ): array {
-        // Ratios normalisés 0–1, 0.5 = neutre, >0.5 = avantage domicile
+        $candidates = [];
+
+        // ── Ratios normalisés pour les deux moteurs ───────────────────────────
         $formRatio     = $scores['form']      / self::WEIGHTS['form'];
         $h2hRatio      = $scores['h2h']       / self::WEIGHTS['h2h'];
         $homeAwayRatio = $scores['home_away'] / self::WEIGHTS['home_away'];
         $goalsRatio    = $scores['goals']     / self::WEIGHTS['goals'];
+        $shotsRatio    = $scores['shots']     / self::WEIGHTS['shots'];
         $leagueRatio   = $scores['league']    / self::WEIGHTS['league'];
 
-        // Avantage composite domicile (3 critères pondérés)
-        $homeAdv = ($formRatio * 0.4) + ($h2hRatio * 0.35) + ($homeAwayRatio * 0.25);
-        $awayAdv = 1 - $homeAdv;
+        // Avantage domicile composite (Moteur Force)
+        $homeAdv = ($formRatio * 0.40) + ($h2hRatio * 0.35) + ($homeAwayRatio * 0.25);
+        $awayAdv = 1.0 - $homeAdv;
 
-        // ── 1. DOMICILE NETTEMENT SUPÉRIEUR (avantage > 0.62) ────────────────
+        // ── MOTEUR FORCE — 1X2, Double Chance, Handicap ──────────────────────
+        $candidates = array_merge($candidates, $this->scoreForceEngine($homeAdv, $awayAdv, $leagueRatio));
+
+        // ── MOTEUR BUTS — Over/Under, BTTS ───────────────────────────────────
+        // Stats buts = entrée principale (≈70% du poids), tirs cadrés en appoint
+        $goalsEngineScore = ($goalsRatio * 0.70) + ($shotsRatio * 0.30);
+        $candidates = array_merge($candidates, $this->scoreGoalsEngine($goalsEngineScore));
+
+        // ── HAUTE VARIANCE — Score Exact (signal exceptionnel) ───────────────
+        if ($homeAdv >= 0.80 || $awayAdv >= 0.80) {
+            $winner = $homeAdv >= 0.80 ? '1-0' : '0-1';
+            $candidates[] = $this->makeCandidate('Score Exact', $winner, 7.00, 'high_variance', $totalScore);
+        }
+
+        // ── SÉLECTEUR — meilleur candidat valide dans sa bande de cote ───────
+        $valid = array_filter($candidates, fn($c) => $this->isOddsInBand($c['type'], $c['odds']));
+
+        if (empty($valid)) {
+            // Fallback : Double Chance la plus sécurisée
+            return $this->makeCandidate('Double Chance', $homeAdv >= $awayAdv ? '1X' : 'X2', 1.55, 'force', $totalScore);
+        }
+
+        // Score valeur = confiance normalisée × attractivité de la cote
+        usort($valid, fn($a, $b) => $b['market_value'] <=> $a['market_value']);
+
+        return reset($valid);
+    }
+
+    /**
+     * Moteur Force — produit les candidats 1X2 / Double Chance / Handicap
+     */
+    private function scoreForceEngine(float $homeAdv, float $awayAdv, float $leagueRatio): array
+    {
+        $c = [];
+
         if ($homeAdv >= 0.70) {
-            return ['type' => '1X2', 'outcome' => '1', 'odds' => round(1.35 + (mt_rand(0, 25) / 100), 2)];
-        }
-        if ($homeAdv >= 0.62) {
-            return ['type' => '1X2', 'outcome' => '1', 'odds' => round(1.55 + (mt_rand(0, 35) / 100), 2)];
-        }
-
-        // ── 2. EXTÉRIEUR NETTEMENT SUPÉRIEUR (avantage > 0.62) ───────────────
-        if ($awayAdv >= 0.70) {
-            return ['type' => '1X2', 'outcome' => '2', 'odds' => round(1.75 + (mt_rand(0, 45) / 100), 2)];
-        }
-        if ($awayAdv >= 0.62) {
-            return ['type' => '1X2', 'outcome' => '2', 'odds' => round(2.00 + (mt_rand(0, 60) / 100), 2)];
-        }
-
-        // ── 3. CORNERS — Over/Under si signal fort ────────────────────────────
-        // (priorité sur les buts car marché moins exploité par les parieurs)
-        if ($cornersAvg > 0 && $cornersAvg >= 10.5) {
-            return ['type' => 'Corners', 'outcome' => 'Over 9.5', 'odds' => round(1.80 + (mt_rand(0, 30) / 100), 2)];
-        }
-        if ($cornersAvg > 0 && $cornersAvg <= 7.5) {
-            return ['type' => 'Corners', 'outcome' => 'Under 8.5', 'odds' => round(1.85 + (mt_rand(0, 30) / 100), 2)];
+            $c[] = $this->makeCandidate('1X2', '1', 1.70, 'force', $homeAdv * 100);
+        } elseif ($homeAdv >= 0.62) {
+            $c[] = $this->makeCandidate('1X2', '1', 2.00, 'force', $homeAdv * 100);
+            $c[] = $this->makeCandidate('Double Chance', '1X', 1.42, 'force', $homeAdv * 90);
+        } elseif ($homeAdv >= 0.55) {
+            $c[] = $this->makeCandidate('Double Chance', '1X', 1.50, 'force', $homeAdv * 85);
+        } elseif ($awayAdv >= 0.70) {
+            $c[] = $this->makeCandidate('1X2', '2', 2.10, 'force', $awayAdv * 100);
+        } elseif ($awayAdv >= 0.62) {
+            $c[] = $this->makeCandidate('1X2', '2', 2.40, 'force', $awayAdv * 100);
+            $c[] = $this->makeCandidate('Double Chance', 'X2', 1.52, 'force', $awayAdv * 90);
+        } elseif ($awayAdv >= 0.55) {
+            $c[] = $this->makeCandidate('Double Chance', 'X2', 1.60, 'force', $awayAdv * 85);
+        } else {
+            // Très équilibré : classement comme tie-breaker
+            $outcome = $leagueRatio >= 0.55 ? '1X' : 'X2';
+            $c[] = $this->makeCandidate('Double Chance', $outcome, 1.55, 'force', 55.0);
         }
 
-        // ── 4. CARTONS — Over/Under si les deux équipes sont agressives ──────
-        if ($cardsAvg > 0 && $cardsAvg >= 4.5) {
-            return ['type' => 'Cartons', 'outcome' => 'Over 3.5', 'odds' => round(1.75 + (mt_rand(0, 35) / 100), 2)];
+        return $c;
+    }
+
+    /**
+     * Moteur Buts — produit les candidats Over/Under / BTTS
+     * goalsEngineScore = 0–1 (>0.5 = offensive, <0.5 = défensive)
+     */
+    private function scoreGoalsEngine(float $goalsEngineScore): array
+    {
+        $c = [];
+
+        if ($goalsEngineScore >= 0.68) {
+            $c[] = $this->makeCandidate('BTTS', 'Oui', 1.75, 'goals', $goalsEngineScore * 100);
+            $c[] = $this->makeCandidate('Over/Under', 'Over 2.5', 1.72, 'goals', $goalsEngineScore * 95);
+        } elseif ($goalsEngineScore >= 0.58) {
+            $c[] = $this->makeCandidate('Over/Under', 'Over 2.5', 1.80, 'goals', $goalsEngineScore * 100);
+        } elseif ($goalsEngineScore <= 0.32) {
+            $c[] = $this->makeCandidate('Over/Under', 'Under 2.5', 1.78, 'goals', (1 - $goalsEngineScore) * 100);
+            $c[] = $this->makeCandidate('BTTS', 'Non', 1.90, 'goals', (1 - $goalsEngineScore) * 90);
+        } elseif ($goalsEngineScore <= 0.42) {
+            $c[] = $this->makeCandidate('Over/Under', 'Under 2.5', 1.82, 'goals', (1 - $goalsEngineScore) * 100);
         }
 
-        // ── 5. BUTS — match offensif (les deux équipes marquent beaucoup) ────
-        if ($goalsRatio >= 0.65) {
-            return ['type' => 'BTTS', 'outcome' => 'Oui', 'odds' => round(1.72 + (mt_rand(0, 30) / 100), 2)];
-        }
-        if ($goalsRatio >= 0.55) {
-            return ['type' => 'Over/Under', 'outcome' => 'Over 2.5', 'odds' => round(1.68 + (mt_rand(0, 35) / 100), 2)];
-        }
+        return $c;
+    }
 
-        // ── 6. BUTS — match défensif ──────────────────────────────────────────
-        if ($goalsRatio <= 0.35) {
-            return ['type' => 'Over/Under', 'outcome' => 'Under 2.5', 'odds' => round(1.75 + (mt_rand(0, 30) / 100), 2)];
-        }
+    /**
+     * Construit un candidat marché avec son score valeur.
+     * market_value = (confidence/100) × log(odds) — favorise cotes attractives
+     * sans tomber dans les cotes déséquilibrées hors bande.
+     */
+    private function makeCandidate(
+        string $type,
+        string $outcome,
+        float  $odds,
+        string $engine,
+        float  $confidence
+    ): array {
+        $oddsValue   = $odds > 1.0 ? log($odds) : 0.0;
+        $marketValue = round(($confidence / 100.0) * $oddsValue, 4);
 
-        // ── 7. DOMICILE LÉGÈREMENT FAVORI ─────────────────────────────────────
-        if ($homeAdv >= 0.53) {
-            return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.22 + (mt_rand(0, 25) / 100), 2)];
-        }
+        return [
+            'type'         => $type,
+            'outcome'      => $outcome,
+            'odds'         => round($odds, 2),
+            'engine'       => $engine,
+            'market_value' => $marketValue,
+        ];
+    }
 
-        // ── 8. EXTÉRIEUR LÉGÈREMENT FAVORI ────────────────────────────────────
-        if ($awayAdv >= 0.53) {
-            return ['type' => 'Double Chance', 'outcome' => 'X2', 'odds' => round(1.32 + (mt_rand(0, 30) / 100), 2)];
-        }
-
-        // ── 9. MATCH TRÈS ÉQUILIBRÉ → classement comme tie-breaker ───────────
-        if ($leagueRatio >= 0.55) {
-            return ['type' => 'Double Chance', 'outcome' => '1X', 'odds' => round(1.28 + (mt_rand(0, 25) / 100), 2)];
-        }
-
-        // ── 10. DÉFAUT — variation déterministe selon IDs équipes ────────────
-        // Évite que tous les matchs sans données suffisantes tombent sur BTTS Oui
-        $homeId = $homeTeam['id'] ?? 0;
-        $awayId = $awayTeam['id'] ?? 0;
-        $seed   = ($homeId + $awayId * 7) % 6;
-
-        return match($seed) {
-            0 => ['type' => 'BTTS',         'outcome' => 'Oui',      'odds' => round(1.78 + (mt_rand(0, 30) / 100), 2)],
-            1 => ['type' => 'Over/Under',   'outcome' => 'Over 2.5', 'odds' => round(1.72 + (mt_rand(0, 35) / 100), 2)],
-            2 => ['type' => 'Double Chance','outcome' => '1X',       'odds' => round(1.30 + (mt_rand(0, 25) / 100), 2)],
-            3 => ['type' => '1X2',          'outcome' => '1',        'odds' => round(1.90 + (mt_rand(0, 50) / 100), 2)],
-            4 => ['type' => 'Double Chance','outcome' => 'X2',       'odds' => round(1.35 + (mt_rand(0, 30) / 100), 2)],
-            5 => ['type' => 'Over/Under',   'outcome' => 'Under 2.5','odds' => round(1.80 + (mt_rand(0, 30) / 100), 2)],
-            default => ['type' => 'BTTS',   'outcome' => 'Oui',      'odds' => round(1.78 + (mt_rand(0, 30) / 100), 2)],
-        };
+    /**
+     * Vérifie que la cote se trouve dans la bande valide du marché (§10.2 CDC V2).
+     */
+    private function isOddsInBand(string $type, float $odds): bool
+    {
+        $band = self::ODDS_BANDS[$type] ?? null;
+        if (!$band) return true;
+        return $odds >= $band['min'] && $odds <= $band['max'];
     }
 
     // ── Corners : moyenne corners/match des 10 derniers matchs des 2 équipes ──
 
-    private function getAverageCornersPerMatch(int $homeTeamId, int $awayTeamId): float
+    private function getAverageCornersPerMatch(int $homeTeamId, int $awayTeamId, string $homeName = '', string $awayName = ''): float
     {
         $cacheKey = "corners_avg:{$homeTeamId}:{$awayTeamId}";
-        return Cache::remember($cacheKey, 7200, function () use ($homeTeamId, $awayTeamId) {
-            $homeCorners = $this->extractAverageCorners($this->getRecentMatches($homeTeamId, 10), $homeTeamId);
-            $awayCorners = $this->extractAverageCorners($this->getRecentMatches($awayTeamId, 10), $awayTeamId);
+        return Cache::remember($cacheKey, 7200, function () use ($homeTeamId, $awayTeamId, $homeName, $awayName) {
+            $homeCorners = $this->extractAverageCorners($this->getRecentMatches($homeTeamId, 10, $homeName), $homeTeamId);
+            $awayCorners = $this->extractAverageCorners($this->getRecentMatches($awayTeamId, 10, $awayName), $awayTeamId);
             if ($homeCorners === null || $awayCorners === null) return 0.0;
             return round($homeCorners + $awayCorners, 1);
         });
@@ -525,12 +586,12 @@ class PredictionAlgorithmService
 
     // ── Cartons : moyenne cartons jaunes/match des 2 équipes ──────────────────
 
-    private function getAverageCardsPerMatch(int $homeTeamId, int $awayTeamId): float
+    private function getAverageCardsPerMatch(int $homeTeamId, int $awayTeamId, string $homeName = '', string $awayName = ''): float
     {
         $cacheKey = "cards_avg:{$homeTeamId}:{$awayTeamId}";
-        return Cache::remember($cacheKey, 7200, function () use ($homeTeamId, $awayTeamId) {
-            $homeCards = $this->extractAverageCards($this->getRecentMatches($homeTeamId, 10), $homeTeamId);
-            $awayCards = $this->extractAverageCards($this->getRecentMatches($awayTeamId, 10), $awayTeamId);
+        return Cache::remember($cacheKey, 7200, function () use ($homeTeamId, $awayTeamId, $homeName, $awayName) {
+            $homeCards = $this->extractAverageCards($this->getRecentMatches($homeTeamId, 10, $homeName), $homeTeamId);
+            $awayCards = $this->extractAverageCards($this->getRecentMatches($awayTeamId, 10, $awayName), $awayTeamId);
             if ($homeCards === null || $awayCards === null) return 0.0;
             return round($homeCards + $awayCards, 1);
         });
@@ -667,13 +728,14 @@ class PredictionAlgorithmService
 
     // ==================== METHODES UTILITAIRES ====================
 
-    private function getTeamStats(int $teamId, int $leagueId, int $season): ?array
+    private function getTeamStats(int $teamId, int $leagueId, int $season, string $teamName = ''): ?array
     {
-        // Construire les stats depuis l'historique en base (évite les appels API)
-        $matches = \App\Models\FootballMatch::where(function ($q) use ($teamId) {
-                $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId);
+        $matches = \App\Models\FootballMatch::where(function ($q) use ($teamId, $teamName) {
+                $q->where(fn($s) => $s->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId));
+                if ($teamName !== '') {
+                    $q->orWhere(fn($s) => $s->where('home_team', $teamName)->orWhere('away_team', $teamName));
+                }
             })
-            ->where('competition_id', $leagueId)
             ->where('status', 'finished')
             ->orderByDesc('match_date')
             ->limit(20)
@@ -685,7 +747,8 @@ class PredictionAlgorithmService
         $goalsScored = $goalsConceded = 0;
 
         foreach ($matches as $m) {
-            $isHome = $m->home_team_id === $teamId;
+            $isHome = ($m->home_team_id && $m->home_team_id === $teamId)
+                   || ($teamName !== '' && $m->home_team === $teamName);
             $scored    = $isHome ? $m->home_score : $m->away_score;
             $conceded  = $isHome ? $m->away_score : $m->home_score;
 
@@ -703,39 +766,44 @@ class PredictionAlgorithmService
             }
         }
 
+        $total = $matches->count();
         return [
             'fixtures' => [
-                'wins'   => ['home' => ['total' => $homeWins],  'away' => ['total' => $awayWins]],
-                'played' => ['home' => $homePlayed, 'away' => $awayPlayed],
+                'wins'   => ['home' => $homeWins,  'away' => $awayWins],
+                'draws'  => ['home' => 0,           'away' => 0],
+                'played' => ['home' => $homePlayed, 'away' => $awayPlayed, 'total' => $total],
             ],
             'goals' => [
-                'for'     => ['average' => ['total' => $matches->count() > 0 ? round($goalsScored / $matches->count(), 2) : 0]],
-                'against' => ['average' => ['total' => $matches->count() > 0 ? round($goalsConceded / $matches->count(), 2) : 0]],
+                'for'     => ['average' => ['total' => $total > 0 ? round($goalsScored   / $total, 2) : 0]],
+                'against' => ['average' => ['total' => $total > 0 ? round($goalsConceded / $total, 2) : 0]],
             ],
         ];
     }
 
-    private function getRecentMatches(int $teamId, int $last = 10): array
+    private function getRecentMatches(int $teamId, int $last = 10, string $teamName = ''): array
     {
-        // Lire depuis la base (matchs terminés) au lieu d'appeler l'API
-        $matches = \App\Models\FootballMatch::where(function ($q) use ($teamId) {
-                $q->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId);
-            })
-            ->where('status', 'finished')
-            ->whereNotNull('home_score')
-            ->orderByDesc('match_date')
-            ->limit($last)
-            ->get();
+        $query = \App\Models\FootballMatch::where(function ($q) use ($teamId, $teamName) {
+            $q->where(fn($s) => $s->where('home_team_id', $teamId)->orWhere('away_team_id', $teamId));
+            // Fallback par nom si le nom est fourni (matchs TheSportsDB sans IDs)
+            if ($teamName !== '') {
+                $q->orWhere(fn($s) => $s->where('home_team', $teamName)->orWhere('away_team', $teamName));
+            }
+        })
+        ->where('status', 'finished')
+        ->whereNotNull('home_score')
+        ->orderByDesc('match_date')
+        ->limit($last)
+        ->get();
 
-        // Convertir au format API-Football attendu par calculateFormPoints
-        return $matches->map(fn($m) => [
+        return $query->map(fn($m) => [
             'fixture' => ['id' => $m->match_id, 'date' => $m->match_date],
             'teams'   => [
-                'home' => ['id' => $m->home_team_id, 'name' => $m->home_team],
-                'away' => ['id' => $m->away_team_id, 'name' => $m->away_team],
+                'home' => ['id' => $m->home_team_id ?? 0, 'name' => $m->home_team],
+                'away' => ['id' => $m->away_team_id ?? 0, 'name' => $m->away_team],
             ],
-            'goals' => ['home' => $m->home_score, 'away' => $m->away_score],
+            'goals'  => ['home' => $m->home_score, 'away' => $m->away_score],
             'league' => ['id' => $m->competition_id],
+            '_team_name' => $teamName,
         ])->toArray();
     }
 
@@ -745,7 +813,8 @@ class PredictionAlgorithmService
         $fixtures = array_slice($fixtures, 0, 10);
 
         foreach ($fixtures as $fixture) {
-            $result = $this->getMatchResultForTeam($fixture, $teamId);
+            $teamName = $fixture['_team_name'] ?? '';
+            $result   = $this->getMatchResultForTeam($fixture, $teamId, $teamName);
             if ($result === 'win')  $points += 3;
             elseif ($result === 'draw') $points += 1;
         }
@@ -753,10 +822,12 @@ class PredictionAlgorithmService
         return $points;
     }
 
-    private function getMatchResultForTeam(array $fixture, int $teamId): string
+    private function getMatchResultForTeam(array $fixture, int $teamId, string $teamName = ''): string
     {
         $homeId    = $fixture['teams']['home']['id'] ?? null;
         $awayId    = $fixture['teams']['away']['id'] ?? null;
+        $homeName  = $fixture['teams']['home']['name'] ?? '';
+        $awayName  = $fixture['teams']['away']['name'] ?? '';
         $homeGoals = $fixture['goals']['home'] ?? null;
         $awayGoals = $fixture['goals']['away'] ?? null;
 
@@ -765,8 +836,15 @@ class PredictionAlgorithmService
 
         $homeWon = $homeGoals > $awayGoals;
 
-        if ($teamId === $homeId) return $homeWon ? 'win' : 'loss';
-        if ($teamId === $awayId) return $homeWon ? 'loss' : 'win';
+        // Identification par ID (API-Football)
+        if ($teamId !== 0 && $teamId === $homeId) return $homeWon ? 'win' : 'loss';
+        if ($teamId !== 0 && $teamId === $awayId) return $homeWon ? 'loss' : 'win';
+
+        // Fallback par nom (TheSportsDB — team_id = 0)
+        if ($teamName !== '') {
+            if ($homeName === $teamName) return $homeWon ? 'win' : 'loss';
+            if ($awayName === $teamName) return $homeWon ? 'loss' : 'win';
+        }
 
         return 'unknown';
     }
@@ -789,7 +867,8 @@ class PredictionAlgorithmService
     {
         $streak = 0;
         foreach ($fixtures as $fixture) {
-            if ($this->getMatchResultForTeam($fixture, $teamId) === 'win') {
+            $teamName = $fixture['_team_name'] ?? '';
+            if ($this->getMatchResultForTeam($fixture, $teamId, $teamName) === 'win') {
                 $streak++;
             } else {
                 break;
@@ -798,10 +877,11 @@ class PredictionAlgorithmService
         return $streak;
     }
 
-    private function extractH2HResult(array $fixture, int $homeTeamId): string
+    private function extractH2HResult(array $fixture, int $homeTeamId, string $homeName = ''): string
     {
-        $homeId    = $fixture['teams']['home']['id'] ?? null;
-        $awayId    = $fixture['teams']['away']['id'] ?? null;
+        $homeId   = $fixture['teams']['home']['id']   ?? null;
+        $awayId   = $fixture['teams']['away']['id']   ?? null;
+        $homeFN   = $fixture['teams']['home']['name'] ?? '';
         $homeGoals = $fixture['goals']['home'] ?? null;
         $awayGoals = $fixture['goals']['away'] ?? null;
 
@@ -809,13 +889,15 @@ class PredictionAlgorithmService
 
         $fixtureHomeWon = $homeGoals > $awayGoals;
 
-        // Est-ce que l'equipe "home" dans ce H2H match est notre equipe home locale ?
-        if ($homeId === $homeTeamId) {
-            return $fixtureHomeWon ? 'home' : 'away';
-        }
-        if ($awayId === $homeTeamId) {
-            return $fixtureHomeWon ? 'away' : 'home';
-        }
+        $isHome = ($homeId && $homeId === $homeTeamId)
+               || ($homeName !== '' && $homeFN === $homeName);
+
+        if ($isHome) return $fixtureHomeWon ? 'home' : 'away';
+
+        $isAway = ($awayId && $awayId === $homeTeamId)
+               || ($homeName !== '' && ($fixture['teams']['away']['name'] ?? '') === $homeName);
+
+        if ($isAway) return $fixtureHomeWon ? 'away' : 'home';
 
         return 'draw';
     }
@@ -833,21 +915,29 @@ class PredictionAlgorithmService
     private function extractHomeWinRatio(?array $stats): float
     {
         if (!$stats) return 0.5;
-        $played = $stats['fixtures']['played']['home'] ?? 0;
+        $played = $this->safeInt($stats['fixtures']['played']['home'] ?? 0);
         if ($played === 0) return 0.5;
-        $wins  = $stats['fixtures']['wins']['home'] ?? 0;
-        $draws = $stats['fixtures']['draws']['home'] ?? 0;
+        $wins  = $this->safeInt($stats['fixtures']['wins']['home'] ?? 0);
+        $draws = $this->safeInt($stats['fixtures']['draws']['home'] ?? 0);
         return ($wins * 3 + $draws) / ($played * 3);
     }
 
     private function extractAwayWinRatio(?array $stats): float
     {
         if (!$stats) return 0.5;
-        $played = $stats['fixtures']['played']['away'] ?? 0;
+        $played = $this->safeInt($stats['fixtures']['played']['away'] ?? 0);
         if ($played === 0) return 0.5;
-        $wins  = $stats['fixtures']['wins']['away'] ?? 0;
-        $draws = $stats['fixtures']['draws']['away'] ?? 0;
+        $wins  = $this->safeInt($stats['fixtures']['wins']['away'] ?? 0);
+        $draws = $this->safeInt($stats['fixtures']['draws']['away'] ?? 0);
         return ($wins * 3 + $draws) / ($played * 3);
+    }
+
+    private function safeInt(mixed $value): int
+    {
+        if (is_array($value)) {
+            $value = $value['total'] ?? $value['home'] ?? $value['away'] ?? 0;
+        }
+        return (int) $value;
     }
 
     private function extractGoalsFor(?array $stats): float
@@ -947,122 +1037,156 @@ class PredictionAlgorithmService
             ? (array) \Illuminate\Support\Facades\Cache::get("top_scorers:{$homeTeamId}:{$awayTeamId}:{$leagueId}:{$season}", [])
             : [];
 
-        $result   = $this->determineBetType($scores, $totalScore, $homeTeam, $awayTeam, $cornersAvg, $cardsAvg);
+        $selected = $this->selectBestMarket($scores, $totalScore, $homeTeam, $awayTeam);
         $analysis = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
 
-        return array_merge($result, ['analysis' => $analysis]);
+        return array_merge($selected, ['analysis' => $analysis]);
     }
 
-    // ==================== COUPON IA ====================
+    // ==================== COUPON IA — 3 VARIANTES (§14.4 CDC V2) ====================
 
     /**
-     * Generer un coupon combiné à partir d'une liste de fixtures.
+     * Génère les 3 variantes du coupon quotidien.
+     * Retourne un tableau indexé par variante : 'prudent', 'equilibre', 'audacieux'.
+     * Si une variante ne peut pas être constituée (volume insuffisant),
+     * son entrée est null — ne jamais forcer un pick sous le seuil (§14.4).
      *
-     * Logique :
-     * - Génère une prédiction pour chaque fixture
-     * - Filtre celles avec confidence >= $minConfidence
-     * - Sélectionne les meilleures en privilégiant 1 match par ligue
-     * - Calcule la cote totale et le gain potentiel pour une mise de 1 000 FCFA
-     *
-     * @param array $fixtures      Liste de fixtures au format API-Football
-     * @param int   $minPicks      Nombre minimum de sélections requises
-     * @param int   $maxPicks      Nombre maximum de sélections dans le coupon
-     * @param float $minConfidence Score minimum de confiance pour être inclus
+     * Règles communes :
+     *   - 4–5 picks par variante
+     *   - Max 2 picks par compétition
+     *   - Picks contradictoires sur un même match exclus
+     *   - L'audacieux affiche un avertissement risque élevé
      */
-    public function generateDailyCoupon(
-        array $fixtures,
-        int   $minPicks      = 4,
-        int   $maxPicks      = 5,
-        float $minConfidence = 60.0
-    ): array {
-        $candidates = [];
+    public function generateAllCouponVariants(array $fixtures): array
+    {
+        $variants = [
+            'prudent'   => ['min_confidence' => 75.0, 'odds_min' => 3.00,  'odds_max' => 6.00,  'is_premium' => false, 'label' => 'Prudent'],
+            'equilibre' => ['min_confidence' => 65.0, 'odds_min' => 8.00,  'odds_max' => 15.00, 'is_premium' => true,  'label' => 'Équilibré'],
+            'audacieux' => ['min_confidence' => 60.0, 'odds_min' => 15.00, 'odds_max' => 40.00, 'is_premium' => true,  'label' => 'Audacieux'],
+        ];
 
+        // Générer toutes les prédictions une seule fois
+        $allPredictions = [];
         foreach ($fixtures as $fixture) {
-            $prediction = $this->generatePrediction($fixture);
-
-            if ($prediction['confidence'] >= $minConfidence && $prediction['should_publish']) {
-                $candidates[] = [
-                    'fixture'    => $fixture,
-                    'prediction' => $prediction,
-                ];
+            $pred = $this->generatePrediction($fixture);
+            if ($pred['should_publish']) {
+                $allPredictions[] = ['fixture' => $fixture, 'prediction' => $pred];
             }
         }
 
-        if (count($candidates) < $minPicks) {
-            return [
-                'success'   => false,
-                'message'   => 'Pas assez de matchs avec une confiance suffisante (' . count($candidates) . '/' . $minPicks . ' requis)',
-                'analyzed'  => count($fixtures),
-                'qualified' => count($candidates),
-            ];
+        $result = ['analyzed' => count($fixtures), 'generated_at' => Carbon::now()->toIso8601String()];
+
+        foreach ($variants as $key => $config) {
+            $result[$key] = $this->buildCouponVariant($allPredictions, $config, $key);
         }
 
-        // Trier par confiance décroissante
-        usort($candidates, fn($a, $b) => $b['prediction']['confidence'] <=> $a['prediction']['confidence']);
+        return $result;
+    }
 
-        // Sélectionner en prioritisant 1 match par ligue
-        $selected    = [];
-        $usedLeagues = [];
+    private function buildCouponVariant(array $allPredictions, array $config, string $variantKey): ?array
+    {
+        $minConf  = $config['min_confidence'];
+        $oddsMin  = $config['odds_min'];
+        $oddsMax  = $config['odds_max'];
 
-        foreach ($candidates as $c) {
-            if (count($selected) >= $maxPicks) break;
-            $leagueId = $c['fixture']['league']['id'] ?? 'unknown';
-            if (!in_array($leagueId, $usedLeagues)) {
-                $selected[]    = $c;
-                $usedLeagues[] = $leagueId;
-            }
+        // Filtrer par confiance min
+        $pool = array_filter($allPredictions, fn($item) =>
+            $item['prediction']['confidence'] >= $minConf
+        );
+
+        if (count($pool) < 4) {
+            return null;
         }
 
-        // Compléter si on n'a pas encore atteint $minPicks
-        if (count($selected) < $minPicks) {
-            foreach ($candidates as $c) {
-                if (count($selected) >= $minPicks) break;
-                $alreadyIn = array_filter($selected, fn($s) => $s === $c);
-                if (empty($alreadyIn)) {
-                    $selected[] = $c;
-                }
-            }
+        // Trier par confiance × valeur marché décroissante
+        usort($pool, fn($a, $b) =>
+            ($b['prediction']['confidence'] * ($b['prediction']['market_value'] ?? 1))
+            <=>
+            ($a['prediction']['confidence'] * ($a['prediction']['market_value'] ?? 1))
+        );
+
+        // Sélection : max 2 picks/compétition, pas de contradiction sur même match
+        $selected      = [];
+        $leagueCount   = [];
+        $usedMatchIds  = [];
+
+        foreach ($pool as $item) {
+            if (count($selected) >= 5) break;
+
+            $leagueId = $item['fixture']['league']['id'] ?? 'x';
+            $matchId  = $item['fixture']['fixture']['id'] ?? null;
+
+            if (($leagueCount[$leagueId] ?? 0) >= 2) continue;
+            if ($matchId && in_array($matchId, $usedMatchIds)) continue;
+
+            $selected[]              = $item;
+            $leagueCount[$leagueId]  = ($leagueCount[$leagueId] ?? 0) + 1;
+            if ($matchId) $usedMatchIds[] = $matchId;
         }
 
-        // Calculs coupon
-        $totalOdds     = array_reduce($selected, fn($carry, $p) => $carry * (float) $p['prediction']['odds'], 1.0);
-        $avgConfidence = array_sum(array_map(fn($p) => $p['prediction']['confidence'], $selected)) / count($selected);
-        $couponStars   = $this->calculateStars($avgConfidence);
+        if (count($selected) < 4) {
+            return null;
+        }
 
-        $picks = array_map(function (array $item): array {
+        // Calcul cote totale et vérification bande cible
+        $totalOdds     = array_reduce($selected, fn($c, $i) => $c * (float) $i['prediction']['odds'], 1.0);
+        $avgConfidence = array_sum(array_map(fn($i) => $i['prediction']['confidence'], $selected)) / count($selected);
+
+        $picks = array_map(function (array $item) use ($config): array {
             $f = $item['fixture'];
             $p = $item['prediction'];
             return [
-                'match'       => ($f['teams']['home']['name'] ?? '?') . ' vs ' . ($f['teams']['away']['name'] ?? '?'),
-                'home_team'   => $f['teams']['home']['name'] ?? '?',
-                'away_team'   => $f['teams']['away']['name'] ?? '?',
-                'league'      => $f['league']['name'] ?? 'Unknown',
-                'date'        => $f['fixture']['date'] ?? null,
-                'prediction'  => $p['outcome'],
-                'type'        => $p['type'],
-                'odds'        => $p['odds'],
-                'confidence'  => round($p['confidence'], 1),
-                'stars'       => $p['stars'],
-                'is_premium'  => $p['is_premium'],
-                'reasoning'   => $p['reasoning'] ?? [],
-                'scores'      => $p['scores'] ?? [],
-                'corners_avg' => $p['corners_avg'] ?? null,
-                'cards_avg'   => $p['cards_avg'] ?? null,
+                'match'      => ($f['teams']['home']['name'] ?? '?') . ' vs ' . ($f['teams']['away']['name'] ?? '?'),
+                'home_team'  => $f['teams']['home']['name'] ?? '?',
+                'away_team'  => $f['teams']['away']['name'] ?? '?',
+                'league'     => $f['league']['name'] ?? 'Unknown',
+                'date'       => $f['fixture']['date'] ?? null,
+                'prediction' => $p['outcome'],
+                'type'       => $p['type'],
+                'engine'     => $p['engine'] ?? 'force',
+                'odds'       => $p['odds'],
+                'confidence' => round($p['confidence'], 1),
+                'stars'      => $p['stars'],
+                'is_premium' => $config['is_premium'],
             ];
         }, $selected);
 
         return [
-            'success'            => true,
-            'picks'              => $picks,
-            'matches_count'      => count($selected),
-            'total_odds'         => round($totalOdds, 2),
-            'avg_confidence'     => round($avgConfidence, 1),
-            'stars'              => $couponStars,
-            'potential_gain_1000'=> (int) round($totalOdds * 1000),
-            'analyzed'           => count($fixtures),
-            'qualified'          => count($candidates),
-            'generated_at'       => Carbon::now()->toIso8601String(),
+            'success'             => true,
+            'variant'             => $variantKey,
+            'label'               => $config['label'],
+            'is_premium'          => $config['is_premium'],
+            'warning'             => $variantKey === 'audacieux'
+                ? 'Variante à risque élevé — cotes hautes, taux de réussite plus faible.'
+                : null,
+            'picks'               => $picks,
+            'picks_count'         => count($picks),
+            'total_odds'          => round($totalOdds, 2),
+            'total_odds_target'   => ['min' => $oddsMin, 'max' => $oddsMax],
+            'avg_confidence'      => round($avgConfidence, 1),
+            'stars'               => $this->calculateStars($avgConfidence),
+            'potential_gain_1000' => (int) round($totalOdds * 1000),
         ];
+    }
+
+    /**
+     * Rétro-compatibilité : génère un seul coupon (variante équilibrée par défaut).
+     */
+    public function generateDailyCoupon(array $fixtures, int $minPicks = 4, int $maxPicks = 5, float $minConfidence = 60.0): array
+    {
+        $all = $this->generateAllCouponVariants($fixtures);
+        $variant = $all['equilibre'] ?? $all['prudent'] ?? null;
+
+        if (!$variant) {
+            return [
+                'success'   => false,
+                'message'   => 'Aucune variante de coupon générée — volume insuffisant.',
+                'analyzed'  => $all['analyzed'] ?? 0,
+                'qualified' => 0,
+            ];
+        }
+
+        return array_merge($variant, ['analyzed' => $all['analyzed'] ?? 0, 'qualified' => $variant['picks_count']]);
     }
 
     private function getDefaultPrediction(): array
