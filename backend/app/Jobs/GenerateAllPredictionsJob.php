@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Services\FootballApiService;
+use App\Services\HybridationService;
 use App\Services\PredictionAlgorithmService;
 use App\Services\PredictionAnalysisService;
 use App\Services\RapidApiService;
@@ -28,11 +29,13 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
     private ValueBettingService $valueBetting;
     private PredictionAnalysisService $analysisService;
+    private HybridationService $hybridation;
 
-    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi, ValueBettingService $valueBetting, PredictionAnalysisService $analysisService): void
+    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi, ValueBettingService $valueBetting, PredictionAnalysisService $analysisService, HybridationService $hybridation): void
     {
         $this->valueBetting    = $valueBetting;
         $this->analysisService = $analysisService;
+        $this->hybridation     = $hybridation;
         Log::info('GenerateAllPredictionsJob: Début génération prédictions');
 
         // ── Vérifier le quota API-Football ───────────────────────────────────
@@ -453,6 +456,18 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         $predictionData = $algorithm->generatePrediction($fixture);
 
+        // Enrichir avec les prédictions tierces (déjà en cache → 0 appel réseau)
+        $predictionData = $rapidApi->enrichPredictionWithThirdParty(
+            $predictionData,
+            $homeTeam['name'] ?? '',
+            $awayTeam['name'] ?? '',
+            $matchDate->format('Y-m-d')
+        );
+
+        // Hybridation algo + source externe (§8 CDC V2)
+        $external       = $predictionData['third_party'] ?? null;
+        $predictionData = $this->hybridation->hybridize($predictionData, $external);
+
         if (!$predictionData['should_publish']) {
             return null;
         }
@@ -461,14 +476,6 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $vbConf = (float) ($predictionData['confidence'] ?? 60.0);
         $vbOdds = (float) ($predictionData['odds'] ?? 1.50);
         $vb     = $this->valueBetting->calculate($vbConf, $vbOdds);
-
-        // Enrichir avec les prédictions tierces (déjà en cache → 0 appel réseau)
-        $predictionData = $rapidApi->enrichPredictionWithThirdParty(
-            $predictionData,
-            $homeTeam['name'] ?? '',
-            $awayTeam['name'] ?? '',
-            $matchDate->format('Y-m-d')
-        );
 
         // Remplacer la cote algo par la cote 1xBet réelle si disponible
         $oddsKey  = strtolower(($homeTeam['name'] ?? '') . ' vs ' . ($awayTeam['name'] ?? ''));
@@ -525,9 +532,10 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'score_shots'        => $predictionData['scores']['shots'] ?? 0,
                 'score_physical'     => $predictionData['scores']['physical'] ?? 0,
                 'total_score'        => $predictionData['confidence'] ?? 0,
-                'score_algo'         => $predictionData['confidence'] ?? 0,
-                'score_publie'       => $predictionData['confidence'] ?? 0,
-                'w_ext'              => 0,
+                'score_algo'         => $predictionData['score_algo']    ?? $predictionData['confidence'] ?? 0,
+                'score_externe'      => $predictionData['score_externe'] ?? null,
+                'score_publie'       => $predictionData['score_publie']  ?? $predictionData['confidence'] ?? 0,
+                'w_ext'              => $predictionData['w_ext']         ?? 0,
                 'value_score'        => $vb['value_score'],
                 'kelly_fraction'     => $vb['kelly_fraction'],
                 'ev_positive'        => $vb['ev_positive'],

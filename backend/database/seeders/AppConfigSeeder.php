@@ -59,16 +59,36 @@ class AppConfigSeeder extends Seeder
                 ],
             ]),
 
+            // --- Canaux de paiement Mobile Money ---
+            'payment.channels' => json_encode([
+                ['emoji' => '🟠', 'name' => 'Orange Money', 'color' => '#FF6600'],
+                ['emoji' => '🟡', 'name' => 'MTN MoMo',     'color' => '#FFCB00'],
+                ['emoji' => '🔵', 'name' => 'Wave',         'color' => '#1573E5'],
+                ['emoji' => '🟢', 'name' => 'Moov Money',   'color' => '#00A859'],
+            ]),
+
             // --- Application ---
             'app.name'        => 'COTA',
             'app.currency'    => 'FCFA',
             'app.maintenance' => '0',
+
+            // --- Hybridation algo + source externe (§8 CDC V2) ---
+            // Poids du signal externe (0.0 = algo pur, 1.0 = externe pur)
+            // Recommandé au lancement : 0.35 (algo non encore prouvé)
+            'algo.w_ext' => '0.35',
+        ];
+
+        $types = [
+            'algo.w_ext' => 'float',
         ];
 
         foreach ($defaults as $key => $value) {
             AppConfig::firstOrCreate(
                 ['key' => $key],
-                ['value' => $value]
+                [
+                    'value' => $value,
+                    'type'  => $types[$key] ?? (is_array($value) ? 'json' : 'string'),
+                ]
             );
         }
     }

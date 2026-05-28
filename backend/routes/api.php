@@ -267,6 +267,9 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/settings')->group(fu
 
     Route::get('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'getApp']);
     Route::put('/app',        [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateApp']);
+
+    Route::get('/algo',       [App\Http\Controllers\Admin\AdminSettingsController::class, 'getAlgo']);
+    Route::put('/algo',       [App\Http\Controllers\Admin\AdminSettingsController::class, 'updateAlgo']);
 });
 
 // ── Anomalies de cotes + Coups sûrs (public pour l'instant) ──────────────────

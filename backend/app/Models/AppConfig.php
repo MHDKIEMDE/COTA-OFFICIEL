@@ -37,9 +37,10 @@ class AppConfig extends Model
         // Convertir selon le type
         return match ($config->type) {
             'integer' => (int) $config->value,
+            'float'   => (float) $config->value,
             'boolean' => filter_var($config->value, FILTER_VALIDATE_BOOLEAN),
-            'json' => json_decode($config->value, true),
-            default => $config->value,
+            'json'    => json_decode($config->value, true),
+            default   => $config->value,
         };
     }
 

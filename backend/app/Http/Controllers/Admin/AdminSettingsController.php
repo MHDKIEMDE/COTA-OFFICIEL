@@ -235,6 +235,75 @@ class AdminSettingsController extends Controller
     }
 
     // ══════════════════════════════════════════════════════════════════
+    // API SOURCE TOGGLE
+    // ══════════════════════════════════════════════════════════════════
+
+    /** POST /admin/settings/api-source-toggle */
+    public function toggleApiSource(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'source'  => 'required|string|in:apifootball,oddsapi,sportradar,openweather',
+            'enabled' => 'required|boolean',
+        ]);
+
+        $key = "api.source.{$validated['source']}_enabled";
+        AppConfig::set($key, $validated['enabled'], 'boolean');
+
+        return response()->json([
+            'success' => true,
+            'source'  => $validated['source'],
+            'enabled' => $validated['enabled'],
+        ]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // ALGORITHME — hybridation, seuils, bandes de cotes (§8 CDC V2)
+    // ══════════════════════════════════════════════════════════════════
+
+    /** GET /admin/settings/algo */
+    public function getAlgo(): JsonResponse
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'w_ext'        => (float) AppConfig::get('algo.w_ext', 0.35),
+                'w_ext_info'   => 'Poids source externe (0 = algo pur, 1 = externe pur). Recommandé lancement : 0.35.',
+                'min_publish'  => (int) AppConfig::get('algo.min_publish', 50),
+                'odds_bands'   => AppConfig::get('algo.odds_bands', [
+                    '1X2'           => ['min' => 1.40, 'max' => 3.50],
+                    'Double Chance' => ['min' => 1.40, 'max' => 3.50],
+                    'Handicap'      => ['min' => 1.50, 'max' => 2.50],
+                    'Over/Under'    => ['min' => 1.50, 'max' => 2.30],
+                    'BTTS'          => ['min' => 1.50, 'max' => 2.30],
+                    'Score Exact'   => ['min' => 5.00, 'max' => 12.00],
+                ]),
+            ],
+        ]);
+    }
+
+    /** PUT /admin/settings/algo */
+    public function updateAlgo(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'w_ext'       => 'nullable|numeric|min:0|max:1',
+            'min_publish' => 'nullable|integer|min:30|max:85',
+            'odds_bands'  => 'nullable|array',
+        ]);
+
+        if (array_key_exists('w_ext', $validated) && $validated['w_ext'] !== null) {
+            AppConfig::set('algo.w_ext', (string) $validated['w_ext'], 'float');
+        }
+        if (array_key_exists('min_publish', $validated) && $validated['min_publish'] !== null) {
+            AppConfig::set('algo.min_publish', (string) $validated['min_publish'], 'integer');
+        }
+        if (array_key_exists('odds_bands', $validated) && $validated['odds_bands'] !== null) {
+            AppConfig::set('algo.odds_bands', $validated['odds_bands'], 'json');
+        }
+
+        return response()->json(['success' => true, 'message' => 'Configuration algorithme mise à jour.']);
+    }
+
+    // ══════════════════════════════════════════════════════════════════
     // HELPERS
     // ══════════════════════════════════════════════════════════════════
 
