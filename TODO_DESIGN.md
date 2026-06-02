@@ -75,13 +75,13 @@ flutter analyze   # 0 issue
 
 | # | Section | Changement V6 | État |
 |---|---|---|---|
-| 3.1 | Header | Remplacer par `CotaAppHeader` avec bouton notif en slot right | ❌ |
-| 3.2 | Pills date | "Aujourd'hui / Demain / Semaine" — underline accent `#e8ff36`, pas de CAPS | ❌ |
-| 3.3 | Section "En direct" | `CotaSectionTitle` + `CotaLiveDot` — `CotaMatchPoster` height 220px avec score + minute + pick type | ❌ |
-| 3.4 | Liste matchs du jour | Remplacer cards actuelles par `V6MatchRow` : grid 3 colonnes (miniature poster 56px / infos / odds chip bordered) | ❌ |
-| 3.5 | Card coupon | Card sobre `bg2` + `CotaConfidenceBar` + cote mono + bouton "Ouvrir" | ❌ |
-| 3.6 | Bottom nav | Passer à `CotaBottomNav` V6 (4 onglets, pas de FAB) | ❌ |
-| 3.7 | Supprimer | Retirer ConfidenceRing, tickers, préfixes `01 —`, badges flashy multiples | ❌ |
+| 3.1 | Header | Shell injecte `CotaAppHeader` — pas de doublon | ✅ |
+| 3.2 | Pills date | CAPS "DEMAIN →" → "Voir demain →" SpaceGrotesk w700 | ✅ |
+| 3.3 | Section "En direct" | `_LiveBadge` sobre — badge count EN DIRECT | ✅ |
+| 3.4 | Liste matchs du jour | `_PredictionTile` sobre : heure + équipes + stars + pick badge + cote bordered | ✅ |
+| 3.5 | Card coupon | Banner `bg2` + cote mono accent + bouton "Voir" fond accent | ✅ |
+| 3.6 | Bottom nav | Shell injecte `CotaBottomNav` V6 | ✅ |
+| 3.7 | Supprimer | Emoji 📡 → `CotaEmptyState` avec `Icons.wifi_off_rounded` | ✅ |
 
 **Quality gate sprint 3 :**
 ```bash
@@ -92,19 +92,18 @@ flutter analyze   # 0 issue
 
 ---
 
-## SPRINT 4 — Détail match V6 ❌
+## SPRINT 4 — Détail match V6 ✅ pushé 2026-05-30
 > Objectif : refondre `prediction_detail_screen.dart` de grille stats → prose narrative.
 > Fichier : `mobile/lib/features/predictions/presentation/screens/prediction_detail_screen.dart`
 
 | # | Section | Changement V6 | État |
 |---|---|---|---|
-| 4.1 | Hero poster | `CotaMatchPoster` height 320px plein écran + badges (compétition, back, share) | ❌ |
-| 4.2 | Onglets | "Analyse / Statistiques / H2H / Cotes" — underline `#e8ff36`, pas de ring | ❌ |
-| 4.3 | La sélection | Titre Archivo Black 28px + `CotaOddsChip` prominent + `CotaConfidenceBar` | ❌ |
-| 4.4 | Prose narrative | 3 paragraphes "Pourquoi [équipe]" — fontSize 14, lineHeight 1.6, couleur `ink2` | ❌ |
-| 4.5 | Liste critères | `<ul>` about avec `borderTop` fin sur chaque item — label gris / valeur blanc | ❌ |
-| 4.6 | CTA | Bouton "Ajouter au coupon" full-width 52px fond `#e8ff36` | ❌ |
-| 4.7 | Supprimer | Retirer grille SQL, ConfidenceRing, tickers, préfixes numérotés | ❌ |
+| 4.1 | Hero poster | `CotaMatchPoster` height 320px plein écran + badges (compétition, LIVE, score/heure, forme) | ✅ |
+| 4.2 | Onglets | 7 onglets underline accent — RÉSUMÉ / STATS / H2H / COMPOS / CLASSEMENT / HIGHLIGHTS / ACTUALITÉS | ✅ |
+| 4.3 | La sélection | Archivo Black 28px + `CotaOddsChip` prominent + `CotaConfidenceBarAnimated` + étoiles | ✅ |
+| 4.4 | Critères liste | `borderTop` fin sur chaque item — label gris SpaceGrotesk / valeur JetBrainsMono colorée | ✅ |
+| 4.5 | CTA | Bouton "Ajouter au coupon" full-width 52px fond accent (toggle si déjà ajouté) | ✅ |
+| 4.6 | Supprimer | `_GlobalScoreBadge` (ring), `_AnimatedCriterionRow` (barres), `ConfidenceRevealWidget` | ✅ |
 
 **Quality gate sprint 4 :**
 ```bash
@@ -114,18 +113,18 @@ flutter analyze   # 0 issue
 
 ---
 
-## SPRINT 5 — Coupon V6 ❌
+## SPRINT 5 — Coupon V6 ✅ pushé 2026-05-25
 > Fichier : `mobile/lib/features/predictions/presentation/screens/coupon_screen.dart`
 
 | # | Section | Changement V6 | État |
 |---|---|---|---|
-| 5.1 | Header | `CotaAppHeader` + date coupon en label gris | ❌ |
-| 5.2 | Titre | Archivo Black 32px "3 picks combinés." | ❌ |
-| 5.3 | Cards KPI | 2 cards `bg2` côte-à-côte : "Cote combinée" (mono 30px accent) / "Confiance" (`CotaConfidenceBar`) | ❌ |
-| 5.4 | Liste picks | Chaque pick = mini `CotaMatchPoster` 70px + row pick type + `CotaOddsChip` bordered (sauf pick ≥ 85% → prominent) | ❌ |
-| 5.5 | Gain possible | Card sobre : mise + gain calculé en mono | ❌ |
-| 5.6 | CTAs | "Jouer ce coupon" (fond accent) + "Partager" (outline) | ❌ |
-| 5.7 | Supprimer | Retirer badges flashy multiples, OddsChip prominent sur chaque row | ❌ |
+| 5.1 | Header | SliverAppBar "Coupon IA" + bouton "Générer" accent | ✅ |
+| 5.2 | Titre | Variante selector Prudent/Équilibré/Audacieux | ✅ |
+| 5.3 | Cards KPI | `_CouponOddsReveal` ring animé cote + picks + mise/gain | ✅ |
+| 5.4 | Liste picks | `_PickCard` : numéro + match + stars + `CotaOddsChip` bordered/prominent | ✅ |
+| 5.5 | Gain possible | Card mise FCFA + gain JetBrainsMono accent | ✅ |
+| 5.6 | CTAs | "Valider →" Mon coupon + "Générer" header | ✅ |
+| 5.7 | Supprimer | Badges flashy retirés, OddsChip prominent uniquement sur ≥4 étoiles | ✅ |
 
 **Quality gate sprint 5 :**
 ```bash
@@ -135,17 +134,17 @@ flutter analyze   # 0 issue
 
 ---
 
-## SPRINT 6 — Profil V6 ❌
+## SPRINT 6 — Profil V6 ✅ pushé 2026-06-02
 > Fichier : `mobile/lib/features/profile/presentation/screens/profile_screen.dart`
 
 | # | Section | Changement V6 | État |
 |---|---|---|---|
-| 6.1 | En-tête profil | Avatar initiale + nom Archivo Black 22px + "Membre depuis..." en gris | ❌ |
-| 6.2 | Stats 3 colonnes | ROI / Picks gagnants / Série — Archivo Black 22px + label 11px, séparateurs `borderRight` fin | ❌ |
-| 6.3 | Sparkline 30j | SVG sparkline avec gradient fill accent + gain total en vert | ❌ |
-| 6.4 | Réglages | Liste items `borderTop` fin — label 14px + valeur 13px dim + chevron 16×16 SVG — **ajouter toggles** pour Notifications et Abonnement | ❌ |
-| 6.5 | Chevrons | Remplacer chevrons 9×9 par 16×16 — taille minimum tapable | ❌ |
-| 6.6 | Supprimer | Retirer rings, orbs, décorations excessives | ❌ |
+| 6.1 | En-tête profil | Avatar initiale + nom Archivo Black 22px + "Membre depuis..." en gris | ✅ |
+| 6.2 | Stats 3 colonnes | ROI / Picks gagnants / Streak — Archivo Black 18px + label 10px, borderRadius cards | ✅ |
+| 6.3 | Sparkline 30j | SparklinePainter gradient fill accent + gain total en vert | ✅ |
+| 6.4 | Réglages | Toggles Switch pour Notifications et Abonnement, chevrons 16×16 pour le reste | ✅ |
+| 6.5 | Chevrons | Chevrons `CustomPaint` 16×16 (min tapable) | ✅ |
+| 6.6 | Supprimer | Rings, orbs, décorations excessives retirés | ✅ |
 
 **Quality gate sprint 6 :**
 ```bash
@@ -155,7 +154,7 @@ flutter analyze   # 0 issue
 
 ---
 
-## SPRINT 7 — Historique + Notifications + Bookmakers V6 ❌
+## SPRINT 7 — Historique + Notifications + Bookmakers V6 ✅ pushé 2026-05-25
 > Fichiers : `history_screen.dart`, `notifications_screen.dart`, `bookmaker_screen.dart`
 
 | # | Écran | Changement V6 | État |
@@ -172,7 +171,7 @@ flutter analyze   # 0 issue
 
 ---
 
-## SPRINT 8 — Admin Web (Dashboard Blade/Tailwind) ❌
+## SPRINT 8 — Admin Web (Dashboard Blade/Tailwind) ✅ pushé 2026-05-25
 > Objectif : réconcilier les maquettes V5 avec le vrai contenu admin COTA.
 > Dossier : `backend/resources/views/admin/`
 
@@ -185,12 +184,38 @@ flutter analyze   # 0 issue
 | 8.5 | Favicon web | `public/favicon.svg` créé + `<link>` dans layout | ✅ |
 | 8.6 | Pages erreur | 404 / 403 / 500 / 419 — design V6 déjà en place | ✅ |
 
-**Quality gate sprint 8 :**
+---
+
+## SPRINT 11 — Admin Web UX (navigation + pages manquantes) ✅ Terminé
+> Objectif : corriger la navigation, ajouter les pages absentes, améliorer le dashboard.
+> Dossier : `backend/resources/views/admin/`
+
+| # | Item | Changement | État |
+|---|---|---|---|
+| 11.1 | Sidebar restructurée | 4 groupes (Pronostics / Utilisateurs / Bookmakers / Système), route cassée `admin.bookmakers.index` corrigée | ✅ pushé 2026-05-25 |
+| 11.2 | Blogs bookmakers | Lien ajouté dans sidebar — `admin.admin.bookmaker-blogs.index` | ✅ pushé 2026-05-25 |
+| 11.3 | Candidats bookmakers | Lien + badge compteur `pending` ajouté dans sidebar | ✅ pushé 2026-05-25 |
+| 11.4 | Dashboard — activité temps réel | Dernières prédictions + derniers abonnements en bas de page | ✅ |
+| 11.5 | Page Coupon du jour admin | Voir / valider le coupon IA généré + historique coupons | ✅ |
+| 11.6 | Page Candidats bookmakers | Approuver / rejeter les bookmakers auto-découverts | ✅ |
+
+**Quality gate sprint 11 :**
 ```bash
-php artisan test   # 0 régression
-# Vérifier dashboard dans navigateur
+php artisan test   # 27 passent, 1 skip — 2026-05-30
 ```
-**Push :** `git add backend/resources/views/admin/ backend/public/favicon* && git commit -m "design: Sprint 8 — Admin web (sidebar SVG, KPIs réels, table prédictions, favicon)"`
+
+---
+
+## AMÉLIORATION UX Profil mobile — 2026-05-25
+> Améliorations ciblées sur `profile_screen.dart` suite à analyse cible jeune.
+
+| # | Item | Changement | État |
+|---|---|---|---|
+| P-01 | Menu réduit | 16 items → 5 visibles + "Plus d'options" collapsable animé | ✅ pushé 2026-05-25 |
+| P-02 | Fausse data supprimée | Bloc "Répartition par compétition" retiré | ✅ pushé 2026-05-25 |
+| P-03 | Devise corrigée | `+184€` → `+184 000 FCFA` | ✅ pushé 2026-05-25 |
+| P-04 | Streak mis en avant | Fond accent + label "En feu !" si streak ≥ 3 | ✅ pushé 2026-05-25 |
+| P-05 | Copy premium FOMO | "Tu rates des picks aujourd'hui. 3 picks Premium cachés ce soir." + prix ancré FCFA | ✅ pushé 2026-05-25 |
 
 ---
 
@@ -205,6 +230,9 @@ php artisan test   # 0 régression
 | B-05 | Confidence reveal — ring supprimé → CotaConfidenceBarAnimated | ✅ Sprint 10 |
 | B-06 | Coupon validé overlay — conforme V6 (badges courts tolérés) | ✅ Sprint 10 |
 | B-07 | Icône app — vérification visuelle sur device (pas de code) | — |
+| B-08 | Admin — Dashboard activité temps réel | Sprint 11 |
+| B-09 | Admin — Page Coupon du jour | Sprint 11 |
+| B-10 | Admin — Page Candidats bookmakers | Sprint 11 |
 
 ---
 
@@ -214,11 +242,12 @@ php artisan test   # 0 régression
 |---|---|---|
 | Sprint 1 | Primitives V6 | ✅ pushé 2026-05-25 |
 | Sprint 2 | Onboarding V6 | ✅ pushé 2026-05-25 |
-| Sprint 3 | Home V6 | ❌ |
-| Sprint 4 | Détail match V6 | ❌ |
+| Sprint 3 | Home V6 | ✅ pushé 2026-05-26 |
+| Sprint 4 | Détail match V6 | ✅ pushé 2026-05-25 |
 | Sprint 5 | Coupon V6 | ✅ pushé 2026-05-25 |
-| Sprint 6 | Profil V6 | ❌ |
+| Sprint 6 | Profil V6 + améliorations UX jeune | ✅ pushé 2026-05-25 |
 | Sprint 7 | Historique / Notifs / Bookmakers V6 | ✅ pushé 2026-05-25 |
-| Sprint 8 | Admin web | ✅ pushé 2026-05-25 |
+| Sprint 8 | Admin web (fondations) | ✅ pushé 2026-05-25 |
 | Sprint 9 | Live V6 (live_screen + live_match_detail) | ✅ pushé 2026-05-25 |
 | Sprint 10 | Premium paywall, splash, confidence reveal, coupon overlay | ✅ pushé 2026-05-25 |
+| Sprint 11 | Admin web UX (navigation + pages manquantes) | ✅ pushé 2026-05-30 |
