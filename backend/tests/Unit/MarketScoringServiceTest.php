@@ -129,9 +129,9 @@ class MarketScoringServiceTest extends TestCase
     public function test_best_market_returns_highest_market_value(): void
     {
         $candidates = [
-            ['type' => '1X2',          'outcome' => '1',    'odds' => 1.80, 'engine' => 'force',  'market_value' => 0.30],
-            ['type' => 'Double Chance', 'outcome' => '1X',   'odds' => 1.50, 'engine' => 'force',  'market_value' => 0.25],
-            ['type' => 'Over/Under',    'outcome' => 'Over 2.5', 'odds' => 1.72, 'engine' => 'goals', 'market_value' => 0.28],
+            ['type' => '1X2',          'outcome' => '1',        'odds' => 1.80, 'engine' => 'force',  'market_value' => 0.70],
+            ['type' => 'Double Chance', 'outcome' => '1X',       'odds' => 1.50, 'engine' => 'force',  'market_value' => 0.60],
+            ['type' => 'Over/Under',    'outcome' => 'Over 2.5', 'odds' => 1.72, 'engine' => 'goals',  'market_value' => 0.65],
         ];
 
         $result = $this->service->bestMarketFor($candidates, 70.0, false, 0.0, 'PSG', 'Lyon');
