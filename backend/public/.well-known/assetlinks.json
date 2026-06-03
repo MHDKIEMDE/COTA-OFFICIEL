@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.cotafoot.app",
+      "sha256_cert_fingerprints": [
+        "0B:C1:1B:5F:16:07:13:A2:50:0A:4F:72:B0:CC:DC:B7:BD:68:B4:41:1B:9D:DB:4C:D6:51:4A:25:80:06:02:C5"
+      ]
+    }
+  }
+]
