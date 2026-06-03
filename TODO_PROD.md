@@ -1,157 +1,81 @@
-# COTA — Checklist Mise en Production
+# COTA - Checklist Preproduction
 
-> Dernière mise à jour : 2026-05-12
+> Derniere mise a jour : 2026-05-25
+> Source de verite actuelle : backend Laravel 12 + mobile Flutter. Les anciennes references Supabase/Vercel/Expo sont archivees.
 
----
+## Etat verifie le 2026-05-25
 
-## 🔴 BLOQUANT — À finir avant prod
+| Sujet | Etat | Note |
+|---|---:|---|
+| Tests backend | OK | `php artisan test --stop-on-failure` : 27 tests passes, 1 skip |
+| Analyse Flutter | OK | `flutter analyze` : aucune issue |
+| Scheduler Laravel | OK code | `php artisan schedule:list` liste les jobs attendus |
+| Queue worker | OK infra | Docker compose contient un service `queue`; `start-services.sh` lance Horizon en local |
+| HTTPS | Partiel | `backend/docker/nginx-vhost.conf` est pret pour Let's Encrypt, mais le certificat/domaine doivent etre verifies sur serveur |
+| FCM backend | A corriger | `FIREBASE_PROJECT_ID` est renseigne en local, mais le fichier `FIREBASE_CREDENTIALS_PATH` est absent sur cette machine |
+| FCM mobile | Partiel | `firebase_options.dart` existe; aucun `google-services.json` ni `GoogleService-Info.plist` n'est present dans le repo |
+| `.env` local | Dev uniquement | `APP_ENV=local`, `APP_URL=http://localhost`, queue/cache en local |
+| `.env.production.example` | Corrige | `SESSION_DRIVER=redis`, placeholder API-Football, vars Firebase ajoutees |
 
-### Backend (Laravel)
-- [ ] **Paiement Paydunya** — implémenter Wave / Orange Money / MTN / Moov (`SubscriptionController`, webhooks Paydunya)
-- [ ] **`POST /affiliate/claim`** — endpoint activation Premium après inscription bookmaker
-- [ ] **`GET /notifications/settings`** + **`PUT /notifications/settings`** — endpoints paramètres notifications
-- [ ] **Migrations production** — lancer `php artisan migrate` sur le vrai serveur
-- [ ] **Base URL API** — changer `localhost:8000` → URL prod dans `mobile/lib/core/api/api_client.dart`
+## Bloquant avant production
 
-### Mobile (Flutter)
-- [ ] **`history_screen.dart`** — remplacer données simulées par `historyPredictionsProvider` réel
-- [ ] **`statistics_screen.dart`** — remplacer données simulées par `statisticsProvider` réel
-- [ ] **Liens affiliés bookmakers** — remplacer URLs placeholder par vrais liens avec tracking ID
-  - 1xBet : `https://...`
-  - BetWinner : `https://...`
-  - Melbet : `https://...`
-  - LineBet : `https://...`
-
----
-
-## 🟡 IMPORTANT — Qualité prod
-
-### Serveur / DevOps
-- [x] Configurer `.env` production ✅ 2026-05-12
-  - `APP_KEY` (générer avec `php artisan key:generate`)
-  - `APP_ENV=production` + `APP_DEBUG=false`
-  - `DB_CONNECTION`, `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`
-  - `REDIS_HOST`, `CACHE_DRIVER=redis`, `QUEUE_CONNECTION=redis`
-  - `FOOTBALL_API_KEY` (API-Football)
-  - `OPENWEATHERMAP_KEY`
-  - `TERMII_API_KEY` + `TERMII_SENDER_ID` (SMS OTP)
-  - `PAYDUNYA_*` (clés paiement)
-- [ ] Activer **HTTPS / SSL** (Let's Encrypt ou certificat serveur)
-- [ ] Limiter CORS → ton domaine dans `config/cors.php`
-- [ ] Configurer **queue worker** comme service systemd (pour jobs async)
-  ```
-  php artisan queue:work --daemon
-  ```
-- [ ] Configurer **scheduler** comme cron (prédictions auto, scores live)
-  ```
-  * * * * * php /var/www/cota/artisan schedule:run
-  ```
-- [ ] Configurer logs (`storage/logs/`) + rotation logrotate
-
-### Mobile
-- [ ] Changer base URL dans `mobile/lib/core/api/api_client.dart`
-  ```dart
-  static const String baseUrl = 'https://TON-DOMAINE.com/api';
-  ```
-- [ ] Configurer **FCM** (Firebase Cloud Messaging) pour push notifications
-  - Ajouter `google-services.json` dans `android/app/`
-  - Ajouter `GoogleService-Info.plist` dans `ios/Runner/`
-- [ ] Tester sur connexion lente (3G) — états loading/error/empty/success
-- [ ] Vérifier que `flutter analyze` passe sans erreur
-- [ ] Build release :
+- [ ] Copier le service account Firebase sur le serveur et faire pointer `FIREBASE_CREDENTIALS_PATH` vers ce fichier.
+- [ ] Verifier l'enregistrement FCM sur un vrai appareil connecte a l'API production.
+- [ ] Generer/installer le certificat HTTPS Let's Encrypt du domaine public.
+- [ ] Mettre `APP_URL` et `APP_FRONTEND_URL` sur les domaines finaux.
+- [ ] Limiter `config/cors.php` aux domaines COTA avant ouverture publique.
+- [ ] Lancer les migrations prod : `php artisan migrate --force`.
+- [ ] Lancer un worker durable : Horizon, Supervisor/systemd, ou le service Docker `queue`.
+- [ ] Lancer le scheduler durable : crontab Laravel ou le service Docker `scheduler`.
+- [ ] Builder Flutter avec l'URL API prod :
   ```bash
-  flutter build apk --release          # Android
-  flutter build appbundle --release    # Play Store
-  flutter build ipa --release          # iOS
+  flutter build appbundle --release --dart-define=APP_BASE_URL=https://api.cota.app/api
   ```
+- [ ] Tester Paydunya bout en bout : creation facture, redirection, webhook `/api/webhooks/payment`, activation Premium.
+- [ ] Remplacer les liens d'affiliation placeholder par les vrais liens trackes.
 
----
+## Important
 
-## 🟢 OPTIONNEL — Après lancement
+- [ ] Confirmer le domaine final : `api.cota.app`, `cota.monghetto.com`, ou autre. La doc et les env examples doivent rester alignes sur ce choix.
+- [ ] Configurer logs et rotation `storage/logs`.
+- [x] Sentry Laravel — intégré (`bootstrap/app.php`, `config/sentry.php`, `LOG_STACK=daily`).
+- [x] Crashlytics Flutter — intégré (`pubspec.yaml` + `main.dart`).
+- [x] App Links Android (`AndroidManifest.xml` autoVerify) + iOS (`Info.plist` associated-domains) — en place.
+- [ ] Sentry : renseigner `SENTRY_LARAVEL_DSN` réel sur le serveur prod.
+- [ ] Crashlytics : copier `google-services.json` (Android) et `GoogleService-Info.plist` (iOS) dans l'app avant le build release.
+- [ ] App Links : remplacer `REMPLACER_PAR_SHA256_KEYSTORE_RELEASE` dans `public/.well-known/assetlinks.json` (SHA-256 du keystore release). Remplacer `REMPLACER_PAR_TEAM_ID` dans `apple-app-site-association`.
+- [ ] Tester l'app en 3G/lenteur reseau.
+- [ ] Tester les notifications programmees locales a 8h et 13h.
 
-### Features incomplètes
-- [ ] **Système de parrainage complet** — les écrans existent, backend à terminer
-- [ ] **Dashboard admin** — gestion prédictions, utilisateurs, stats
-- [ ] **Match detail** — données réelles API (événements, compositions) remplacent le mock
-- [ ] **Team / Player / Competition** — connecter aux endpoints API-Football réels
+## Deja en place
 
-### Qualité & Monitoring
-- [ ] Intégrer **Sentry** ou **Firebase Crashlytics** — suivi erreurs prod
-- [ ] Intégrer **Firebase Analytics** ou **Mixpanel** — comportement utilisateurs
-- [ ] Mettre en place **tests Pest** (Laravel) pour les endpoints critiques
-- [ ] Rate limiting API (`throttle`) sur les routes publiques
+- [x] Backend Laravel 12.
+- [x] API mobile REST.
+- [x] Auth OTP/PIN/Facebook.
+- [x] Endpoints `GET/PUT /api/notifications/settings`.
+- [x] Notifications in-app et FCM HTTP v1 cote backend.
+- [x] Jobs de predictions, live, resultats, routines, quota API et cache.
+- [x] Dashboard admin Blade.
+- [x] Paiement via `PaymentGatewayService` avec driver Paydunya.
+- [x] Webhooks paiement unifies : `/api/webhooks/payment` et alias `/api/webhooks/paydunya`.
+- [x] App mobile Flutter avec Riverpod, Dio, GoRouter, Firebase.
+- [x] Decouverte backend locale via `NetworkConfigService`.
 
-### Publication stores
-- [ ] **Google Play Store**
-  - Compte développeur (25 USD one-time)
-  - Screenshots, description FR, icône 512×512
-  - Privacy Policy URL obligatoire
-  - `flutter build appbundle --release`
-- [ ] **Apple App Store**
-  - Compte Apple Developer (99 USD/an)
-  - Certificats signing (Xcode)
-  - Review Apple (délai 1–3 jours)
-  - `flutter build ipa --release`
+## Commandes de controle
 
----
+Backend :
 
-## 🔵 FUTURES FEATURES (post-lancement)
+```bash
+cd backend
+php artisan test --stop-on-failure
+php artisan schedule:list
+php artisan queue:failed
+```
 
-### Carte des agents de recharge _(v2 — hors MVP)_
-> Agents bookmakers (1xBet, BetWinner, Melbet, LineBet) — auto-inscription via l'app — statut on/off manuel — gratuit pour tous.
-> **À ne pas implémenter avant le lancement.**
+Mobile :
 
-- [ ] Carte interactive géolocalisée agents bookmakers (dépôt / retrait)
-- [ ] Auto-inscription agent + validation admin
-- [ ] Statut disponible/indisponible en temps réel (bouton on/off)
-- [ ] Backend : modèle `Agent`, `POST /agents/register`, `GET /agents/nearby`, `PUT /agents/status`
-
-### Expérience matchs & pronostics
-- [ ] **Vue match enrichie** — pour chaque match affiché :
-  - Forme récente des deux équipes (5 derniers matchs)
-  - Confrontations directes (head-to-head)
-  - Buteurs / joueurs clés à surveiller
-  - Météo au stade (déjà intégré via OpenWeatherMap)
-  - Cote en direct bookmakers (si disponible via API)
-- [ ] **Filtres avancés** sur la liste des matchs
-  - Par ligue / pays
-  - Par niveau de confiance (1–4 étoiles)
-  - Par heure de coup d'envoi
-- [ ] **Notifications personnalisées** — alerter l'utilisateur avant ses matchs favoris
-
-### Psychologie & rétention utilisateur
-> Cible : deux profils (parieurs perso + suiveurs COTA). Style : mix gamification légère + stats sérieuses.
-> Premium justifié par : **picks haute confiance (4 étoiles) exclusifs Premium**.
-
-- [ ] **Streak quotidien** — récompenser les connexions consécutives (badge, indicateur visuel)
-- [ ] **Score de performance** — suivi des pronostics perso vs algorithme COTA (taux de réussite, ROI estimé)
-- [ ] **Push notifications contextuelles** — "Ton coupon du jour est disponible", "Match dans 1h"
-- [ ] **Classement / leaderboard** — comparaison anonyme entre utilisateurs (taux de réussite)
-- [ ] **Résumé hebdomadaire** — recap performances de la semaine envoyé le lundi matin
-- [ ] **Picks 4 étoiles verrouillés** — visibles en aperçu pour les gratuits, accessibles Premium uniquement
-
----
-
-## ✅ DÉJÀ FAIT (MVP)
-
-- [x] Algorithme de prédiction v3.0 (9 critères)
-- [x] Authentification OTP (SMS/email) + Facebook OAuth
-- [x] Endpoints prédictions : today, coupon, history
-- [x] Matchs populaires filtrés par tier de ligue
-- [x] Navigation COTA (Accueil / Pronostics / Live / Historique / Profil)
-- [x] Pull-to-refresh sur tous les écrans
-- [x] Page promotion bookmakers (affiliate)
-- [x] Écrans détail : match (5 onglets), équipe, joueur, compétition
-- [x] Palette COTA noir/jaune complète
-- [x] Paramètres notifications (frontend + backend)
-- [x] Préférences utilisateur (questions onboarding → API)
-- [x] Système abonnement Premium (écrans)
-- [x] Page FAQ, Parrainage, Confidentialité
-
----
-
-## PRIORITÉ IMMÉDIATE (top 3)
-
-1. 🔴 Implémenter **Paydunya** (sans paiement = pas de revenus)
-2. 🔴 Changer **URL API** `localhost` → prod
-3. 🔴 Configurer **`.env` production** sur le serveur
+```bash
+cd mobile
+flutter analyze
+flutter build appbundle --release --dart-define=APP_BASE_URL=https://api.cota.app/api
+```

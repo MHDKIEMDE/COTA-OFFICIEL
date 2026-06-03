@@ -4,8 +4,10 @@ namespace App\Jobs;
 
 use App\Services\FootballApiService;
 use App\Services\HybridationService;
+use App\Services\OddsApiService;
 use App\Services\PredictionAlgorithmService;
 use App\Services\PredictionAnalysisService;
+use App\Services\PredictionSelectionService;
 use App\Services\RapidApiService;
 use App\Services\ValueBettingService;
 use App\Models\Prediction;
@@ -30,13 +32,21 @@ class GenerateAllPredictionsJob implements ShouldQueue
     private ValueBettingService $valueBetting;
     private PredictionAnalysisService $analysisService;
     private HybridationService $hybridation;
+    private OddsApiService $oddsApi;
+    private PredictionSelectionService $selection;
 
-    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi, ValueBettingService $valueBetting, PredictionAnalysisService $analysisService, HybridationService $hybridation): void
+    public function handle(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi, ValueBettingService $valueBetting, PredictionAnalysisService $analysisService, HybridationService $hybridation, OddsApiService $oddsApi, PredictionSelectionService $selection): void
     {
         $this->valueBetting    = $valueBetting;
         $this->analysisService = $analysisService;
         $this->hybridation     = $hybridation;
+        $this->oddsApi         = $oddsApi;
+        $this->selection       = $selection;
         Log::info('GenerateAllPredictionsJob: Début génération prédictions');
+
+        // ── Charger les cotes 1xBet pré-match (The Odds API) ─────────────────
+        $oddsCount = $this->oddsApi->loadDailyOdds();
+        Log::info("GenerateAllPredictionsJob: {$oddsCount} matchs avec cotes 1xBet chargés");
 
         // ── Vérifier le quota API-Football ───────────────────────────────────
         $quotaOk = $this->hasApiQuota($footballApi);
@@ -84,6 +94,16 @@ class GenerateAllPredictionsJob implements ShouldQueue
             return;
         }
 
+        // F-01 : Filtrer sur les ligues tier 1–3 uniquement
+        $totalBefore = count($fixtures);
+        $fixtures    = $this->filterByLeagueTier($fixtures, maxTier: 3);
+        $totalAfter  = count($fixtures);
+        Log::info('GenerateAllPredictionsJob: Filtrage ligues tier 1–3', [
+            'avant'  => $totalBefore,
+            'après'  => $totalAfter,
+            'exclus' => $totalBefore - $totalAfter,
+        ]);
+
         $predictions = [];
         $processed   = 0;
         $skipped     = 0;
@@ -119,6 +139,10 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         Log::info('GenerateAllPredictionsJob: Algo complet terminé', compact('processed', 'skipped'));
 
+        // ── T3 : Pools Free / Premium + diversité + plancher ─────────────────
+        $this->applySelectionPools(Carbon::today());
+
+        $this->ensurePremiumPicks(Carbon::today());
         $this->selectCombinedDaily($predictions, Carbon::today());
         $this->cleanOldPredictions();
     }
@@ -161,6 +185,7 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         $allPreds    = Prediction::whereDate('match_date', Carbon::today())->get();
         $predictions = $allPreds->all();
+        $this->ensurePremiumPicks(Carbon::today());
         $this->selectCombinedDaily($predictions, Carbon::today());
         $this->cleanOldPredictions();
     }
@@ -422,10 +447,10 @@ class GenerateAllPredictionsJob implements ShouldQueue
         if (!($homeTeam['id'] ?? null) || !($awayTeam['id'] ?? null)) return null;
 
         $matchDate    = Carbon::parse($fixtureInfo['date'] ?? now());
-        $leagueId     = $league['id'] ?? null;
-        $leagueName   = $league['name'] ?? '';
+        $leagueId      = (int) ($league['id'] ?? 0);
+        $leagueName    = $league['name'] ?? '';
         $leagueCountry = $league['country'] ?? '';
-        $leagueTier   = $this->resolveLeagueTier($leagueName, $leagueCountry);
+        $leagueTier    = $this->resolveLeagueTierById($leagueId, $leagueName, $leagueCountry);
 
         // Exclure les ligues de basse qualité qui ne fournissent pas de données utiles
         $excludedPatterns = ['Friendl', 'Women', 'Female', 'Youth', 'U17', 'U18', 'U19', 'U20', 'U21', 'U23', 'Reserve', 'Amateur'];
@@ -477,24 +502,57 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $vbOdds = (float) ($predictionData['odds'] ?? 1.50);
         $vb     = $this->valueBetting->calculate($vbConf, $vbOdds);
 
-        // Remplacer la cote algo par la cote 1xBet réelle si disponible
-        $oddsKey  = strtolower(($homeTeam['name'] ?? '') . ' vs ' . ($awayTeam['name'] ?? ''));
-        $realOdds = $oddsIndex[$oddsKey] ?? null;
-        if ($realOdds) {
+        // ── Cotes 1xBet réelles (priorité 1 : The Odds API pré-match) ────────
+        $homeName = $homeTeam['name'] ?? '';
+        $awayName = $awayTeam['name'] ?? '';
+        $real1xbet = $this->oddsApi->find($homeName, $awayName);
+
+        if ($real1xbet) {
             $outcome = $predictionData['outcome'] ?? '1';
-            $mapped  = match($outcome) {
-                '1'    => $realOdds['home'],
-                'X'    => $realOdds['draw'],
-                '2'    => $realOdds['away'],
-                default => null,
-            };
-            if ($mapped && $mapped > 1.0) {
-                $predictionData['odds']        = round($mapped, 2);
+            $betType = $predictionData['type']    ?? '1X2';
+            $mapped  = null;
+
+            if (in_array($betType, ['1X2', 'Double Chance', 'Handicap'])) {
+                $mapped = match($outcome) {
+                    '1'     => $real1xbet['home'],
+                    'X'     => $real1xbet['draw'],
+                    '2'     => $real1xbet['away'],
+                    '1X'    => $real1xbet['home'] ? round(($real1xbet['home'] + ($real1xbet['draw'] ?? 0)) / 2 * 0.95, 2) : null,
+                    '12'    => $real1xbet['away'] ? round(($real1xbet['home'] + $real1xbet['away']) / 2 * 0.95, 2) : null,
+                    'X2'    => $real1xbet['away'] ? round((($real1xbet['draw'] ?? 0) + $real1xbet['away']) / 2 * 0.95, 2) : null,
+                    default => null,
+                };
+            } elseif (in_array($betType, ['Over/Under', 'BTTS', 'Team Goals'])) {
+                if (str_contains(strtolower($outcome), 'over'))  $mapped = $real1xbet['over25'];
+                if (str_contains(strtolower($outcome), 'under')) $mapped = $real1xbet['under25'];
+            }
+
+            if ($mapped && $mapped >= 1.50) {
+                $predictionData['odds']        = round((float) $mapped, 2);
                 $predictionData['odds_source'] = '1xbet';
             }
         }
 
-        // Si aucune cote réelle disponible → on marque "estimated", sera masqué côté mobile
+        // ── Priorité 2 : cote live RapidAPI (fallback si pas de pré-match) ──
+        if (($predictionData['odds_source'] ?? 'algo') === 'algo') {
+            $oddsKey  = strtolower($homeName . ' vs ' . $awayName);
+            $realOdds = $oddsIndex[$oddsKey] ?? null;
+            if ($realOdds) {
+                $outcome = $predictionData['outcome'] ?? '1';
+                $mapped  = match($outcome) {
+                    '1'    => $realOdds['home'],
+                    'X'    => $realOdds['draw'],
+                    '2'    => $realOdds['away'],
+                    default => null,
+                };
+                if ($mapped && $mapped >= 1.50) {
+                    $predictionData['odds']        = round((float) $mapped, 2);
+                    $predictionData['odds_source'] = '1xbet';
+                }
+            }
+        }
+
+        // Si aucune cote réelle ≥ 1.50 → estimated, masquée côté mobile
         if (($predictionData['odds_source'] ?? 'algo') === 'algo') {
             $predictionData['odds_source'] = 'estimated';
         }
@@ -519,6 +577,11 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'bet_market'         => $predictionData['type'] ?? '1X2',
                 'engine_used'        => $predictionData['engine'] ?? 'force',
                 'market_value_score' => $predictionData['market_value'] ?? null,
+                // Champs A1 CDC v3.1
+                'market_selection'   => $predictionData['market_selection'] ?? null,
+                'market_score'       => $predictionData['market_score']     ?? null,
+                'score_tier'         => $predictionData['score_tier']       ?? null,
+                'active_side'        => $predictionData['active_side']      ?? null,
                 'prediction'         => $predictionData['outcome'] ?? '1',
                 'odds'               => $predictionData['odds'] ?? '1.50',
                 'confidence_stars'   => $predictionData['stars'] ?? 1,
@@ -601,6 +664,29 @@ class GenerateAllPredictionsJob implements ShouldQueue
         })->values()->toArray();
     }
 
+    private function filterByLeagueTier(array $fixtures, int $maxTier): array
+    {
+        return array_values(array_filter($fixtures, function (array $fixture) use ($maxTier) {
+            $leagueId      = (int) ($fixture['league']['id']      ?? 0);
+            $leagueName    = $fixture['league']['name']    ?? '';
+            $leagueCountry = $fixture['league']['country'] ?? '';
+            $tier          = $this->resolveLeagueTierById($leagueId, $leagueName, $leagueCountry);
+            return $tier <= $maxTier;
+        }));
+    }
+
+    // Résolution par ID (exact, sans ambiguïté) puis fallback par nom
+    private function resolveLeagueTierById(int $leagueId, string $name, string $country): int
+    {
+        if ($leagueId > 0) {
+            $byId = config('football-api.league_tiers_by_id', []);
+            if (isset($byId[$leagueId])) {
+                return $byId[$leagueId];
+            }
+        }
+        return $this->resolveLeagueTier($name, $country);
+    }
+
     private function resolveLeagueTier(string $name, string $country): int
     {
         $tiers     = config('football-api.league_tiers', []);
@@ -608,13 +694,126 @@ class GenerateAllPredictionsJob implements ShouldQueue
 
         $tier = $tiers[$name] ?? 99;
 
-        // Pour les ligues ambiguës (ex: "Premier League" existe dans 50 pays),
-        // on n'accorde le tier configuré que si le pays correspond.
-        if ($tier === 1 && isset($whitelist[$name]) && $whitelist[$name] !== $country) {
-            return 5; // Ligue mineure homonyme
+        // Ligues ambiguës : "Premier League" existe dans 50 pays
+        if ($tier <= 2 && isset($whitelist[$name]) && $whitelist[$name] !== $country) {
+            return 99;
         }
 
         return $tier;
+    }
+
+    // ── T3 : Appliquer pools Free / Premium + diversité + plancher ──────────
+
+    private function applySelectionPools(Carbon $date): void
+    {
+        $today = $date->toDateString();
+
+        // Charger toutes les prédictions publiées du jour comme tableaux
+        $allPreds = Prediction::where('is_published', true)
+            ->whereDate('match_date', $today)
+            ->orderByDesc('total_score')
+            ->get()
+            ->map(fn($p) => [
+                'id'          => $p->id,
+                'market_score'=> (float) ($p->market_score ?? $p->total_score),
+                'total_score' => (float) $p->total_score,
+                'type'        => $p->bet_type ?? '1X2',
+                'bet_type'    => $p->bet_type ?? '1X2',
+                'competition' => $p->competition ?? 'unknown',
+                'is_premium'  => (bool) $p->is_premium,
+            ])
+            ->toArray();
+
+        $pools = $this->selection->buildPools($allPreds);
+
+        // Extraire les IDs de chaque pool
+        $freeIds    = array_column($pools['free'],    'id');
+        $premiumIds = array_column($pools['premium'], 'id');
+
+        // Réinitialiser is_premium pour toutes les prédictions du jour
+        DB::table('predictions')
+            ->where('is_published', true)
+            ->whereDate('match_date', $today)
+            ->update(['is_premium' => false]);
+
+        // Marquer le pool Premium
+        if (!empty($premiumIds)) {
+            DB::table('predictions')
+                ->whereIn('id', $premiumIds)
+                ->update(['is_premium' => true]);
+        }
+
+        // Dépublier les prédictions hors des deux pools (score < bronze)
+        $keepIds = array_unique(array_merge($freeIds, $premiumIds));
+        if (!empty($keepIds)) {
+            DB::table('predictions')
+                ->where('is_published', true)
+                ->whereDate('match_date', $today)
+                ->whereNotIn('id', $keepIds)
+                ->update(['is_published' => false]);
+        }
+
+        Log::info('GenerateAllPredictionsJob: Pools appliqués', [
+            'free'          => count($freeIds),
+            'premium'       => count($premiumIds),
+            'depth_mode'    => $pools['depth_mode'],
+            'floor_applied' => $pools['floor_applied'],
+        ]);
+    }
+
+    // Garantir qu'il y a toujours des picks premium chaque jour
+    private function ensurePremiumPicks(Carbon $date): void
+    {
+        $today = $date->toDateString();
+
+        $premiumCount = DB::table('predictions')
+            ->where('is_published', true)
+            ->whereDate('match_date', $today)
+            ->where('is_premium', true)
+            ->count();
+
+        // Si au moins 3 picks premium naturels, rien à faire
+        if ($premiumCount >= 3) {
+            Log::info("ensurePremiumPicks: {$premiumCount} picks premium naturels, rien a forcer");
+            return;
+        }
+
+        // Prendre les meilleurs picks publiés (≥70pts) et les promouvoir premium
+        $needed = 3 - $premiumCount;
+        $promoted = DB::table('predictions')
+            ->where('is_published', true)
+            ->whereDate('match_date', $today)
+            ->where('is_premium', false)
+            ->where('total_score', '>=', 70)
+            ->orderBy('total_score', 'desc')
+            ->limit($needed)
+            ->pluck('id');
+
+        if ($promoted->isNotEmpty()) {
+            DB::table('predictions')
+                ->whereIn('id', $promoted)
+                ->update(['is_premium' => true, 'confidence_stars' => 3]);
+
+            Log::info("ensurePremiumPicks: {$promoted->count()} picks promus premium (score >=70)");
+            return;
+        }
+
+        // Dernier recours : les meilleurs picks du jour quels que soient leurs scores
+        $fallback = DB::table('predictions')
+            ->where('is_published', true)
+            ->whereDate('match_date', $today)
+            ->where('is_premium', false)
+            ->orderBy('total_score', 'desc')
+            ->limit($needed)
+            ->pluck('id');
+
+        if ($fallback->isNotEmpty()) {
+            DB::table('predictions')
+                ->whereIn('id', $fallback)
+                ->update(['is_premium' => true, 'confidence_stars' => 3]);
+
+            Log::info("ensurePremiumPicks: {$fallback->count()} picks promus (fallback meilleurs du jour)");
+        }
     }
 
     private function selectCombinedDaily(array $predictions, Carbon $date): void

@@ -59,6 +59,11 @@ class Prediction extends Model
         'bet_market',
         'engine_used',
         'market_value_score',
+        // Scoring par marché (A1 CDC v3.1)
+        'market_selection',
+        'market_score',
+        'score_tier',
+        'active_side',
         // Traçabilité hybridation (§8.5 CDC V2)
         'score_algo',
         'score_externe',
@@ -79,6 +84,7 @@ class Prediction extends Model
         'value_score' => 'decimal:3',
         'kelly_fraction'      => 'decimal:4',
         'market_value_score'  => 'decimal:3',
+        'market_score'        => 'decimal:2',
         'score_algo'          => 'decimal:2',
         'score_externe'       => 'decimal:2',
         'score_publie'        => 'decimal:2',

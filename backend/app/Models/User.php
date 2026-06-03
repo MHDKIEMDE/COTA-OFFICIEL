@@ -56,6 +56,7 @@ class User extends Authenticatable
         'pin_attempts',
         'pin_locked_until',
         'last_device_id',
+        'tier',
     ];
 
     /**

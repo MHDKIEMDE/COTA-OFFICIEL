@@ -28,6 +28,7 @@ class PredictionAlgorithmService
 {
     private FootballApiService $footballApi;
     private ?RapidApiService $rapidApi;
+    private MarketScoringService $marketScoring;
 
     const WEIGHTS = [
         'form'      => 25,
@@ -49,20 +50,25 @@ class PredictionAlgorithmService
         'min_publish' => 50,
     ];
 
-    // Bandes de cotes valides par marché (§10.2 CDC V2)
+    // Bandes de cotes valides par marché — min 1.50 partout pour garantir de la valeur
     const ODDS_BANDS = [
-        '1X2'           => ['min' => 1.40, 'max' => 3.50],
-        'Double Chance' => ['min' => 1.40, 'max' => 3.50],
-        'Handicap'      => ['min' => 1.50, 'max' => 2.50],
-        'Over/Under'    => ['min' => 1.50, 'max' => 2.30],
-        'BTTS'          => ['min' => 1.50, 'max' => 2.30],
-        'Score Exact'   => ['min' => 5.00, 'max' => 12.00],
+        '1X2'           => ['min' => 1.50, 'max' => 4.00],
+        'Double Chance' => ['min' => 1.50, 'max' => 3.00],
+        'Handicap'      => ['min' => 1.55, 'max' => 2.80],
+        'Over/Under'    => ['min' => 1.55, 'max' => 2.50],
+        'BTTS'          => ['min' => 1.55, 'max' => 2.50],
+        'Score Exact'   => ['min' => 5.00, 'max' => 15.00],
+        'Team Goals'    => ['min' => 1.50, 'max' => 2.80],
+        'Corners'       => ['min' => 1.60, 'max' => 2.80],
+        'Cards'         => ['min' => 1.65, 'max' => 2.80],
+        'Shots'         => ['min' => 1.60, 'max' => 2.60],
     ];
 
-    public function __construct(FootballApiService $footballApi, ?RapidApiService $rapidApi = null)
+    public function __construct(FootballApiService $footballApi, ?RapidApiService $rapidApi = null, ?MarketScoringService $marketScoring = null)
     {
-        $this->footballApi = $footballApi;
-        $this->rapidApi    = $rapidApi;
+        $this->footballApi   = $footballApi;
+        $this->rapidApi      = $rapidApi;
+        $this->marketScoring = $marketScoring ?? new MarketScoringService();
     }
 
     /**
@@ -107,10 +113,26 @@ class PredictionAlgorithmService
 
         $totalScore = array_sum($scores);
 
+        // Stats buts moyens pour les nouveaux marchés
+        $homeGoalsFor     = $this->extractGoalsFor($this->getTeamStats($homeTeamId, $leagueId, $season, $homeName));
+        $awayGoalsFor     = $this->extractGoalsFor($this->getTeamStats($awayTeamId, $leagueId, $season, $awayName));
+
         // Cascade multi-marchés (§7 CDC V2) — sélecteur retourne le meilleur marché
-        $selected   = $this->selectBestMarket($scores, $totalScore, $homeTeam, $awayTeam);
-        $stars      = $this->calculateStars($totalScore);
-        $analysis   = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
+        $isTournament = $this->marketScoring->isTournament($fixture);
+        $allCandidates = $this->buildAllCandidates(
+            $scores, $totalScore, $homeTeam, $awayTeam,
+            $cornersAvg, $cardsAvg, $homeGoalsFor, $awayGoalsFor
+        );
+        $selected = $this->marketScoring->bestMarketFor(
+            $allCandidates,
+            $totalScore,
+            $isTournament,
+            fifaGap: 0.0,
+            homeName: $homeName,
+            awayName: $awayName
+        );
+        $stars    = $this->calculateStars($totalScore);
+        $analysis = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
 
         return [
             'type'             => $selected['type'],
@@ -127,6 +149,12 @@ class PredictionAlgorithmService
             'top_scorers'      => $topScorers,
             'corners_avg'      => $cornersAvg,
             'cards_avg'        => $cardsAvg,
+            // Champs A1 CDC v3.1
+            'market_selection' => $selected['market_selection'],
+            'market_score'     => $selected['market_score'],
+            'score_tier'       => $selected['score_tier'],
+            'active_side'      => $selected['active_side'],
+            'is_tournament'    => $isTournament,
         ];
     }
 
@@ -405,21 +433,20 @@ class PredictionAlgorithmService
     // ==================== CASCADE MULTI-MARCHÉS (§7 CDC V2) ====================
 
     /**
-     * Sélecteur cascade : évalue tous les marchés, retourne le meilleur
-     * par équilibre confiance × valeur de cote, dans la bande valide (§10.2).
+     * Construit la liste complète de candidats marchés — délègue le choix final
+     * à MarketScoringService::bestMarketFor() (A1 CDC v3.1).
      *
-     * Deux moteurs spécialisés (§7.2) :
-     *   - Moteur Force  : 1X2, Double Chance, Handicap
-     *   - Moteur Buts   : Over/Under, BTTS
-     * Haute variance    : Score Exact (signal exceptionnel uniquement)
-     *
-     * @return array{type:string, outcome:string, odds:float, engine:string, market_value:float}
+     * @return array Liste de candidats format makeCandidate()
      */
-    private function selectBestMarket(
+    private function buildAllCandidates(
         array $scores,
         float $totalScore,
         array $homeTeam,
-        array $awayTeam
+        array $awayTeam,
+        float $cornersAvg    = 0.0,
+        float $cardsAvg      = 0.0,
+        float $homeGoalsFor  = 1.2,
+        float $awayGoalsFor  = 1.2
     ): array {
         $candidates = [];
 
@@ -431,6 +458,9 @@ class PredictionAlgorithmService
         $shotsRatio    = $scores['shots']     / self::WEIGHTS['shots'];
         $leagueRatio   = $scores['league']    / self::WEIGHTS['league'];
 
+        $homeName = $homeTeam['name'] ?? 'Home';
+        $awayName = $awayTeam['name'] ?? 'Away';
+
         // Avantage domicile composite (Moteur Force)
         $homeAdv = ($formRatio * 0.40) + ($h2hRatio * 0.35) + ($homeAwayRatio * 0.25);
         $awayAdv = 1.0 - $homeAdv;
@@ -438,10 +468,29 @@ class PredictionAlgorithmService
         // ── MOTEUR FORCE — 1X2, Double Chance, Handicap ──────────────────────
         $candidates = array_merge($candidates, $this->scoreForceEngine($homeAdv, $awayAdv, $leagueRatio));
 
-        // ── MOTEUR BUTS — Over/Under, BTTS ───────────────────────────────────
-        // Stats buts = entrée principale (≈70% du poids), tirs cadrés en appoint
+        // ── MOTEUR BUTS TOTAL — Over/Under, BTTS ─────────────────────────────
         $goalsEngineScore = ($goalsRatio * 0.70) + ($shotsRatio * 0.30);
         $candidates = array_merge($candidates, $this->scoreGoalsEngine($goalsEngineScore));
+
+        // ── MOTEUR BUTS PAR ÉQUIPE — Team Goals ──────────────────────────────
+        $candidates = array_merge($candidates, $this->scoreTeamGoalsEngine(
+            $homeName, $awayName, $homeGoalsFor, $awayGoalsFor, $homeAdv, $awayAdv
+        ));
+
+        // ── MOTEUR CORNERS ───────────────────────────────────────────────────
+        if ($cornersAvg > 0) {
+            $candidates = array_merge($candidates, $this->scoreCornersEngine($cornersAvg, $goalsEngineScore));
+        }
+
+        // ── MOTEUR CARTONS ────────────────────────────────────────────────────
+        if ($cardsAvg > 0) {
+            $candidates = array_merge($candidates, $this->scoreCardsEngine($cardsAvg));
+        }
+
+        // ── MOTEUR TIRS CADRÉS ────────────────────────────────────────────────
+        $candidates = array_merge($candidates, $this->scoreShotsEngine(
+            $homeName, $awayName, $shotsRatio, $homeAdv, $awayAdv
+        ));
 
         // ── HAUTE VARIANCE — Score Exact (signal exceptionnel) ───────────────
         if ($homeAdv >= 0.80 || $awayAdv >= 0.80) {
@@ -449,18 +498,11 @@ class PredictionAlgorithmService
             $candidates[] = $this->makeCandidate('Score Exact', $winner, 7.00, 'high_variance', $totalScore);
         }
 
-        // ── SÉLECTEUR — meilleur candidat valide dans sa bande de cote ───────
-        $valid = array_filter($candidates, fn($c) => $this->isOddsInBand($c['type'], $c['odds']));
-
-        if (empty($valid)) {
-            // Fallback : Double Chance la plus sécurisée
-            return $this->makeCandidate('Double Chance', $homeAdv >= $awayAdv ? '1X' : 'X2', 1.55, 'force', $totalScore);
-        }
-
-        // Score valeur = confiance normalisée × attractivité de la cote
-        usort($valid, fn($a, $b) => $b['market_value'] <=> $a['market_value']);
-
-        return reset($valid);
+        // Retourner les candidats valides dans leur bande de cote
+        // Le choix final est délégué à MarketScoringService::bestMarketFor()
+        return array_values(
+            array_filter($candidates, fn($c) => $this->isOddsInBand($c['type'], $c['odds']))
+        );
     }
 
     /**
@@ -511,6 +553,112 @@ class PredictionAlgorithmService
             $c[] = $this->makeCandidate('BTTS', 'Non', 1.90, 'goals', (1 - $goalsEngineScore) * 90);
         } elseif ($goalsEngineScore <= 0.42) {
             $c[] = $this->makeCandidate('Over/Under', 'Under 2.5', 1.82, 'goals', (1 - $goalsEngineScore) * 100);
+        }
+
+        return $c;
+    }
+
+    /**
+     * Moteur Buts par équipe — "Home Over 0.5", "Away Over 1.5", etc.
+     * Utilise les moyennes de buts marqués par équipe sur la saison.
+     */
+    private function scoreTeamGoalsEngine(
+        string $homeName, string $awayName,
+        float $homeGoalsFor, float $awayGoalsFor,
+        float $homeAdv, float $awayAdv
+    ): array {
+        $c = [];
+
+        // Domicile offensif (>1.5 buts/match en moyenne)
+        if ($homeGoalsFor >= 1.8 && $homeAdv >= 0.55) {
+            $c[] = $this->makeCandidate('Team Goals', "{$homeName} Over 1.5", 1.75, 'team_goals', $homeGoalsFor * 50);
+        } elseif ($homeGoalsFor >= 1.2 && $homeAdv >= 0.50) {
+            $c[] = $this->makeCandidate('Team Goals', "{$homeName} Over 0.5", 1.55, 'team_goals', $homeGoalsFor * 45);
+        }
+
+        // Extérieur offensif
+        if ($awayGoalsFor >= 1.6 && $awayAdv >= 0.50) {
+            $c[] = $this->makeCandidate('Team Goals', "{$awayName} Over 1.5", 1.85, 'team_goals', $awayGoalsFor * 50);
+        } elseif ($awayGoalsFor >= 1.1 && $awayAdv >= 0.45) {
+            $c[] = $this->makeCandidate('Team Goals', "{$awayName} Over 0.5", 1.60, 'team_goals', $awayGoalsFor * 45);
+        }
+
+        // Match avec peu de buts (une équipe défensive)
+        if ($homeGoalsFor <= 0.8 || $awayGoalsFor <= 0.8) {
+            $weakTeam = $homeGoalsFor <= $awayGoalsFor ? $homeName : $awayName;
+            $c[] = $this->makeCandidate('Team Goals', "{$weakTeam} Under 1.5", 1.90, 'team_goals', 60.0);
+        }
+
+        return $c;
+    }
+
+    /**
+     * Moteur Corners — "Over/Under X.5 corners"
+     * cornersAvg = moyenne de corners par match (home + away combinés)
+     */
+    private function scoreCornersEngine(float $cornersAvg, float $goalsScore): array
+    {
+        $c = [];
+
+        if ($cornersAvg >= 11.0) {
+            $c[] = $this->makeCandidate('Corners', 'Over 10.5 corners', 1.80, 'corners', $cornersAvg * 7);
+        } elseif ($cornersAvg >= 9.5) {
+            $c[] = $this->makeCandidate('Corners', 'Over 9.5 corners', 1.75, 'corners', $cornersAvg * 7);
+        } elseif ($cornersAvg >= 8.5 && $goalsScore >= 0.55) {
+            $c[] = $this->makeCandidate('Corners', 'Over 8.5 corners', 1.70, 'corners', $cornersAvg * 6);
+        } elseif ($cornersAvg <= 7.0) {
+            $c[] = $this->makeCandidate('Corners', 'Under 8.5 corners', 1.85, 'corners', (10 - $cornersAvg) * 7);
+        }
+
+        return $c;
+    }
+
+    /**
+     * Moteur Cartons — "Over/Under X.5 cards"
+     */
+    private function scoreCardsEngine(float $cardsAvg): array
+    {
+        $c = [];
+
+        if ($cardsAvg >= 5.0) {
+            $c[] = $this->makeCandidate('Cards', 'Over 4.5 cards', 1.80, 'cards', $cardsAvg * 15);
+        } elseif ($cardsAvg >= 4.0) {
+            $c[] = $this->makeCandidate('Cards', 'Over 3.5 cards', 1.75, 'cards', $cardsAvg * 15);
+        } elseif ($cardsAvg >= 3.0) {
+            $c[] = $this->makeCandidate('Cards', 'Over 2.5 cards', 1.70, 'cards', $cardsAvg * 15);
+        } elseif ($cardsAvg <= 2.0) {
+            $c[] = $this->makeCandidate('Cards', 'Under 3.5 cards', 1.85, 'cards', (5 - $cardsAvg) * 15);
+        }
+
+        return $c;
+    }
+
+    /**
+     * Moteur Tirs cadrés — "Home Over 4.5 shots", "Away Over 3.5 shots"
+     * shotsRatio = score tirs / poids_max (0–1)
+     */
+    private function scoreShotsEngine(
+        string $homeName, string $awayName,
+        float $shotsRatio,
+        float $homeAdv, float $awayAdv
+    ): array {
+        $c = [];
+
+        // Signal offensif fort côté domicile
+        if ($shotsRatio >= 0.70 && $homeAdv >= 0.60) {
+            $c[] = $this->makeCandidate('Shots', "{$homeName} Over 4.5 shots", 1.75, 'shots', $shotsRatio * 80);
+        } elseif ($shotsRatio >= 0.55 && $homeAdv >= 0.55) {
+            $c[] = $this->makeCandidate('Shots', "{$homeName} Over 3.5 shots", 1.65, 'shots', $shotsRatio * 70);
+        }
+
+        // Signal offensif fort côté extérieur
+        if ($shotsRatio >= 0.65 && $awayAdv >= 0.55) {
+            $c[] = $this->makeCandidate('Shots', "{$awayName} Over 3.5 shots", 1.80, 'shots', $shotsRatio * 75);
+        }
+
+        // Match avec peu de tirs (les deux défensives)
+        if ($shotsRatio <= 0.30) {
+            $c[] = $this->makeCandidate('Shots', 'Under 8.5 total shots', 1.85, 'shots', (1 - $shotsRatio) * 70);
         }
 
         return $c;
@@ -1037,7 +1185,17 @@ class PredictionAlgorithmService
             ? (array) \Illuminate\Support\Facades\Cache::get("top_scorers:{$homeTeamId}:{$awayTeamId}:{$leagueId}:{$season}", [])
             : [];
 
-        $selected = $this->selectBestMarket($scores, $totalScore, $homeTeam, $awayTeam);
+        $homeGoalsFor = $homeTeamId
+            ? $this->extractGoalsFor($this->getTeamStats($homeTeamId, $leagueId, $season, $homeTeam['name'] ?? ''))
+            : 1.2;
+        $awayGoalsFor = $awayTeamId
+            ? $this->extractGoalsFor($this->getTeamStats($awayTeamId, $leagueId, $season, $awayTeam['name'] ?? ''))
+            : 1.2;
+
+        $selected = $this->selectBestMarket(
+            $scores, $totalScore, $homeTeam, $awayTeam,
+            $cornersAvg, $cardsAvg, $homeGoalsFor, $awayGoalsFor
+        );
         $analysis = $this->generateAnalysis($scores, $homeTeam, $awayTeam, $totalScore, $topScorers, $cornersAvg, $cardsAvg);
 
         return array_merge($selected, ['analysis' => $analysis]);
