@@ -516,6 +516,57 @@ class PredictionController extends Controller
         return response()->json(['success' => true, 'data' => $data]);
     }
 
+    /**
+     * GET /api/user/roi  (auth:sanctum)
+     * ROI personnel : si l'utilisateur avait misé 1 000 FCFA sur chaque prédiction
+     * publiée pendant la période où il était inscrit, combien aurait-il gagné/perdu ?
+     */
+    public function personalRoi(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = Cache::remember("personal_roi:{$user->id}", 600, function () use ($user) {
+            $since = $user->created_at ?? Carbon::now()->subDays(30);
+
+            $preds = DB::table('predictions')
+                ->where('is_published', true)
+                ->whereIn('status', ['won', 'lost'])
+                ->where('match_date', '>=', $since)
+                ->select('status', 'odds', 'confidence_stars', 'match_date')
+                ->orderBy('match_date')
+                ->get();
+
+            $stake        = 1000; // FCFA par pari
+            $totalStaked  = $preds->count() * $stake;
+            $totalReturns = (int) round($preds->where('status', 'won')->sum('odds') * $stake);
+            $netGain      = $totalReturns - $totalStaked;
+            $roi          = $totalStaked > 0 ? round($netGain / $totalStaked * 100, 1) : 0;
+
+            // Courbe sparkline : gain cumulé semaine par semaine
+            $sparkline = [];
+            $cumulative = 0;
+            foreach ($preds->groupBy(fn($p) => Carbon::parse($p->match_date)->startOfWeek()->toDateString()) as $week => $group) {
+                $weekReturn = (int) round($group->where('status', 'won')->sum('odds') * $stake);
+                $weekStaked = $group->count() * $stake;
+                $cumulative += ($weekReturn - $weekStaked);
+                $sparkline[] = ['week' => $week, 'cumulative' => $cumulative];
+            }
+
+            return [
+                'stake_per_bet'  => $stake,
+                'total_bets'     => $preds->count(),
+                'total_staked'   => $totalStaked,
+                'total_returns'  => $totalReturns,
+                'net_gain'       => $netGain,
+                'roi_pct'        => $roi,
+                'since'          => $since->toDateString(),
+                'sparkline'      => $sparkline,
+            ];
+        });
+
+        return response()->json(['success' => true, 'data' => $data]);
+    }
+
     public function statistics(Request $request)
     {
         $user = $request->user();

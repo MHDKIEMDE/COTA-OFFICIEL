@@ -357,6 +357,91 @@ class AuthController extends Controller
     }
 
     /**
+     * Connexion / inscription via Google (ID token)
+     * POST /api/auth/google
+     */
+    public function loginWithGoogle(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_token'    => 'required|string',
+            'device_type' => 'nullable|string',
+            'fcm_token'   => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            // Vérifier l'id_token via Google tokeninfo
+            $response = Http::get('https://oauth2.googleapis.com/tokeninfo', [
+                'id_token' => $request->id_token,
+            ]);
+
+            if ($response->failed()) {
+                return response()->json(['success' => false, 'message' => 'Token Google invalide.'], 401);
+            }
+
+            $info = $response->json();
+
+            // Vérifier que l'audience correspond à notre app
+            $validAudiences = array_filter([
+                env('GOOGLE_CLIENT_ID_ANDROID'),
+                env('GOOGLE_CLIENT_ID_IOS'),
+            ]);
+            if (!empty($validAudiences) && !in_array($info['aud'] ?? '', $validAudiences)) {
+                return response()->json(['success' => false, 'message' => 'Audience Google invalide.'], 401);
+            }
+
+            $googleId = $info['sub'] ?? null;
+            $email    = $info['email'] ?? null;
+            $name     = $info['name'] ?? ($info['given_name'] ?? 'Utilisateur');
+
+            if (!$googleId) {
+                return response()->json(['success' => false, 'message' => 'Token Google invalide (sub absent).'], 401);
+            }
+
+            $user = User::where('google_id', $googleId)->first();
+
+            if (!$user && $email) {
+                $user = User::where('email', $email)->first();
+            }
+
+            if (!$user) {
+                $user = User::create([
+                    'google_id'   => $googleId,
+                    'name'        => $name,
+                    'email'       => $email,
+                    'device_type' => $request->device_type,
+                    'fcm_token'   => $request->fcm_token,
+                    'last_login_at' => Carbon::now(),
+                ]);
+            } else {
+                $user->update([
+                    'google_id'     => $googleId,
+                    'last_login_at' => Carbon::now(),
+                    'device_type'   => $request->device_type ?? $user->device_type,
+                    'fcm_token'     => $request->fcm_token   ?? $user->fcm_token,
+                ]);
+            }
+
+            $token = $user->createToken('mobile-app')->plainTextToken;
+
+            Log::info('POST /api/auth/google - OK', ['user_id' => $user->id]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Connexion Google réussie.',
+                'user'    => $this->userArray($user),
+                'token'   => $token,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('POST /api/auth/google - Error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Erreur lors de la connexion Google.'], 500);
+        }
+    }
+
+    /**
      * Déconnexion (révocation du token)
      * POST /api/auth/logout
      */

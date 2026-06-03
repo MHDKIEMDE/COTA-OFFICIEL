@@ -7,239 +7,308 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Service pour récupérer les cotes des bookmakers en temps réel
- * 
- * Utilise l'API The Odds API (https://the-odds-api.com/)
- * Alternative: BetAPI (https://betapi.io/)
- * 
- * IMPORTANT: Ce service ne stocke PAS les données en base de données
- * Il fait uniquement du proxy/cache pour optimiser les performances
+ * Cotes pré-match 1xBet via The Odds API (api.the-odds-api.com)
+ *
+ * Stratégie :
+ * - loadDailyOdds() : appelé une fois par génération, charge toutes les cotes
+ *   des ligues actives en cache 4h (1 requête/sport)
+ * - find() : recherche instantanée dans le cache par noms d'équipes
+ *
+ * Quota : 500 req/mois gratuit — on consomme ~10-15 req/jour max.
  */
 class OddsApiService
 {
-    private $apiKey;
-    private $baseUrl = 'https://api.the-odds-api.com/v4';
-    private $cacheTtl;
+    private const API_BASE    = 'https://api.the-odds-api.com/v4';
+    private const BOOKMAKER   = 'onexbet';
+    private const CACHE_TTL   = 14400; // 4 heures
+    private const CACHE_KEY   = 'odds_api_daily_index';
+
+    // Sports The Odds API correspondant aux ligues tier 1–3 de COTA
+    private const SPORT_KEYS = [
+        'soccer_epl',                           // Premier League
+        'soccer_spain_la_liga',                 // La Liga
+        'soccer_germany_bundesliga',            // Bundesliga
+        'soccer_italy_serie_a',                 // Serie A
+        'soccer_france_ligue_one',              // Ligue 1
+        'soccer_uefa_champs_league',            // Champions League
+        'soccer_uefa_europa_league',            // Europa League
+        'soccer_uefa_europa_conference_league', // Conference League
+        'soccer_portugal_primeira_liga',        // Liga Portugal
+        'soccer_netherlands_eredivisie',        // Eredivisie
+        'soccer_belgium_first_div',             // Pro League
+        'soccer_turkey_super_league',           // Süper Lig
+        'soccer_saudi_arabia_pro_league',       // Saudi Pro League
+        'soccer_brazil_campeonato',             // Brasileirao
+        'soccer_mexico_ligamx',                 // Liga MX
+        'soccer_usa_mls',                       // MLS
+        'soccer_china_superleague',             // Super League Chine
+        'soccer_korea_kleague1',                // K League
+        'soccer_africa_cup_of_nations',         // AFCON
+        'soccer_spl',                           // Scottish Premiership
+        'soccer_efl_champ',                     // Championship
+    ];
+
+    private string $apiKey;
 
     public function __construct()
     {
-        $this->apiKey = env('ODDS_API_KEY');
-        $this->cacheTtl = env('ODDS_API_CACHE_TTL', 120); // 2 minutes par défaut
+        $this->apiKey = env('ODDS_API_KEY', '');
     }
 
     /**
-     * Récupérer les cotes pour un match spécifique
-     * 
-     * @param string $sportKey 'soccer' ou 'soccer_epl', 'soccer_uefa_champs_league', etc.
-     * @param string $matchId ID du match (fixture_id ou sportradar_id)
-     * @param array $bookmakers ['bet365', '1xbet', 'betway', 'betwinner']
-     * @return array|null
+     * Charger toutes les cotes 1xBet du jour en cache.
+     * À appeler UNE FOIS avant la boucle de génération des prédictions.
+     * Retourne le nombre de matchs indexés.
      */
-    public function getMatchOdds(string $sportKey, string $matchId, array $bookmakers = [])
+    public function loadDailyOdds(): int
     {
-        // Cache de 2 minutes pour éviter trop de requêtes
-        $cacheKey = "odds:{$sportKey}:{$matchId}";
-        
-        return Cache::remember($cacheKey, $this->cacheTtl, function () use ($sportKey, $matchId, $bookmakers) {
-            try {
-                // Pour l'instant, on utilise l'endpoint général
-                // TODO: Utiliser l'endpoint spécifique par match si disponible
-                $url = "{$this->baseUrl}/sports/{$sportKey}/odds";
-                
-                $params = [
-                    'apiKey' => $this->apiKey,
-                    'regions' => 'us,eu,uk', // Multiples régions pour plus de bookmakers
-                    'markets' => 'h2h,spreads,totals', // h2h = 1X2, spreads = handicap, totals = over/under
-                    'oddsFormat' => 'decimal',
-                    'dateFormat' => 'iso',
-                ];
-
-                if (!empty($bookmakers)) {
-                    $params['bookmakers'] = implode(',', $bookmakers);
-                }
-
-                Log::info("📊 Récupération cotes pour match: {$matchId} (sport: {$sportKey})");
-
-                $response = Http::timeout(15)->get($url, $params);
-
-                if (!$response->successful()) {
-                    Log::error("❌ Odds API Error: " . $response->status() . " - " . $response->body());
-                    return null;
-                }
-
-                $data = $response->json();
-                
-                if (!is_array($data) || empty($data)) {
-                    Log::warning("⚠️ Aucune donnée retournée par Odds API");
-                    return null;
-                }
-
-                // Chercher le match correspondant dans les résultats
-                // Note: L'API peut retourner plusieurs matchs, on doit trouver le bon
-                foreach ($data as $event) {
-                    // Comparer par ID ou par équipes
-                    if (isset($event['id']) && $event['id'] === $matchId) {
-                        return $this->formatOdds($event);
-                    }
-                }
-
-                // Si pas trouvé par ID, retourner le premier match (fallback)
-                // TODO: Améliorer la correspondance avec les équipes
-                if (!empty($data)) {
-                    Log::info("ℹ️ Match non trouvé par ID, utilisation du premier résultat");
-                    return $this->formatOdds($data[0]);
-                }
-
-                return null;
-            } catch (\Exception $e) {
-                Log::error("❌ Odds API Exception: " . $e->getMessage());
-                return null;
-            }
-        });
-    }
-
-    /**
-     * Récupérer les cotes pour plusieurs matchs en une requête
-     * 
-     * @param string $sportKey
-     * @param array $matchIds
-     * @param array $bookmakers
-     * @return array
-     */
-    public function getBatchOdds(string $sportKey, array $matchIds, array $bookmakers = []): array
-    {
-        $results = [];
-        
-        // Limiter à 10 matchs par requête pour éviter timeout
-        $chunks = array_chunk($matchIds, 10);
-        
-        foreach ($chunks as $chunk) {
-            foreach ($chunk as $matchId) {
-                $odds = $this->getMatchOdds($sportKey, $matchId, $bookmakers);
-                if ($odds) {
-                    $results[$matchId] = $odds;
-                }
-            }
-        }
-        
-        return $results;
-    }
-
-    /**
-     * Formater les cotes pour notre format standard
-     * 
-     * @param array $event Données brutes de l'API
-     * @return array Format standardisé
-     */
-    private function formatOdds(array $event): array
-    {
-        $formatted = [
-            'match_id' => $event['id'] ?? null,
-            'sport_key' => $event['sport_key'] ?? null,
-            'home_team' => $event['home_team'] ?? null,
-            'away_team' => $event['away_team'] ?? null,
-            'commence_time' => $event['commence_time'] ?? null,
-            'bookmakers' => [],
-        ];
-
-        // Extraire les cotes de chaque bookmaker
-        foreach ($event['bookmakers'] ?? [] as $bookmaker) {
-            $bookmakerOdds = [
-                'id' => $bookmaker['key'] ?? null,
-                'name' => $bookmaker['title'] ?? null,
-                'last_update' => $bookmaker['last_update'] ?? now()->toIso8601String(),
-                'home_win' => null,
-                'draw' => null,
-                'away_win' => null,
-                'over_25' => null,
-                'under_25' => null,
-            ];
-
-            // Extraire les cotes 1X2 (h2h = head-to-head)
-            foreach ($bookmaker['markets'] ?? [] as $market) {
-                if ($market['key'] === 'h2h') {
-                    foreach ($market['outcomes'] ?? [] as $outcome) {
-                        $name = $outcome['name'] ?? '';
-                        $price = $outcome['price'] ?? null;
-                        
-                        // Identifier le type de cote
-                        if (stripos($name, $formatted['home_team']) !== false || 
-                            $name === '1' || 
-                            stripos($name, 'home') !== false) {
-                            $bookmakerOdds['home_win'] = $price;
-                        } elseif ($name === 'X' || stripos($name, 'draw') !== false) {
-                            $bookmakerOdds['draw'] = $price;
-                        } elseif (stripos($name, $formatted['away_team']) !== false || 
-                                  $name === '2' || 
-                                  stripos($name, 'away') !== false) {
-                            $bookmakerOdds['away_win'] = $price;
-                        }
-                    }
-                }
-                
-                // Extraire les cotes Over/Under 2.5
-                if ($market['key'] === 'totals') {
-                    foreach ($market['outcomes'] ?? [] as $outcome) {
-                        $name = $outcome['name'] ?? '';
-                        $point = $outcome['point'] ?? null;
-                        $price = $outcome['price'] ?? null;
-                        
-                        if ($point == 2.5) {
-                            if (stripos($name, 'over') !== false) {
-                                $bookmakerOdds['over_25'] = $price;
-                            } elseif (stripos($name, 'under') !== false) {
-                                $bookmakerOdds['under_25'] = $price;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Ne garder que les bookmakers avec au moins une cote
-            if ($bookmakerOdds['home_win'] || $bookmakerOdds['draw'] || $bookmakerOdds['away_win']) {
-                $formatted['bookmakers'][] = $bookmakerOdds;
-            }
+        if (empty($this->apiKey)) {
+            Log::warning('[OddsApi] ODDS_API_KEY non configuré');
+            return 0;
         }
 
-        return $formatted;
-    }
+        if (Cache::has(self::CACHE_KEY)) {
+            $index = Cache::get(self::CACHE_KEY, []);
+            Log::info('[OddsApi] Cache déjà chaud', ['matchs' => count($index)]);
+            return count($index);
+        }
 
-    /**
-     * Obtenir la liste des bookmakers disponibles
-     * 
-     * @return array
-     */
-    public function getAvailableBookmakers(): array
-    {
-        $cacheKey = 'odds:bookmakers:list';
-        
-        return Cache::remember($cacheKey, 3600, function () { // Cache 1 heure
+        $index = [];
+        $requestsUsed = 0;
+
+        foreach (self::SPORT_KEYS as $sportKey) {
             try {
-                $url = "{$this->baseUrl}/sports";
-                $response = Http::timeout(10)->get($url, [
-                    'apiKey' => $this->apiKey,
+                $response = Http::timeout(15)->get(self::API_BASE . "/sports/{$sportKey}/odds/", [
+                    'apiKey'      => $this->apiKey,
+                    'regions'     => 'eu',
+                    'markets'     => 'h2h,totals',
+                    'bookmakers'  => self::BOOKMAKER,
+                    'oddsFormat'  => 'decimal',
                 ]);
 
+                $requestsUsed++;
+
                 if (!$response->successful()) {
-                    return [];
+                    Log::warning("[OddsApi] Erreur {$sportKey}", ['status' => $response->status()]);
+                    continue;
                 }
 
-                // L'API retourne les sports, pas directement les bookmakers
-                // Pour obtenir les bookmakers, on doit faire une requête de test
-                // Pour l'instant, retourner une liste statique des bookmakers populaires
-                return [
-                    'bet365',
-                    '1xbet',
-                    'betway',
-                    'betwinner',
-                    'melbet',
-                    'williamhill',
-                    'pinnacle',
-                ];
-            } catch (\Exception $e) {
-                Log::error("Erreur récupération bookmakers: " . $e->getMessage());
-                return [];
+                $events = $response->json() ?? [];
+
+                foreach ($events as $event) {
+                    $parsed = $this->parseEvent($event);
+                    if ($parsed) {
+                        // Indexer par clé normalisée "home vs away"
+                        $key = $this->normalizeKey($parsed['home'], $parsed['away']);
+                        $index[$key] = $parsed;
+                        // Aussi par clé inversée pour absorber les différences d'ordre
+                        $keyInv = $this->normalizeKey($parsed['away'], $parsed['home']);
+                        $index[$keyInv] = array_merge($parsed, ['_inverted' => true]);
+                    }
+                }
+
+            } catch (\Throwable $e) {
+                Log::warning("[OddsApi] Exception {$sportKey}: " . $e->getMessage());
             }
-        });
+        }
+
+        Cache::put(self::CACHE_KEY, $index, self::CACHE_TTL);
+
+        Log::info('[OddsApi] Index chargé', [
+            'sports'   => count(self::SPORT_KEYS),
+            'requetes' => $requestsUsed,
+            'matchs'   => count($index) / 2, // divisé par 2 car doublons inversés
+        ]);
+
+        return (int) (count($index) / 2);
+    }
+
+    /**
+     * Trouver les cotes 1xBet pour un match donné.
+     * Retourne null si introuvable.
+     *
+     * @return array{home: float, draw: float, away: float, over25: float|null, under25: float|null}|null
+     */
+
+    /**
+     * Vider le cache (forcer rechargement).
+     */
+    public function clearCache(): void
+    {
+        Cache::forget(self::CACHE_KEY);
+    }
+
+    // ── Helpers privés ────────────────────────────────────────────────────────
+
+    private function parseEvent(array $event): ?array
+    {
+        $home = $event['home_team'] ?? null;
+        $away = $event['away_team'] ?? null;
+        if (!$home || !$away) return null;
+
+        $result = [
+            'home'    => $home,
+            'away'    => $away,
+            'time'    => $event['commence_time'] ?? null,
+            'sport'   => $event['sport_key'] ?? null,
+            'h2h'     => [],
+            'over25'  => null,
+            'under25' => null,
+        ];
+
+        $bookmaker = collect($event['bookmakers'] ?? [])
+            ->firstWhere('key', self::BOOKMAKER);
+
+        if (!$bookmaker) return null;
+
+        foreach ($bookmaker['markets'] ?? [] as $market) {
+            if ($market['key'] === 'h2h') {
+                foreach ($market['outcomes'] ?? [] as $o) {
+                    $result['h2h'][$o['name']] = (float) $o['price'];
+                }
+            }
+            if ($market['key'] === 'totals') {
+                foreach ($market['outcomes'] ?? [] as $o) {
+                    if (($o['point'] ?? null) == 2.5) {
+                        $name = strtolower($o['name'] ?? '');
+                        if (str_contains($name, 'over'))  $result['over25']  = (float) $o['price'];
+                        if (str_contains($name, 'under')) $result['under25'] = (float) $o['price'];
+                    }
+                }
+            }
+        }
+
+        if (empty($result['h2h'])) return null;
+
+        return $result;
+    }
+
+    private function extractOdds(array $entry): array
+    {
+        $h2h  = $entry['h2h'] ?? [];
+        $home = $entry['home'] ?? '';
+        $away = $entry['away'] ?? '';
+
+        // Chercher home/draw/away dans les outcomes (nommés par équipe dans The Odds API)
+        $homeOdds = $h2h[$home] ?? null;
+        $awayOdds = $h2h[$away] ?? null;
+        $drawOdds = $h2h['Draw'] ?? null;
+
+        // Fallback si noms légèrement différents
+        if (!$homeOdds || !$awayOdds) {
+            $values = array_values($h2h);
+            sort($values);
+            if (count($values) >= 2) {
+                $homeOdds = $homeOdds ?? ($values[1] ?? null); // tendance : home > draw
+                $awayOdds = $awayOdds ?? ($values[0] ?? null);
+                $drawOdds = $drawOdds ?? ($values[count($values) > 2 ? 1 : 0] ?? null);
+            }
+        }
+
+        return [
+            'home'    => $homeOdds ? round((float) $homeOdds, 2) : null,
+            'draw'    => $drawOdds ? round((float) $drawOdds, 2) : null,
+            'away'    => $awayOdds ? round((float) $awayOdds, 2) : null,
+            'over25'  => $entry['over25']  ? round((float) $entry['over25'],  2) : null,
+            'under25' => $entry['under25'] ? round((float) $entry['under25'], 2) : null,
+        ];
+    }
+
+    private function normalizeKey(string $a, string $b): string
+    {
+        return $this->normalizeName($a) . '|||' . $this->normalizeName($b);
+    }
+
+    private function normalizeName(string $name): string
+    {
+        // Supprimer accents, mettre en minuscules, retirer ponctuation
+        $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name);
+        $normalized = strtolower($normalized ?? $name);
+        $normalized = preg_replace('/[^a-z0-9\s]/', '', $normalized);
+        return trim(preg_replace('/\s+/', ' ', $normalized) ?? '');
+    }
+
+    private function keyWords(string $name): array
+    {
+        // Mots à ignorer seulement s'ils ne sont pas le nom complet
+        $stop = ['city', 'united', 'club', 'fc', 'cf', 'sc', 'ac', 'the', 'de', 'du', 'and'];
+        $words = preg_split('/[\s\-\.]+/', strtolower($this->normalizeName($name)));
+        // Garder les mots ≥ 3 chars (pour PSG, AS...) sauf stop words
+        $significant = array_values(array_filter($words, fn($w) => strlen($w) >= 3 && !in_array($w, $stop)));
+        // Si rien de significatif (ex: "FC"), retourner tous les mots ≥ 2 chars
+        return $significant ?: array_values(array_filter($words, fn($w) => strlen($w) >= 2));
+    }
+
+    /**
+     * Score de similarité entre deux noms d'équipes (0-100).
+     * Utilise similar_text + comparaison des mots-clés.
+     */
+    private function teamSimilarity(string $a, string $b): int
+    {
+        $na = $this->normalizeName($a);
+        $nb = $this->normalizeName($b);
+
+        // Correspondance exacte après normalisation
+        if ($na === $nb) return 100;
+
+        // similar_text score
+        similar_text($na, $nb, $pct);
+
+        // Bonus si les mots-clés se recoupent
+        $wordsA = $this->keyWords($a);
+        $wordsB = $this->keyWords($b);
+        $common = count(array_intersect($wordsA, $wordsB));
+        $bonus  = $common > 0 ? min(20, $common * 10) : 0;
+
+        return (int) min(100, $pct + $bonus);
+    }
+
+    public function find(string $homeTeam, string $awayTeam): ?array
+    {
+        $index = Cache::get(self::CACHE_KEY, []);
+        if (empty($index)) return null;
+
+        // 1. Recherche exacte normalisée
+        $key = $this->normalizeKey($homeTeam, $awayTeam);
+        if (isset($index[$key])) {
+            return $this->extractOdds($index[$key]);
+        }
+
+        // 2. Recherche par mots-clés (intersection)
+        $homeWords = $this->keyWords($homeTeam);
+        $awayWords = $this->keyWords($awayTeam);
+
+        $bestScore = 0;
+        $bestEntry = null;
+
+        foreach ($index as $entry) {
+            if (isset($entry['_inverted'])) continue;
+
+            $entryHome = $entry['home'] ?? '';
+            $entryAway = $entry['away'] ?? '';
+
+            // Score de similarité pondéré home + away
+            $homeScore = $this->teamSimilarity($homeTeam, $entryHome);
+            $awayScore = $this->teamSimilarity($awayTeam, $entryAway);
+            $score     = (int) round(($homeScore + $awayScore) / 2);
+
+            // Fallback mots-clés pour détecter les correspondances partielles rapides
+            $homeKwMatch = !empty(array_intersect($homeWords, $this->keyWords($entryHome)));
+            $awayKwMatch = !empty(array_intersect($awayWords, $this->keyWords($entryAway)));
+            if ($homeKwMatch && $awayKwMatch && $score < 60) $score = 60;
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestEntry = $entry;
+            }
+        }
+
+        // Seuil : 65% de similarité minimum pour accepter une correspondance
+        if ($bestScore >= 65 && $bestEntry !== null) {
+            Log::debug("OddsApiService: fuzzy match [{$homeTeam} vs {$awayTeam}] → [{$bestEntry['home']} vs {$bestEntry['away']}] score={$bestScore}");
+            return $this->extractOdds($bestEntry);
+        }
+
+        return null;
     }
 }

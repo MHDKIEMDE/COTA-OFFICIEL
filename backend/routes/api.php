@@ -56,6 +56,7 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/facebook', [AuthController::class, 'loginWithFacebook']);
+    Route::post('/google',   [AuthController::class, 'loginWithGoogle']);
     Route::post('/check-phone', [AuthController::class, 'checkPhone']);
     Route::post('/login-pin', [AuthController::class, 'loginWithPin']);
 });
@@ -143,6 +144,7 @@ Route::middleware('throttle:60,1')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/predictions/history', [PredictionController::class, 'history']);
     Route::get('/predictions/statistics', [PredictionController::class, 'statistics']);
+    Route::get('/user/roi', [PredictionController::class, 'personalRoi']);
     Route::post('/predictions/feedback', [PredictionController::class, 'feedback']);
     Route::get('/predictions/combined-daily', [PredictionController::class, 'combinedDaily']);
 
