@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Admin') — COTA</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
 
     <!-- Google Fonts — Archivo / Space Grotesk / JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -151,17 +153,39 @@
             <!-- Navigation -->
             <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
 
-                <a href="{{ route('admin.dashboard') }}"
+                <a href="{{ route('admin.dashboard.index') }}"
                    class="sidebar-link {{ request()->routeIs('admin.dashboard*') ? 'active' : '' }}">
                     <i class="fa-solid fa-chart-pie w-4 text-center"></i>
                     <span>Dashboard</span>
                 </a>
+
+                <!-- ── Pronostics ── -->
+                <div class="pt-3 pb-1 px-2">
+                    <span class="text-xs font-semibold uppercase tracking-widest" style="color:var(--dim-2)">Pronostics</span>
+                </div>
 
                 <a href="{{ route('admin.predictions.index') }}"
                    class="sidebar-link {{ request()->routeIs('admin.predictions*') ? 'active' : '' }}">
                     <i class="fa-solid fa-futbol w-4 text-center"></i>
                     <span>Pronostics</span>
                 </a>
+
+                <a href="{{ route('admin.stats.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.stats*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-chart-column w-4 text-center"></i>
+                    <span>Statistiques</span>
+                </a>
+
+                <a href="{{ route('admin.competitions.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.competitions*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-trophy w-4 text-center"></i>
+                    <span>Compétitions</span>
+                </a>
+
+                <!-- ── Utilisateurs ── -->
+                <div class="pt-3 pb-1 px-2">
+                    <span class="text-xs font-semibold uppercase tracking-widest" style="color:var(--dim-2)">Utilisateurs</span>
+                </div>
 
                 <a href="{{ route('admin.users.index') }}"
                    class="sidebar-link {{ request()->routeIs('admin.users*') ? 'active' : '' }}">
@@ -187,24 +211,6 @@
                     <span>Affiliations</span>
                 </a>
 
-                <a href="{{ route('admin.bookmakers.index') }}"
-                   class="sidebar-link {{ request()->routeIs('admin.bookmakers*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-link w-4 text-center"></i>
-                    <span>Bookmakers</span>
-                </a>
-
-                <a href="{{ route('admin.competitions.index') }}"
-                   class="sidebar-link {{ request()->routeIs('admin.competitions*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-trophy w-4 text-center"></i>
-                    <span>Compétitions</span>
-                </a>
-
-                <a href="{{ route('admin.stats.index') }}"
-                   class="sidebar-link {{ request()->routeIs('admin.stats*') ? 'active' : '' }}">
-                    <i class="fa-solid fa-chart-column w-4 text-center"></i>
-                    <span>Statistiques</span>
-                </a>
-
                 <a href="{{ route('admin.feedbacks.index') }}"
                    class="sidebar-link {{ request()->routeIs('admin.feedbacks*') ? 'active' : '' }}">
                     <i class="fa-solid fa-comment-dots w-4 text-center"></i>
@@ -215,10 +221,61 @@
                     @endif
                 </a>
 
-                <!-- Séparateur Système -->
-                <div class="pt-4 mt-2" style="border-top:1px solid var(--line)">
-                    <span class="px-2 text-xs font-semibold tracking-widest uppercase" style="color:var(--dim-2)">Système</span>
+                <!-- ── Bookmakers ── -->
+                <div class="pt-3 pb-1 px-2">
+                    <span class="text-xs font-semibold uppercase tracking-widest" style="color:var(--dim-2)">Bookmakers</span>
                 </div>
+
+                <a href="{{ route('admin.admin.bookmakers.list') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.admin.bookmakers*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-store w-4 text-center"></i>
+                    <span>Bookmakers</span>
+                </a>
+
+                <a href="{{ route('admin.bookmaker-blogs.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.bookmaker-blogs*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-newspaper w-4 text-center"></i>
+                    <span>Articles</span>
+                </a>
+
+                <a href="{{ route('admin.bookmaker-candidates.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.bookmaker-candidates*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-magnifying-glass w-4 text-center"></i>
+                    <span>Candidats</span>
+                    @php
+                        $pendingCandidates = \App\Models\BookmakerCandidate::where('status','pending')->count();
+                    @endphp
+                    @if($pendingCandidates > 0)
+                        <span class="ml-auto badge-accent">{{ $pendingCandidates }}</span>
+                    @endif
+                </a>
+
+                <a href="{{ route('admin.coupon.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.coupon*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-ticket w-4 text-center"></i>
+                    <span>Coupon IA</span>
+                </a>
+
+                <a href="{{ route('admin.news-sources.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.news-sources*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-newspaper w-4 text-center"></i>
+                    <span>Actualités</span>
+                    @php $pendingNews = \App\Models\NewsSource::active()->count(); @endphp
+                    @if($pendingNews > 0)
+                        <span class="ml-auto" style="font-size:10px;padding:1px 6px;border-radius:20px;background:rgba(232,255,54,.12);color:var(--accent);font-family:'JetBrains Mono',monospace">{{ $pendingNews }}</span>
+                    @endif
+                </a>
+
+                <!-- ── Système ── -->
+                <div class="pt-3 pb-1 px-2" style="border-top:1px solid var(--line); margin-top:8px">
+                    <span class="text-xs font-semibold uppercase tracking-widest" style="color:var(--dim-2)">Système</span>
+                </div>
+
+                <a href="{{ route('admin.stats.funnel') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.stats.funnel') ? 'active' : '' }}">
+                    <i class="fa-solid fa-filter w-4 text-center"></i>
+                    <span>Funnel</span>
+                </a>
 
                 <a href="{{ route('admin.api-monitor.index') }}"
                    class="sidebar-link {{ request()->routeIs('admin.api-monitor*') ? 'active' : '' }}">

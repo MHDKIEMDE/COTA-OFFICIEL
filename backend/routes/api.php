@@ -60,11 +60,18 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/login-pin', [AuthController::class, 'loginWithPin']);
 });
 
+// ── Analytics — throttle 120 req/min (fire & forget mobile) ─────────────────
+Route::middleware('throttle:120,1')->group(function () {
+    Route::post('/analytics', [App\Http\Controllers\Api\AnalyticsController::class, 'store']);
+});
+
 // ── Routes publiques — throttle 60 req/min par IP ───────────────────────────
 Route::middleware('throttle:60,1')->group(function () {
 
     // Prédictions
     Route::get('/predictions/today',            [PredictionController::class, 'today']);
+    Route::get('/predictions/history',          [PredictionController::class, 'historyPublic']);
+    Route::get('/predictions/coupon-history',   [PredictionController::class, 'couponHistory']);
     Route::get('/predictions/coupon',           [PredictionController::class, 'coupon']);
     Route::get('/predictions/competitions',     [PredictionController::class, 'competitions']);
     Route::get('/predictions/search',           [PredictionController::class, 'search']);
@@ -80,10 +87,10 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/teams/{id}/injuries',  [TeamController::class, 'injuries'])->where('id', '[0-9]+');
     Route::get('/teams/{id}/news',      [TeamController::class, 'news'])->where('id', '[0-9]+');
 
-    // Matchs en direct
+    // Matchs
+    Route::get('/matches/live',           [MatchController::class, 'live']);
     Route::get('/matches/featured',       [MatchController::class, 'featured']);
     Route::get('/stats/accuracy',         [PredictionController::class, 'accuracy']);
-    Route::get('/matches/live',           [MatchController::class, 'live']);
     Route::get('/matches/today',          [MatchController::class, 'today']);
     Route::get('/matches/date/{date}',    [MatchController::class, 'byDate'])->where('date', '\d{4}-\d{2}-\d{2}');
     Route::get('/matches/{id}',           [MatchController::class, 'show']);
@@ -130,6 +137,7 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/bookmakers/blogs',          [App\Http\Controllers\Api\BookmakerBlogController::class, 'index']);
     Route::get('/bookmakers/{id}/blog',      [App\Http\Controllers\Api\BookmakerBlogController::class, 'show']);
     Route::get('/bookmakers/{id}/detail',    [OddsController::class, 'getBookmakerDetail']);
+    Route::get('/bookmakers/{slug}/matches', [OddsController::class, 'getBookmakerMatches']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {

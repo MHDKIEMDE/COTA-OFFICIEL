@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\StatsController;
 use App\Http\Controllers\Admin\ApiMonitorController;
 use App\Http\Controllers\Web\PageController;
 use App\Http\Controllers\Web\AuthController;
+use App\Http\Controllers\Web\SocialAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -73,7 +74,10 @@ Route::middleware(['web', 'guest'])->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
     Route::get('/verify-otp', [AuthController::class, 'showVerifyOtp'])->name('auth.verify-otp');
-    Route::get('/auth/facebook', [AuthController::class, 'facebookCallback'])->name('auth.facebook');
+
+    // Social OAuth — Google & Facebook
+    Route::get('/auth/{provider}/redirect', [SocialAuthController::class, 'redirect'])->name('auth.social.redirect');
+    Route::get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'])->name('auth.social.callback');
 });
 
 // Protected routes (auth required)
@@ -134,6 +138,8 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
         ->parameters(['bookmaker-blogs' => 'bookmakerBlog']);
     Route::post('/bookmaker-blogs/{bookmakerBlog}/toggle-featured', [BookmakerBlogController::class, 'toggleFeatured'])
         ->name('admin.bookmaker-blogs.toggle-featured');
+    Route::post('/bookmaker-blogs/generate-ai', [BookmakerBlogController::class, 'generateWithAI'])
+        ->name('admin.bookmaker-blogs.generate-ai');
 
     // Bookmakers — Liste d'attente (candidats depuis APIs)
     Route::prefix('bookmaker-candidates')->name('admin.bookmaker-candidates.')->group(function () {
@@ -148,6 +154,8 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
 
     // Statistiques avancées
     Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
+    Route::get('/stats/active-users', [StatsController::class, 'activeUsers'])->name('stats.active-users');
+    Route::get('/stats/funnel', [StatsController::class, 'funnel'])->name('stats.funnel');
 
     // Monitoring APIs
     Route::get('/api-monitor', [ApiMonitorController::class, 'index'])->name('api-monitor.index');
@@ -168,8 +176,29 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     Route::patch('/feedbacks/{feedback}/status', [FeedbackController::class, 'updateStatus'])->name('feedbacks.status');
     Route::delete('/feedbacks/{feedback}', [FeedbackController::class, 'destroy'])->name('feedbacks.destroy');
 
+    // Sources actualités RSS
+    Route::get('/news-sources', [App\Http\Controllers\Admin\NewsSourceController::class, 'index'])->name('news-sources.index');
+    Route::get('/news-sources/create', [App\Http\Controllers\Admin\NewsSourceController::class, 'create'])->name('news-sources.create');
+    Route::post('/news-sources', [App\Http\Controllers\Admin\NewsSourceController::class, 'store'])->name('news-sources.store');
+    Route::get('/news-sources/{newsSource}/edit', [App\Http\Controllers\Admin\NewsSourceController::class, 'edit'])->name('news-sources.edit');
+    Route::put('/news-sources/{newsSource}', [App\Http\Controllers\Admin\NewsSourceController::class, 'update'])->name('news-sources.update');
+    Route::delete('/news-sources/{newsSource}', [App\Http\Controllers\Admin\NewsSourceController::class, 'destroy'])->name('news-sources.destroy');
+    Route::post('/news-sources/{newsSource}/toggle', [App\Http\Controllers\Admin\NewsSourceController::class, 'toggle'])->name('news-sources.toggle');
+    Route::post('/news-sources/{newsSource}/fetch-now', [App\Http\Controllers\Admin\NewsSourceController::class, 'fetchNow'])->name('news-sources.fetch-now');
+    Route::post('/news-sources/fetch-all', [App\Http\Controllers\Admin\NewsSourceController::class, 'fetchAll'])->name('news-sources.fetch-all');
+    Route::get('/news-sources/{newsSource}/articles', [App\Http\Controllers\Admin\NewsSourceController::class, 'articles'])->name('news-sources.articles');
+    Route::post('/news-sources/articles/{article}/toggle', [App\Http\Controllers\Admin\NewsSourceController::class, 'toggleArticle'])->name('news-sources.toggle-article');
+
+    // Coupon IA
+    Route::get('/coupon', [App\Http\Controllers\Admin\CouponController::class, 'index'])->name('coupon.index');
+    Route::post('/coupon/{id}/publish', [App\Http\Controllers\Admin\CouponController::class, 'publish'])->name('coupon.publish');
+    Route::post('/coupon/{id}/unpublish', [App\Http\Controllers\Admin\CouponController::class, 'unpublish'])->name('coupon.unpublish');
+    Route::post('/coupon/{id}/status', [App\Http\Controllers\Admin\CouponController::class, 'updateStatus'])->name('coupon.status');
+    Route::delete('/coupon/{id}', [App\Http\Controllers\Admin\CouponController::class, 'destroy'])->name('coupon.destroy');
+
     // Paramètres
     Route::get('/settings', [App\Http\Controllers\Admin\AdminSettingsController::class, 'index'])->name('settings.index');
+    Route::post('/settings/api-source-toggle', [App\Http\Controllers\Admin\AdminSettingsController::class, 'toggleApiSource'])->name('settings.api-source-toggle');
 
     // Compétitions (Gestion des tendances)
     Route::resource('competitions', CompetitionController::class);
