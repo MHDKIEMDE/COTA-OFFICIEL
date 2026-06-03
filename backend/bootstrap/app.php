@@ -33,7 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->report(function (\Throwable $e): void {
-            if (app()->bound('sentry') && app('sentry')->getOptions()->getDsn()) {
+            if (app()->bound('sentry') && env('SENTRY_LARAVEL_DSN')) {
                 \Sentry\Laravel\Integration::captureUnhandledException($e);
             }
         });
