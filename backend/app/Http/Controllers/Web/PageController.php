@@ -151,36 +151,23 @@ class PageController extends Controller
     }
 
     /**
-     * History page (requires auth)
+     * History page (public)
      */
     public function history()
     {
-        $user = Auth::user();
-        
-        if (!$user) {
-            $predictions = collect();
-            $stats = [
-                'total' => 0,
-                'won' => 0,
-                'lost' => 0,
-                'pending' => 0,
-                'win_rate' => 0,
-            ];
-        } else {
-            // For now, show all predictions as user history
-            $predictions = Prediction::where('status', '!=', 'pending')
-                ->orderBy('match_date', 'desc')
-                ->limit(50)
-                ->get();
+        $predictions = Prediction::where('is_published', true)
+            ->where('status', '!=', 'pending')
+            ->orderBy('match_date', 'desc')
+            ->limit(50)
+            ->get();
 
-            $stats = [
-                'total' => $predictions->count(),
-                'won' => $predictions->where('status', 'won')->count(),
-                'lost' => $predictions->where('status', 'lost')->count(),
-                'pending' => Prediction::where('status', 'pending')->count(),
-                'win_rate' => $this->calculateWinRate(),
-            ];
-        }
+        $stats = [
+            'total'    => $predictions->count(),
+            'won'      => $predictions->where('status', 'won')->count(),
+            'lost'     => $predictions->where('status', 'lost')->count(),
+            'pending'  => Prediction::where('status', 'pending')->count(),
+            'win_rate' => $this->calculateWinRate(),
+        ];
 
         return view('web.history', compact('predictions', 'stats'));
     }
@@ -190,44 +177,37 @@ class PageController extends Controller
      */
     public function statistics()
     {
-        $user = Auth::user();
+        $won   = Prediction::where('status', 'won')->count();
+        $lost  = Prediction::where('status', 'lost')->count();
+        $total = $won + $lost;
 
-        if (!$user) {
-            $stats = $this->getEmptyStats();
-            $byCompetition = collect();
-        } else {
-            $won = Prediction::where('status', 'won')->count();
-            $lost = Prediction::where('status', 'lost')->count();
-            $total = $won + $lost;
+        $stats = [
+            'total_predictions' => Prediction::where('is_published', true)->count(),
+            'won'               => $won,
+            'lost'              => $lost,
+            'pending'           => Prediction::where('status', 'pending')->count(),
+            'win_rate'          => $total > 0 ? round(($won / $total) * 100, 1) : 0,
+            'avg_odds'          => Prediction::avg('odds') ?? 0,
+            'roi'               => $this->calculateROI(),
+            'streak'            => $this->calculateStreak(),
+            'best_competition'  => $this->getBestCompetition(),
+            'best_bet_type'     => $this->getBestBetType(),
+        ];
 
-            $stats = [
-                'total_predictions' => Prediction::count(),
-                'won' => $won,
-                'lost' => $lost,
-                'pending' => Prediction::where('status', 'pending')->count(),
-                'win_rate' => $total > 0 ? round(($won / $total) * 100, 1) : 0,
-                'avg_odds' => Prediction::avg('odds') ?? 0,
-                'roi' => $this->calculateROI(),
-                'streak' => $this->calculateStreak(),
-                'best_competition' => $this->getBestCompetition(),
-                'best_bet_type' => $this->getBestBetType(),
-            ];
-
-            $byCompetition = Prediction::selectRaw('
-                    competition as name,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = "won" THEN 1 ELSE 0 END) as won,
-                    SUM(CASE WHEN status = "lost" THEN 1 ELSE 0 END) as lost
-                ')
-                ->whereIn('status', ['won', 'lost'])
-                ->groupBy('competition')
-                ->get()
-                ->map(function ($item) {
-                    $total = $item->won + $item->lost;
-                    $item->win_rate = $total > 0 ? round(($item->won / $total) * 100, 1) : 0;
-                    return $item;
-                });
-        }
+        $byCompetition = Prediction::selectRaw('
+                competition as name,
+                COUNT(*) as total,
+                SUM(CASE WHEN status = "won" THEN 1 ELSE 0 END) as won,
+                SUM(CASE WHEN status = "lost" THEN 1 ELSE 0 END) as lost
+            ')
+            ->whereIn('status', ['won', 'lost'])
+            ->groupBy('competition')
+            ->get()
+            ->map(function ($item) {
+                $total = $item->won + $item->lost;
+                $item->win_rate = $total > 0 ? round(($item->won / $total) * 100, 1) : 0;
+                return $item;
+            });
 
         return view('web.statistics', compact('stats', 'byCompetition'));
     }
