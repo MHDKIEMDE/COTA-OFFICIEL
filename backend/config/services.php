@@ -110,8 +110,19 @@ return [
     ],
 
     // Couche LLM pour l'analyse IA (§9 CDC V2)
+    'betwinner' => [
+        'affiliate_key' => env('BETWINNER_AFFILIATE_KEY'),
+    ],
+
+    'affiliatecontrol' => [
+        'access_key'  => env('AFFILIATECONTROL_ACCESS_KEY'),
+        'secret_key'  => env('AFFILIATECONTROL_SECRET_KEY'),
+        'customer_id' => env('AFFILIATECONTROL_CUSTOMER_ID'),
+    ],
+
     'telegram' => [
-        'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+        'bot_token'    => env('TELEGRAM_BOT_TOKEN', ''),
+        'bot_username' => env('TELEGRAM_BOT_USERNAME', 'COTABot'),
     ],
 
     // provider: 'anthropic' | 'openai' | 'none' (template fallback)

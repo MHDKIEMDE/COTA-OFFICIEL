@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\MediaController;
 use App\Http\Controllers\Api\NewsController;
 use App\Http\Controllers\Api\PlayerController;
+use App\Http\Controllers\Api\InfluencerController;
 
 /*
 |--------------------------------------------------------------------------
@@ -142,7 +143,7 @@ Route::middleware('throttle:60,1')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/predictions/history', [PredictionController::class, 'history']);
+    Route::get('/predictions/history/me', [PredictionController::class, 'history']);
     Route::get('/predictions/statistics', [PredictionController::class, 'statistics']);
     Route::get('/user/roi', [PredictionController::class, 'personalRoi']);
     Route::post('/predictions/feedback', [PredictionController::class, 'feedback']);
@@ -182,6 +183,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/complete-registration', [AuthController::class, 'completeRegistration']);
     Route::post('/auth/set-pin', [AuthController::class, 'setPin']);
     Route::post('/auth/reset-pin', [AuthController::class, 'resetPin']);
+    Route::get('/auth/telegram-link', [AuthController::class, 'generateTelegramLink']);
+    Route::post('/auth/unlink-telegram', [AuthController::class, 'unlinkTelegram']);
 
     // Abonnements (Paydunya Mobile Money) - nécessitent authentification
     Route::get('/subscriptions/me', [App\Http\Controllers\Api\SubscriptionController::class, 'getMySubscription']);
@@ -246,10 +249,11 @@ Route::middleware('auth:sanctum')->prefix('affiliate')->group(function () {
     
     // Vérification ID joueur - L'utilisateur soumet son ID bookmaker
     Route::post('/verify-player', [AffiliateController::class, 'verifyPlayerId']);
+    Route::post('/claim',         [AffiliateController::class, 'verifyPlayerId']); // alias mobile
 });
 
 // Routes Admin Affiliation
-Route::middleware('auth:sanctum')->prefix('admin/affiliate')->group(function () {
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/affiliate')->group(function () {
     Route::get('/pending', [AffiliateController::class, 'getPendingVerifications']);
     Route::post('/approve/{id}', [AffiliateController::class, 'approveVerification']);
     Route::post('/reject/{id}', [AffiliateController::class, 'rejectVerification']);
@@ -294,6 +298,20 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/my-bets')->group(fun
 // ── Webhook Telegram Bot ──────────────────────────────────────────────────────
 Route::post('/telegram/webhook', [App\Http\Controllers\Api\TelegramController::class, 'webhook'])
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+// ── Influenceurs — lien tracké (aussi déclaré dans web.php pour /r/{slug} sans préfixe /api)
+Route::get('/r/{slug}', [InfluencerController::class, 'redirect']);
+
+// ── Influenceurs — conversion (auth requis) ───────────────────────────────────
+Route::middleware('auth:sanctum')->post('/influencer/conversion', [InfluencerController::class, 'recordConversion']);
+
+// ── Influenceurs — admin ──────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/influencers')->group(function () {
+    Route::get('/',           [InfluencerController::class, 'index']);
+    Route::post('/',          [InfluencerController::class, 'store']);
+    Route::get('/{id}/stats', [InfluencerController::class, 'stats']);
+    Route::patch('/{id}/toggle', [InfluencerController::class, 'toggle']);
+});
 
 // ── Webhooks paiement (point d'entrée unique, tous providers) ────────────────
 Route::prefix('webhooks')->group(function () {

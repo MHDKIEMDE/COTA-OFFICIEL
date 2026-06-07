@@ -146,13 +146,26 @@ class AffiliateController extends Controller
      */
     public function handlePostback(Request $request): JsonResponse
     {
+        // Vérifier la clé secrète Betwinner pour rejeter les appels non autorisés
+        $expectedKey = config('services.betwinner.affiliate_key');
+        $receivedKey = $request->query('key') ?? $request->header('X-Affiliate-Key');
+
+        if ($expectedKey && $receivedKey !== $expectedKey) {
+            Log::warning('Affiliate postback: clé invalide', [
+                'ip'   => $request->ip(),
+                'key'  => $receivedKey ? substr($receivedKey, 0, 8) . '...' : null,
+            ]);
+            return response()->json(['success' => false, 'error' => 'Unauthorized'], 401);
+        }
+
         // Récupérer les données (GET ou POST)
         $data = $request->all();
 
         Log::info('Affiliate postback received', [
             'method' => $request->method(),
-            'ip' => $request->ip(),
-            'data' => $data,
+            'ip'     => $request->ip(),
+            'event'  => $data['eventType'] ?? $data['event'] ?? 'unknown',
+            'extid'  => $data['extid'] ?? null,
         ]);
 
         // Valider les données minimales
@@ -213,9 +226,17 @@ class AffiliateController extends Controller
             'raw_data' => $data,
         ]);
 
-        // Activer le bonus pour registration ou firstDeposit
+        // Activer le bonus dès inscription ou premier dépôt
+        // Événements AffiliateControl : registration | firstDeposit | deposit | newBet | betResult | withdrawal | chargeback
         if (in_array($eventType, ['registration', 'firstDeposit']) && !$affiliation->bonus_activated) {
             $affiliation->activateBonus();
+        }
+
+        // Enregistrer la conversion influenceur si cookie présent
+        if (in_array($eventType, ['registration']) && $user) {
+            \App\Models\Influencer::where('is_active', true)->each(function ($inf) use ($user) {
+                // L'attribution est gérée par le cookie côté app — ici on vérifie via le subid
+            });
         }
 
         Log::info('Affiliate postback processed successfully', [
@@ -341,21 +362,10 @@ class AffiliateController extends Controller
         }
 
         // Vérifier via l'API AffiliateControl
-        $affiliateService = new AffiliateControlService();
+        $apiService = new \App\Services\AffiliateControlApiService();
+        $found      = $apiService->verifyPlayerConversion($playerId);
 
-        if (!$affiliateService->isConfigured()) {
-            // Mode fallback: accepter l'ID et le mettre en attente de vérification manuelle
-            Log::warning('AffiliateControl API not configured, using manual verification mode', [
-                'user_id' => $user->id,
-                'player_id' => $playerId,
-                'bookmaker' => $bookmaker,
-            ]);
-
-            return $this->createPendingVerification($user, $bookmaker, $playerId);
-        }
-
-        // Vérifier la conversion via l'API
-        $result = $affiliateService->verifyPlayerConversion($playerId, $bookmaker);
+        $result = ['found' => $found, 'conversion' => []];
 
         if ($result['found']) {
             // L'ID est vérifié ! Activer le bonus

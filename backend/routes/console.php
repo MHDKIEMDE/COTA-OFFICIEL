@@ -140,9 +140,9 @@ Schedule::job(new \App\Jobs\SendPremiumExpiryReminderJob)
     ->name('premium-expiry-reminders')
     ->onOneServer();
 
-// ── Toutes les heures — Vérifier inscriptions bookmakers → activer 7j Premium (§21.3 CDC V2)
+// ── Toutes les 15 min — Vérifier inscriptions bookmakers → activer 7j Premium (§21.3 CDC V2)
 Schedule::job(new \App\Jobs\CheckBookmakerRegistrationsJob)
-    ->hourly()
+    ->everyFifteenMinutes()
     ->name('check-bookmaker-registrations')
     ->withoutOverlapping()
     ->onOneServer();
@@ -196,6 +196,13 @@ Schedule::job(new \App\Jobs\EnrichBookmakersJob)
     ->at('02:00')
     ->timezone('UTC')
     ->name('enrich-bookmakers')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── Toutes les heures — Vérifier seuils influenceurs et distribuer récompenses
+Schedule::job(new \App\Jobs\CheckInfluencerRewardsJob)
+    ->hourly()
+    ->name('check-influencer-rewards')
     ->withoutOverlapping()
     ->onOneServer();
 

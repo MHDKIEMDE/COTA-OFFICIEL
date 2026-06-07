@@ -20,9 +20,15 @@ class TelegramController extends Controller
 
     public function webhook(Request $request): Response
     {
+        // Validation IP — Telegram n'envoie que depuis ces plages officielles
+        if (!$this->isFromTelegram($request->ip())) {
+            Log::warning('Telegram webhook: IP non autorisée', ['ip' => $request->ip()]);
+            return response('Forbidden', 403);
+        }
+
         $update = $request->all();
 
-        Log::debug('Telegram update', ['update' => $update]);
+        Log::debug('Telegram update', ['update_id' => $update['update_id'] ?? null]);
 
         // Message texte
         if (isset($update['message']['text'])) {
@@ -249,5 +255,33 @@ class TelegramController extends Controller
         $this->telegram->sendMessage((int) $chatId,
             "❓ Commande inconnue. Tape /help pour voir les commandes disponibles."
         );
+    }
+
+    // ── Sécurité — validation IP Telegram ────────────────────────────────────
+
+    private function isFromTelegram(string $ip): bool
+    {
+        // Plages IP officielles Telegram (https://core.telegram.org/bots/webhooks#the-short-version)
+        $ranges = [
+            '149.154.160.0/20',
+            '91.108.4.0/22',
+        ];
+
+        $ipLong = ip2long($ip);
+        if ($ipLong === false) return false;
+
+        foreach ($ranges as $range) {
+            [$subnet, $bits] = explode('/', $range);
+            $mask    = ~((1 << (32 - (int) $bits)) - 1);
+            $network = ip2long($subnet) & $mask;
+            if (($ipLong & $mask) === $network) return true;
+        }
+
+        // En développement local — autoriser localhost
+        if (app()->environment('local') && in_array($ip, ['127.0.0.1', '::1'])) {
+            return true;
+        }
+
+        return false;
     }
 }

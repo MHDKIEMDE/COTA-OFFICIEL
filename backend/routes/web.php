@@ -34,6 +34,10 @@ Route::get('/.well-known/apple-app-site-association', function () {
     return response()->file(public_path('.well-known/apple-app-site-association'), ['Content-Type' => 'application/json']);
 });
 
+// ── Liens trackés influenceurs — /r/{slug} ───────────────────────────────────
+Route::get('/r/{slug}', [\App\Http\Controllers\Api\InfluencerController::class, 'redirect'])
+    ->name('influencer.redirect');
+
 // ── Page Politique de confidentialité ────────────────────────────────────────
 Route::get('/privacy', function () {
     return view('privacy');

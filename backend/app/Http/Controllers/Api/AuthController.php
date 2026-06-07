@@ -710,6 +710,45 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Générer un lien deep-link pour lier le compte Telegram
+     * GET /api/auth/telegram-link   (auth:sanctum)
+     *
+     * Flux : l'utilisateur clique sur le lien dans l'app → Telegram ouvre le bot
+     * avec /start link_{referral_code} → TelegramController::cmdStart() lie le compte.
+     */
+    public function generateTelegramLink(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user     = $request->user();
+        $botName  = config('services.telegram.bot_username', 'COTABot');
+        $token    = $user->referral_code;
+        $deepLink = "https://t.me/{$botName}?start=link_{$token}";
+
+        return response()->json([
+            'success'   => true,
+            'deep_link' => $deepLink,
+            'linked'    => !empty($user->telegram_id),
+            'telegram_username' => $user->telegram_username,
+        ]);
+    }
+
+    /**
+     * Dissocier le compte Telegram
+     * POST /api/auth/unlink-telegram   (auth:sanctum)
+     */
+    public function unlinkTelegram(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $request->user()->update([
+            'telegram_id'       => null,
+            'telegram_username' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Compte Telegram dissocié.',
+        ]);
+    }
+
     private function userArray(User $user): array
     {
         return [
