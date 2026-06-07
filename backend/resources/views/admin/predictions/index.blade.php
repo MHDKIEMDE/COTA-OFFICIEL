@@ -5,173 +5,166 @@
 
 @section('content')
 <div class="space-y-6">
-    <!-- Stats -->
+
+    {{-- ── Stat Cards ──────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-white">{{ $stats['total'] }}</p>
-            <p class="text-sm text-gray-400">Total</p>
+        <div class="card text-center">
+            <p class="text-2xl font-bold" style="color:var(--ink);font-family:Archivo,sans-serif">{{ $stats['total'] }}</p>
+            <p class="text-sm mt-1" style="color:var(--dim)">Total</p>
         </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-warning">{{ $stats['pending'] }}</p>
-            <p class="text-sm text-gray-400">En attente</p>
+        <div class="card text-center">
+            <p class="text-2xl font-bold" style="color:#f5a623;font-family:Archivo,sans-serif">{{ $stats['pending'] }}</p>
+            <p class="text-sm mt-1" style="color:var(--dim)">En attente</p>
         </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-success">{{ $stats['won'] }}</p>
-            <p class="text-sm text-gray-400">Gagnés</p>
+        <div class="card text-center">
+            <p class="text-2xl font-bold" style="color:var(--win);font-family:Archivo,sans-serif">{{ $stats['won'] }}</p>
+            <p class="text-sm mt-1" style="color:var(--dim)">Gagnés</p>
         </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-danger">{{ $stats['lost'] }}</p>
-            <p class="text-sm text-gray-400">Perdus</p>
+        <div class="card text-center">
+            <p class="text-2xl font-bold" style="color:var(--loss);font-family:Archivo,sans-serif">{{ $stats['lost'] }}</p>
+            <p class="text-sm mt-1" style="color:var(--dim)">Perdus</p>
         </div>
     </div>
-    
-    <!-- Filters & Actions -->
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div>
-                <select name="status" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
-                    <option value="">Tous les statuts</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>En attente</option>
-                    <option value="won" {{ request('status') == 'won' ? 'selected' : '' }}>Gagnés</option>
-                    <option value="lost" {{ request('status') == 'lost' ? 'selected' : '' }}>Perdus</option>
-                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Annulés</option>
-                </select>
-            </div>
-            <div>
-                <select name="prediction_type" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
-                    <option value="">Tous les types</option>
-                    <option value="1X2" {{ request('prediction_type') == '1X2' ? 'selected' : '' }}>1X2</option>
-                    <option value="Over/Under" {{ request('prediction_type') == 'Over/Under' ? 'selected' : '' }}>Over/Under</option>
-                    <option value="BTTS" {{ request('prediction_type') == 'BTTS' ? 'selected' : '' }}>BTTS</option>
-                    <option value="Double Chance" {{ request('prediction_type') == 'Double Chance' ? 'selected' : '' }}>Double Chance</option>
-                </select>
-            </div>
-            <div>
-                <select name="is_premium" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
-                    <option value="">Tous</option>
-                    <option value="true" {{ request('is_premium') == 'true' ? 'selected' : '' }}>Premium</option>
-                    <option value="false" {{ request('is_premium') == 'false' ? 'selected' : '' }}>Gratuit</option>
-                </select>
-            </div>
-            <div>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher..." 
-                       class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
-            </div>
+
+    {{-- ── Filtres & Actions ────────────────────────────────────────────────── --}}
+    <div class="card">
+        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <select name="status" class="input-brand" style="height:40px;padding:0 12px">
+                <option value="">Tous les statuts</option>
+                <option value="pending"   {{ request('status') == 'pending'   ? 'selected' : '' }}>En attente</option>
+                <option value="won"       {{ request('status') == 'won'       ? 'selected' : '' }}>Gagnés</option>
+                <option value="lost"      {{ request('status') == 'lost'      ? 'selected' : '' }}>Perdus</option>
+                <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Annulés</option>
+            </select>
+
+            <select name="prediction_type" class="input-brand" style="height:40px;padding:0 12px">
+                <option value="">Tous les types</option>
+                <option value="1X2"           {{ request('prediction_type') == '1X2'           ? 'selected' : '' }}>1X2</option>
+                <option value="Over/Under"    {{ request('prediction_type') == 'Over/Under'    ? 'selected' : '' }}>Over/Under</option>
+                <option value="BTTS"          {{ request('prediction_type') == 'BTTS'          ? 'selected' : '' }}>BTTS</option>
+                <option value="Double Chance" {{ request('prediction_type') == 'Double Chance' ? 'selected' : '' }}>Double Chance</option>
+            </select>
+
+            <select name="is_premium" class="input-brand" style="height:40px;padding:0 12px">
+                <option value="">Tous</option>
+                <option value="true"  {{ request('is_premium') == 'true'  ? 'selected' : '' }}>Premium</option>
+                <option value="false" {{ request('is_premium') == 'false' ? 'selected' : '' }}>Gratuit</option>
+            </select>
+
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher…"
+                   class="input-brand" style="height:40px">
+
             <div class="flex gap-2">
-                <button type="submit" class="flex-1 bg-primary hover:bg-primary/80 text-white rounded-lg px-4 py-2 transition">
+                <button type="submit" class="btn-primary btn-sm flex-1">
                     <i class="fa-solid fa-search mr-1"></i> Filtrer
                 </button>
-                <a href="{{ route('admin.predictions.index') }}" class="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-4 py-2 transition">
+                <a href="{{ route('admin.predictions.index') }}" class="btn-secondary btn-sm px-3">
                     <i class="fa-solid fa-times"></i>
                 </a>
             </div>
-            <div>
-                <a href="{{ route('admin.predictions.create') }}" class="block bg-success hover:bg-success/80 text-white rounded-lg px-4 py-2 text-center transition">
-                    <i class="fa-solid fa-plus mr-1"></i> Nouveau
-                </a>
-            </div>
+
+            <a href="{{ route('admin.predictions.create') }}" class="btn-primary btn-sm text-center">
+                <i class="fa-solid fa-plus mr-1"></i> Nouveau
+            </a>
         </form>
     </div>
-    
-    <!-- Table -->
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 overflow-hidden">
+
+    {{-- ── Table ────────────────────────────────────────────────────────────── --}}
+    <div class="card" style="padding:0;overflow:hidden">
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[760px]">
-                <thead class="bg-gray-800/50">
+            <table class="table-brand w-full min-w-[760px]">
+                <thead>
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Match</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Compétition</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase">Date</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Prono</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Cote</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Score</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Statut</th>
-                        <th class="px-4 py-3 text-center text-xs font-medium text-gray-400 uppercase">Type</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-400 uppercase">Actions</th>
+                        <th class="text-left">Match</th>
+                        <th class="text-left">Compétition</th>
+                        <th class="text-left">Date</th>
+                        <th class="text-center">Prono</th>
+                        <th class="text-center">Cote</th>
+                        <th class="text-center">Score</th>
+                        <th class="text-center">Statut</th>
+                        <th class="text-center">Type</th>
+                        <th class="text-right">Actions</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-700/50">
+                <tbody>
                     @forelse($predictions as $prediction)
-                        <tr class="hover:bg-gray-800/30 transition">
-                            <td class="px-4 py-4">
-                                <div class="text-white font-medium">{{ $prediction->home_team }}</div>
-                                <div class="text-gray-400 text-sm">vs {{ $prediction->away_team }}</div>
+                        <tr>
+                            <td>
+                                <div style="color:var(--ink);font-weight:600">{{ $prediction->home_team }}</div>
+                                <div style="color:var(--dim);font-size:13px">vs {{ $prediction->away_team }}</div>
                             </td>
-                            <td class="px-4 py-4 text-gray-300 text-sm">{{ $prediction->competition }}</td>
-                            <td class="px-4 py-4 text-gray-300 text-sm">{{ \Carbon\Carbon::parse($prediction->match_date)->format('d/m H:i') }}</td>
-                            <td class="px-4 py-4 text-center">
-                                <span class="px-2 py-1 bg-primary/20 text-primary rounded text-xs">
-                                    {{ $prediction->prediction_value }}
-                                </span>
+                            <td style="color:var(--ink-2);font-size:13px">{{ $prediction->competition }}</td>
+                            <td style="color:var(--ink-2);font-size:13px">{{ \Carbon\Carbon::parse($prediction->match_date)->format('d/m H:i') }}</td>
+                            <td class="text-center">
+                                <span class="badge-accent">{{ $prediction->prediction_value }}</span>
                             </td>
-                            <td class="px-4 py-4 text-center text-white font-medium">{{ $prediction->odds }}</td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="text-center" style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace">{{ $prediction->odds }}</td>
+                            <td class="text-center">
                                 @if($prediction->home_score !== null && $prediction->away_score !== null)
-                                    <span class="text-white font-medium">{{ $prediction->home_score }} - {{ $prediction->away_score }}</span>
+                                    <span style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace">{{ $prediction->home_score }} - {{ $prediction->away_score }}</span>
                                 @else
-                                    <span class="text-gray-500">-</span>
+                                    <span style="color:var(--dim-2)">—</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="text-center">
                                 @php
-                                    $statusColors = [
-                                        'pending' => 'bg-warning/20 text-warning',
-                                        'won' => 'bg-success/20 text-success',
-                                        'lost' => 'bg-danger/20 text-danger',
-                                        'cancelled' => 'bg-gray-500/20 text-gray-400',
+                                    $statusBadge = [
+                                        'pending'   => 'badge-pending',
+                                        'won'       => 'badge-win',
+                                        'lost'      => 'badge-loss',
+                                        'cancelled' => '',
                                     ];
-                                    $statusLabels = [
-                                        'pending' => 'En attente',
-                                        'won' => 'Gagné',
-                                        'lost' => 'Perdu',
+                                    $statusLabel = [
+                                        'pending'   => 'En attente',
+                                        'won'       => 'Gagné',
+                                        'lost'      => 'Perdu',
                                         'cancelled' => 'Annulé',
                                     ];
                                 @endphp
-                                <span class="px-2 py-1 rounded text-xs {{ $statusColors[$prediction->status] ?? 'bg-gray-500/20 text-gray-400' }}">
-                                    {{ $statusLabels[$prediction->status] ?? $prediction->status }}
+                                <span class="{{ $statusBadge[$prediction->status] ?? '' }}"
+                                      @if(!($statusBadge[$prediction->status] ?? ''))
+                                          style="padding:2px 8px;border-radius:4px;font-size:11px;background:rgba(139,138,133,.15);color:var(--dim)"
+                                      @endif>
+                                    {{ $statusLabel[$prediction->status] ?? $prediction->status }}
                                 </span>
                             </td>
-                            <td class="px-4 py-4 text-center">
+                            <td class="text-center">
                                 @if($prediction->is_premium)
-                                    <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs">
-                                        <i class="fa-solid fa-crown"></i> Premium
-                                    </span>
+                                    <span class="badge-accent"><i class="fa-solid fa-crown mr-1"></i>Premium</span>
                                 @else
-                                    <span class="px-2 py-1 bg-gray-500/20 text-gray-400 rounded text-xs">Gratuit</span>
+                                    <span style="font-size:11px;color:var(--dim)">Gratuit</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-4">
+                            <td>
                                 <div class="flex justify-end gap-2">
-                                    <!-- Quick Status Update -->
                                     @if($prediction->status === 'pending')
                                         <form action="{{ route('admin.predictions.updateStatus', $prediction) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
+                                            @csrf @method('PATCH')
                                             <input type="hidden" name="status" value="won">
-                                            <button type="submit" class="p-2 text-success hover:bg-success/20 rounded transition" title="Marquer gagné">
+                                            <button type="submit" class="btn-sm" title="Marquer gagné"
+                                                    style="padding:6px 10px;background:rgba(61,220,145,.12);border:1px solid rgba(61,220,145,.25);border-radius:8px;color:var(--win);cursor:pointer">
                                                 <i class="fa-solid fa-check"></i>
                                             </button>
                                         </form>
                                         <form action="{{ route('admin.predictions.updateStatus', $prediction) }}" method="POST" class="inline">
-                                            @csrf
-                                            @method('PATCH')
+                                            @csrf @method('PATCH')
                                             <input type="hidden" name="status" value="lost">
-                                            <button type="submit" class="p-2 text-danger hover:bg-danger/20 rounded transition" title="Marquer perdu">
+                                            <button type="submit" class="btn-sm" title="Marquer perdu"
+                                                    style="padding:6px 10px;background:rgba(255,91,58,.12);border:1px solid rgba(255,91,58,.25);border-radius:8px;color:var(--loss);cursor:pointer">
                                                 <i class="fa-solid fa-times"></i>
                                             </button>
                                         </form>
                                     @endif
-                                    
-                                    <a href="{{ route('admin.predictions.edit', $prediction) }}" 
-                                       class="p-2 text-primary hover:bg-primary/20 rounded transition" title="Modifier">
+                                    <a href="{{ route('admin.predictions.edit', $prediction) }}"
+                                       class="btn-sm" title="Modifier"
+                                       style="padding:6px 10px;background:rgba(232,255,54,.08);border:1px solid rgba(232,255,54,.2);border-radius:8px;color:var(--accent)">
                                         <i class="fa-solid fa-edit"></i>
                                     </a>
-                                    
-                                    <form action="{{ route('admin.predictions.destroy', $prediction) }}" method="POST" class="inline" 
+                                    <form action="{{ route('admin.predictions.destroy', $prediction) }}" method="POST" class="inline"
                                           onsubmit="return confirm('Supprimer ce pronostic ?')">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="p-2 text-danger hover:bg-danger/20 rounded transition" title="Supprimer">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" class="btn-sm" title="Supprimer"
+                                                style="padding:6px 10px;background:rgba(255,91,58,.12);border:1px solid rgba(255,91,58,.25);border-radius:8px;color:var(--loss);cursor:pointer">
                                             <i class="fa-solid fa-trash"></i>
                                         </button>
                                     </form>
@@ -180,7 +173,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="9" class="px-4 py-8 text-center text-gray-400">
+                            <td colspan="9" style="padding:32px;text-align:center;color:var(--dim)">
                                 Aucun pronostic trouvé
                             </td>
                         </tr>
@@ -188,14 +181,13 @@
                 </tbody>
             </table>
         </div>
-        
-        <!-- Pagination -->
+
         @if($predictions->hasPages())
-            <div class="px-6 py-4 border-t border-gray-700/50">
+            <div style="padding:16px 24px;border-top:1px solid var(--line)">
                 {{ $predictions->links() }}
             </div>
         @endif
     </div>
+
 </div>
 @endsection
-

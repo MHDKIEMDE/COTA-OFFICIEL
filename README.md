@@ -254,3 +254,16 @@ php artisan test
 ## Auteur
 
 **massakambp12** — [COTA-OFFICIEL](https://github.com/MHDKIEMDE/COTA-OFFICIEL)
+  
+
+  
+  # Terminal 1 — backend
+  cd backend
+  php artisan serve --host=0.0.0.0
+
+  # Terminal 2 — vérif + données
+  cd backend
+  php artisan cota:dev-start
+
+  # Puis dans mobile/
+  flutter run -d 21

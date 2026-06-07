@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use App\Services\Football\ApiFootballProvider as FootballChainProvider;
+use App\Services\Football\Bet365DataProvider;
 use App\Services\Football\CacheProvider;
 use App\Services\Football\FootballDataChain;
+use App\Services\Football\SportApi7Provider;
 use App\Services\Football\SportradarProvider;
 use App\Services\FootballApiService;
 use App\Services\ApiGateway\ApiGatewayService;
@@ -26,14 +28,19 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Chaîne de fallback football data : ApiFootball → Sportradar → LocalCache
+        // Chaîne de fallback football data : ApiFootball → SportApi7 → Sportradar → LocalCache
+        // Ordre : quota journalier (100) → illimité → trial → DB locale
         $this->app->singleton(FootballDataChain::class, function ($app) {
             return new FootballDataChain([
                 new FootballChainProvider($app->make(FootballApiService::class)),
+                new SportApi7Provider(),
                 new SportradarProvider(),
                 new CacheProvider(),
             ]);
         });
+
+        $this->app->singleton(SportApi7Provider::class,   fn() => new SportApi7Provider());
+        $this->app->singleton(Bet365DataProvider::class,  fn() => new Bet365DataProvider());
 
         // ApiGatewayService — nouvelle architecture multi-API
         $this->app->singleton(ApiGatewayService::class, function ($app) {

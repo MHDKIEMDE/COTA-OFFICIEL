@@ -12,12 +12,14 @@ use Illuminate\Support\Facades\Log;
 class ApiQuotaTracker
 {
     private const LIMITS = [
-        'api_football'     => 100,
+        'api_football'      => 100,
         'football_data_org' => 10000,
-        'the_odds_api'     => 500,
-        'open_weather_map' => 1000,
-        'gnews'            => 100,
-        'thesportsdb'      => 10000,
+        'the_odds_api'      => 500,
+        'open_weather_map'  => 1000,
+        'gnews'             => 100,
+        'thesportsdb'       => 10000,
+        'sportapi7'         => 500,   // RapidAPI — estimé conservateur
+        'bet365data'        => 1000,  // RapidAPI — plan actuel
     ];
 
     private const SAFETY_MARGIN = 5;

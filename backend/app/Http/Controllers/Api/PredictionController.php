@@ -2014,7 +2014,7 @@ PROMPT;
         Cache::put($cacheKey, true, 1800); // 30 min cooldown
 
         $savedPredictions = \App\Models\Prediction::whereDate('match_date', $dateStr)
-            ->orderByDesc('confidence_score')
+            ->orderByDesc('total_score')
             ->get();
 
         return response()->json([

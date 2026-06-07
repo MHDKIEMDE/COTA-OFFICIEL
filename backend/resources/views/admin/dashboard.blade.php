@@ -5,423 +5,446 @@
 
 @section('content')
 <div class="space-y-6">
-    <!-- Stats Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <!-- Total Users -->
-        <div class="stat-card bg-dark-100 rounded-xl border border-gray-700/50 p-6">
+
+    {{-- ── Stat Cards ──────────────────────────────────────────────────────── --}}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        {{-- Utilisateurs --}}
+        <div class="card card-hover">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-400 text-sm">Total Utilisateurs</p>
-                    <p class="text-3xl font-bold text-white mt-1">{{ number_format($stats['total_users']) }}</p>
-                    <p class="text-xs text-success mt-2">
-                        <i class="fa-solid fa-arrow-up mr-1"></i>
-                        +{{ $stats['new_users_today'] }} aujourd'hui
+                    <p class="tag-mono mb-1">Utilisateurs</p>
+                    <p class="text-3xl font-bold" style="color:var(--ink);font-family:Archivo,sans-serif">{{ number_format($stats['total_users']) }}</p>
+                    <p class="text-xs mt-2" style="color:var(--win)">
+                        <i class="fa-solid fa-arrow-up mr-1"></i>+{{ $stats['new_users_today'] }} aujourd'hui
                     </p>
                 </div>
-                <div class="w-14 h-14 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                    <i class="fa-solid fa-users text-2xl text-blue-400"></i>
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                     style="background:rgba(61,220,145,.12);border:1px solid rgba(61,220,145,.2)">
+                    <i class="fa-solid fa-users text-xl" style="color:var(--win)"></i>
                 </div>
             </div>
         </div>
-        
-        <!-- Premium Users -->
-        <div class="stat-card bg-dark-100 rounded-xl border border-gray-700/50 p-6">
+
+        {{-- Premium --}}
+        <div class="card card-hover">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-400 text-sm">Utilisateurs Premium</p>
-                    <p class="text-3xl font-bold text-white mt-1">{{ number_format($stats['premium_users']) }}</p>
-                    <p class="text-xs text-gray-400 mt-2">
+                    <p class="tag-mono mb-1">Premium</p>
+                    <p class="text-3xl font-bold" style="color:var(--ink);font-family:Archivo,sans-serif">{{ number_format($stats['premium_users']) }}</p>
+                    <p class="text-xs mt-2" style="color:var(--dim)">
                         {{ $stats['total_users'] > 0 ? round(($stats['premium_users'] / $stats['total_users']) * 100, 1) : 0 }}% du total
                     </p>
                 </div>
-                <div class="w-14 h-14 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                    <i class="fa-solid fa-crown text-2xl text-yellow-400"></i>
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                     style="background:rgba(232,255,54,.10);border:1px solid rgba(232,255,54,.2)">
+                    <i class="fa-solid fa-crown text-xl" style="color:var(--accent)"></i>
                 </div>
             </div>
         </div>
-        
-        <!-- Pronostics -->
-        <div class="stat-card bg-dark-100 rounded-xl border border-gray-700/50 p-6">
+
+        {{-- Win rate --}}
+        <div class="card card-hover">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-400 text-sm">Taux de Réussite</p>
-                    <p class="text-3xl font-bold text-white mt-1">{{ $predictionStats['win_rate'] }}%</p>
-                    <p class="text-xs text-gray-400 mt-2">
+                    <p class="tag-mono mb-1">Taux réussite</p>
+                    <p class="text-3xl font-bold" style="color:var(--ink);font-family:Archivo,sans-serif">{{ $predictionStats['win_rate'] }}%</p>
+                    <p class="text-xs mt-2" style="color:var(--dim)">
                         {{ $predictionStats['won'] }}/{{ $predictionStats['won'] + $predictionStats['lost'] }} gagnés
                     </p>
                 </div>
-                <div class="w-14 h-14 rounded-xl bg-green-500/20 flex items-center justify-center">
-                    <i class="fa-solid fa-chart-line text-2xl text-green-400"></i>
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                     style="background:rgba(232,255,54,.10);border:1px solid rgba(232,255,54,.2)">
+                    <i class="fa-solid fa-chart-line text-xl" style="color:var(--accent)"></i>
                 </div>
             </div>
         </div>
-        
-        <!-- Revenue -->
-        <div class="stat-card bg-dark-100 rounded-xl border border-gray-700/50 p-6">
+
+        {{-- Revenus --}}
+        <div class="card card-hover">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-gray-400 text-sm">Revenus du Mois</p>
-                    <p class="text-3xl font-bold text-white mt-1">{{ number_format($revenueStats['monthly_revenue']) }} FCFA</p>
-                    <p class="text-xs text-success mt-2">
+                    <p class="tag-mono mb-1">Revenus / mois</p>
+                    <p class="text-2xl font-bold" style="color:var(--ink);font-family:Archivo,sans-serif">{{ number_format($revenueStats['monthly_revenue']) }}<span class="text-sm ml-1" style="color:var(--dim)">FCFA</span></p>
+                    <p class="text-xs mt-2" style="color:var(--win)">
                         {{ $revenueStats['total_subscriptions'] }} abonnements
                     </p>
                 </div>
-                <div class="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                    <i class="fa-solid fa-wallet text-2xl text-purple-400"></i>
+                <div class="w-12 h-12 rounded-xl flex items-center justify-center"
+                     style="background:rgba(61,220,145,.12);border:1px solid rgba(61,220,145,.2)">
+                    <i class="fa-solid fa-wallet text-xl" style="color:var(--win)"></i>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Charts Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Users Chart -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-user-plus mr-2 text-primary"></i>
-                Inscriptions (7 derniers jours)
-            </h3>
-            <div class="chart-container">
+
+    {{-- ── Graphiques ───────────────────────────────────────────────────────── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <div class="card overflow-hidden">
+            <p class="tag-mono mb-4">Inscriptions — 7 jours</p>
+            <div class="chart-container" style="height:200px">
                 <canvas id="usersChart"></canvas>
             </div>
         </div>
-        
-        <!-- Predictions Chart -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-futbol mr-2 text-success"></i>
-                Pronostics (7 derniers jours)
-            </h3>
-            <div class="chart-container">
+
+        <div class="card overflow-hidden">
+            <p class="tag-mono mb-4">Pronostics — 7 jours</p>
+            <div class="chart-container" style="height:200px">
                 <canvas id="predictionsChart"></canvas>
             </div>
         </div>
     </div>
-    
-    <!-- Quick Stats Row -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Pronostics Status -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-futbol mr-2 text-primary"></i>
-                État des Pronostics
-            </h3>
+
+    {{-- ── Performance revenus ─────────────────────────────────────────────── --}}
+    <div class="card overflow-hidden">
+        <div class="flex items-center justify-between mb-4">
+            <p class="tag-mono">Performance financière — 30 jours</p>
+            <div class="flex items-center gap-4 text-xs" style="color:var(--dim)">
+                <span class="flex items-center gap-1.5">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3ddc91"></span>Revenus
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#e8ff36"></span>Abonnements
+                </span>
+                <span class="flex items-center gap-1.5">
+                    <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#ff5b3a"></span>Remboursements
+                </span>
+            </div>
+        </div>
+        <div class="chart-container" style="height:180px">
+            <canvas id="revenueChart"></canvas>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mt-4 pt-4" style="border-top:1px solid var(--line)">
+            <div class="text-center">
+                <p style="font-family:Archivo,sans-serif;font-weight:900;font-size:20px;color:var(--win)">
+                    {{ number_format($revenueStats['monthly_revenue']) }}
+                </p>
+                <p style="font-size:11px;color:var(--dim);margin-top:2px">Revenus ce mois (FCFA)</p>
+            </div>
+            <div class="text-center">
+                <p style="font-family:Archivo,sans-serif;font-weight:900;font-size:20px;color:var(--accent)">
+                    {{ $revenueStats['total_subscriptions'] }}
+                </p>
+                <p style="font-size:11px;color:var(--dim);margin-top:2px">Abonnements actifs</p>
+            </div>
+            <div class="text-center">
+                <p style="font-family:Archivo,sans-serif;font-weight:900;font-size:20px;color:var(--ink)">
+                    {{ number_format($revenueStats['weekly_revenue']) }}
+                </p>
+                <p style="font-size:11px;color:var(--dim);margin-top:2px">Revenus cette semaine (FCFA)</p>
+            </div>
+        </div>
+    </div>
+
+    {{-- ── Quick Stats ──────────────────────────────────────────────────────── --}}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {{-- État pronostics --}}
+        <div class="card">
+            <p class="tag-mono mb-4">État des pronostics</p>
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">En attente</span>
-                    <span class="px-3 py-1 rounded-full bg-warning/20 text-warning text-sm font-medium">
-                        {{ $predictionStats['pending'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">En attente</span>
+                    <span class="badge-pending">{{ $predictionStats['pending'] }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Gagnés</span>
-                    <span class="px-3 py-1 rounded-full bg-success/20 text-success text-sm font-medium">
-                        {{ $predictionStats['won'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">Gagnés</span>
+                    <span class="badge-win">{{ $predictionStats['won'] }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Perdus</span>
-                    <span class="px-3 py-1 rounded-full bg-danger/20 text-danger text-sm font-medium">
-                        {{ $predictionStats['lost'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">Perdus</span>
+                    <span class="badge-loss">{{ $predictionStats['lost'] }}</span>
                 </div>
-                <div class="pt-3 border-t border-gray-700">
+                <div class="pt-3" style="border-top:1px solid var(--line)">
                     <div class="flex justify-between items-center">
-                        <span class="text-white font-medium">Total</span>
-                        <span class="text-white font-bold">{{ $predictionStats['total'] }}</span>
+                        <span style="color:var(--ink);font-size:13px;font-weight:600">Total</span>
+                        <span style="color:var(--ink);font-weight:700;font-family:JetBrains Mono,monospace">{{ $predictionStats['total'] }}</span>
                     </div>
                 </div>
             </div>
-            <a href="{{ route('admin.predictions.index') }}" class="mt-4 block text-center text-sm text-primary hover:text-primary/80 transition">
+            <a href="{{ route('admin.predictions.index') }}"
+               class="mt-4 block text-center text-xs font-semibold transition"
+               style="color:var(--accent)">
                 Voir tous les pronostics →
             </a>
         </div>
-        
-        <!-- Affiliations -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-handshake mr-2 text-secondary"></i>
-                Affiliations
-            </h3>
+
+        {{-- Affiliations --}}
+        <div class="card">
+            <p class="tag-mono mb-4">Affiliations</p>
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Total</span>
-                    <span class="text-white font-medium">{{ $affiliationStats['total_bonuses'] }}</span>
+                    <span style="color:var(--ink-2);font-size:13px">Total</span>
+                    <span style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace">{{ $affiliationStats['total_bonuses'] }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Vérifiées</span>
-                    <span class="px-3 py-1 rounded-full bg-success/20 text-success text-sm font-medium">
-                        {{ $affiliationStats['verified_bonuses'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">Vérifiées</span>
+                    <span class="badge-win">{{ $affiliationStats['verified_bonuses'] }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">En attente</span>
-                    <span class="px-3 py-1 rounded-full bg-warning/20 text-warning text-sm font-medium">
-                        {{ $affiliationStats['pending_bonuses'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">En attente</span>
+                    <span class="badge-pending">{{ $affiliationStats['pending_bonuses'] }}</span>
                 </div>
             </div>
-            <a href="{{ route('admin.affiliates.index') }}" class="mt-4 block text-center text-sm text-primary hover:text-primary/80 transition">
+            <a href="{{ route('admin.affiliates.index') }}"
+               class="mt-4 block text-center text-xs font-semibold transition"
+               style="color:var(--accent)">
                 Gérer les affiliations →
             </a>
         </div>
-        
-        <!-- Referrals -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-gift mr-2 text-success"></i>
-                Parrainages
-            </h3>
+
+        {{-- Parrainages --}}
+        <div class="card">
+            <p class="tag-mono mb-4">Parrainages</p>
             <div class="space-y-3">
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Total</span>
-                    <span class="text-white font-medium">{{ $referralStats['total'] }}</span>
+                    <span style="color:var(--ink-2);font-size:13px">Total</span>
+                    <span style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace">{{ $referralStats['total'] }}</span>
                 </div>
                 <div class="flex justify-between items-center">
-                    <span class="text-gray-400">Ce mois</span>
-                    <span class="px-3 py-1 rounded-full bg-success/20 text-success text-sm font-medium">
-                        {{ $referralStats['this_month'] }}
-                    </span>
+                    <span style="color:var(--ink-2);font-size:13px">Ce mois</span>
+                    <span class="badge-win">{{ $referralStats['this_month'] }}</span>
                 </div>
             </div>
         </div>
     </div>
-    
-    <!-- Bottom Row -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <!-- Recent Activity -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-clock-rotate-left mr-2 text-primary"></i>
-                Activité Récente
-            </h3>
-            <div class="space-y-4 max-h-80 overflow-y-auto">
+
+    {{-- ── Activité temps réel ─────────────────────────────────────────────── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {{-- Dernières prédictions --}}
+        <div class="card" style="padding:0;overflow:hidden">
+            <div class="flex items-center justify-between" style="padding:16px 20px;border-bottom:1px solid var(--line)">
+                <p class="tag-mono">Dernières prédictions</p>
+                <a href="{{ route('admin.predictions.index') }}" style="font-size:12px;color:var(--accent);font-weight:600;text-decoration:none">Voir tout →</a>
+            </div>
+            @forelse($latestPredictions as $pred)
+            <div style="padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                        {{ $pred->home_team }} <span style="color:var(--dim)">vs</span> {{ $pred->away_team }}
+                    </div>
+                    <div style="font-size:11px;color:var(--dim);margin-top:2px;font-family:'JetBrains Mono',monospace">
+                        {{ $pred->bet_type }} · {{ $pred->prediction }} · @php echo str_repeat('★', $pred->confidence_stars ?? 1) @endphp · cote {{ $pred->odds }}
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                    @if($pred->status === 'won')
+                        <span class="badge-win">WON</span>
+                    @elseif($pred->status === 'lost')
+                        <span class="badge-loss">LOST</span>
+                    @else
+                        <span class="badge-pending">PENDING</span>
+                    @endif
+                    @if($pred->is_premium)
+                        <span style="font-size:10px;padding:1px 6px;border-radius:20px;background:rgba(232,255,54,.12);color:var(--accent);font-weight:700">PRO</span>
+                    @endif
+                    <span style="font-size:11px;color:var(--dim-2);font-family:'JetBrains Mono',monospace">{{ $pred->total_score }}pts</span>
+                </div>
+            </div>
+            @empty
+            <div style="padding:40px;text-align:center;color:var(--dim);font-size:14px">Aucune prédiction publiée aujourd'hui</div>
+            @endforelse
+        </div>
+
+        {{-- Derniers abonnements --}}
+        <div class="card" style="padding:0;overflow:hidden">
+            <div class="flex items-center justify-between" style="padding:16px 20px;border-bottom:1px solid var(--line)">
+                <p class="tag-mono">Derniers abonnements</p>
+                <a href="{{ route('admin.subscriptions.index') }}" style="font-size:12px;color:var(--accent);font-weight:600;text-decoration:none">Voir tout →</a>
+            </div>
+            @forelse($latestSubscriptions as $sub)
+            <div style="padding:12px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px">
+                <div style="width:34px;height:34px;border-radius:8px;background:rgba(232,255,54,.08);border:1px solid rgba(232,255,54,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                    <i class="fa-solid fa-crown" style="font-size:14px;color:var(--accent)"></i>
+                </div>
+                <div style="flex:1;min-width:0">
+                    <div style="font-size:13px;font-weight:700;color:var(--ink)">{{ $sub->user->name ?? 'Utilisateur #'.$sub->user_id }}</div>
+                    <div style="font-size:11px;color:var(--dim);margin-top:2px;font-family:'JetBrains Mono',monospace">
+                        {{ ucfirst($sub->plan) }} · {{ number_format($sub->amount) }} FCFA
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                    @if($sub->status === 'completed')
+                        <span class="badge-win">PAYÉ</span>
+                    @elseif($sub->status === 'pending')
+                        <span class="badge-pending">EN COURS</span>
+                    @else
+                        <span class="badge-loss">{{ strtoupper($sub->status) }}</span>
+                    @endif
+                    <span style="font-size:11px;color:var(--dim-2);font-family:'JetBrains Mono',monospace">{{ $sub->created_at->format('d/m H:i') }}</span>
+                </div>
+            </div>
+            @empty
+            <div style="padding:40px;text-align:center;color:var(--dim);font-size:14px">Aucun abonnement</div>
+            @endforelse
+        </div>
+    </div>
+
+    {{-- ── Activité & Feedbacks ─────────────────────────────────────────────── --}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {{-- Activité récente --}}
+        <div class="card">
+            <p class="tag-mono mb-4">Activité récente</p>
+            <div class="space-y-4 max-h-72 overflow-y-auto pr-1">
                 @forelse($recentActivities as $activity)
                     <div class="flex items-start gap-3">
-                        <div class="w-10 h-10 rounded-full {{ $activity['color'] }} flex items-center justify-center flex-shrink-0">
-                            <i class="fa-solid {{ $activity['icon'] }} text-white text-sm"></i>
+                        <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                             style="background:rgba(232,255,54,.10);border:1px solid rgba(232,255,54,.2)">
+                            <i class="fa-solid {{ $activity['icon'] }} text-sm" style="color:var(--accent)"></i>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-gray-200 text-sm">{{ $activity['message'] }}</p>
-                            <p class="text-gray-500 text-xs mt-1">{{ $activity['time']->diffForHumans() }}</p>
+                            <p class="text-sm" style="color:var(--ink-2)">{{ $activity['message'] }}</p>
+                            <p class="text-xs mt-0.5" style="color:var(--dim)">{{ $activity['time']->diffForHumans() }}</p>
                         </div>
                     </div>
                 @empty
-                    <p class="text-gray-400 text-center py-4">Aucune activité récente</p>
+                    <p class="text-center py-6 text-sm" style="color:var(--dim)">Aucune activité récente</p>
                 @endforelse
             </div>
         </div>
-        
-        <!-- Recent Feedbacks -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-comment-dots mr-2 text-warning"></i>
-                Feedbacks Récents
-            </h3>
-            <div class="space-y-4 max-h-80 overflow-y-auto">
+
+        {{-- Feedbacks récents --}}
+        <div class="card">
+            <p class="tag-mono mb-4">Feedbacks récents</p>
+            <div class="space-y-3 max-h-72 overflow-y-auto pr-1">
                 @forelse($recentFeedbacks as $feedback)
-                    <div class="p-4 bg-gray-800/50 rounded-lg">
-                        <div class="flex items-center gap-2 mb-2">
-                            <span class="text-sm font-medium text-white">{{ $feedback->user->name ?? 'Anonyme' }}</span>
-                            <span class="text-xs text-gray-500">•</span>
-                            <span class="text-xs text-gray-500">{{ $feedback->created_at->diffForHumans() }}</span>
+                    <div class="p-3 rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-sm font-semibold" style="color:var(--ink)">{{ $feedback->user->name ?? 'Anonyme' }}</span>
+                            <span style="color:var(--dim-2)">·</span>
+                            <span class="text-xs" style="color:var(--dim)">{{ $feedback->created_at->diffForHumans() }}</span>
+                            @if($feedback->type)
+                                <span class="{{ $feedback->type === 'bug' ? 'badge-loss' : 'badge-pending' }} ml-auto">{{ $feedback->type }}</span>
+                            @endif
                         </div>
-                        <p class="text-gray-300 text-sm line-clamp-2">{{ $feedback->message }}</p>
-                        @if($feedback->type)
-                            <span class="inline-block mt-2 px-2 py-1 rounded text-xs 
-                                {{ $feedback->type === 'bug' ? 'bg-danger/20 text-danger' : 'bg-primary/20 text-primary' }}">
-                                {{ $feedback->type }}
-                            </span>
-                        @endif
+                        <p class="text-sm line-clamp-2" style="color:var(--ink-2)">{{ $feedback->message }}</p>
                     </div>
                 @empty
-                    <p class="text-gray-400 text-center py-4">Aucun feedback récent</p>
+                    <p class="text-center py-6 text-sm" style="color:var(--dim)">Aucun feedback récent</p>
                 @endforelse
             </div>
         </div>
     </div>
+
 </div>
 @endsection
 
 @push('scripts')
 <script>
-    // Users Chart
-    const usersCtx = document.getElementById('usersChart').getContext('2d');
-    const usersChart = new Chart(usersCtx, {
-        type: 'line',
-        data: {
-            labels: {!! json_encode(array_column($userChartData, 'date')) !!},
-            datasets: [{
-                label: 'Nouveaux utilisateurs',
-                data: {!! json_encode(array_column($userChartData, 'count')) !!},
-                borderColor: '#6366F1',
-                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+const chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { enabled: true } },
+    scales: {
+        x: {
+            grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+            ticks: { color: '#8b8a85', maxRotation: 0, autoSkip: true, maxTicksLimit: 7 }
+        },
+        y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+            ticks: { color: '#8b8a85', maxTicksLimit: 5 }
+        }
+    }
+};
+
+// Inscriptions
+const usersChart = new Chart(document.getElementById('usersChart').getContext('2d'), {
+    type: 'line',
+    data: {
+        labels: {!! json_encode(array_column($userChartData, 'date')) !!},
+        datasets: [{
+            label: 'Inscriptions',
+            data: {!! json_encode(array_column($userChartData, 'count')) !!},
+            borderColor: '#e8ff36',
+            backgroundColor: 'rgba(232,255,54,0.08)',
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#e8ff36',
+            pointRadius: 4,
+        }]
+    },
+    options: { ...chartDefaults }
+});
+
+// Pronostics
+const predictionsChart = new Chart(document.getElementById('predictionsChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: {!! json_encode(array_column($predictionChartData, 'date')) !!},
+        datasets: [
+            { label: 'Gagnés',    data: {!! json_encode(array_column($predictionChartData, 'won')) !!},     backgroundColor: '#3ddc91', borderRadius: 4 },
+            { label: 'Perdus',    data: {!! json_encode(array_column($predictionChartData, 'lost')) !!},    backgroundColor: '#ff5b3a', borderRadius: 4 },
+            { label: 'En attente',data: {!! json_encode(array_column($predictionChartData, 'pending')) !!}, backgroundColor: '#2a2e36', borderRadius: 4 },
+        ]
+    },
+    options: {
+        ...chartDefaults,
+        plugins: {
+            legend: {
+                display: true,
+                position: 'bottom',
+                labels: { color: '#8b8a85', padding: 12, boxWidth: 10, boxHeight: 10 }
+            }
+        },
+        scales: {
+            ...chartDefaults.scales,
+            y: { ...chartDefaults.scales.y, stacked: true }
+        }
+    }
+});
+
+// Revenus 30 jours
+const revenueChart = new Chart(document.getElementById('revenueChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+        labels: {!! json_encode(array_column($revenueChartData, 'date')) !!},
+        datasets: [
+            {
+                label: 'Revenus (FCFA)',
+                data: {!! json_encode(array_column($revenueChartData, 'revenue')) !!},
+                backgroundColor: '#3ddc91',
+                borderRadius: 3,
+                order: 1,
+            },
+            {
+                label: 'Abonnements',
+                data: {!! json_encode(array_column($revenueChartData, 'count')) !!},
+                type: 'line',
+                borderColor: '#e8ff36',
+                backgroundColor: 'rgba(232,255,54,0.06)',
                 tension: 0.4,
                 fill: true,
-                pointBackgroundColor: '#6366F1',
-                pointRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
+                pointRadius: 0,
+                yAxisID: 'y2',
+                order: 0,
             },
-            layout: {
-                padding: {
-                    left: 5,
-                    right: 5,
-                    top: 5,
-                    bottom: 5
-                }
-            },
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    enabled: true
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        color: 'rgba(255,255,255,0.05)',
-                        drawBorder: false,
-                        display: true
-                    },
-                    ticks: {
-                        color: '#9CA3AF',
-                        maxRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: 7
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(255,255,255,0.05)',
-                        drawBorder: false,
-                        display: true
-                    },
-                    ticks: {
-                        color: '#9CA3AF',
-                        maxTicksLimit: 5
-                    }
+        ]
+    },
+    options: {
+        ...chartDefaults,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    label: (ctx) => ctx.datasetIndex === 0
+                        ? `${ctx.parsed.y.toLocaleString()} FCFA`
+                        : `${ctx.parsed.y} abonnements`
                 }
             }
-        }
-    });
-    
-    // Predictions Chart
-    const predictionsCtx = document.getElementById('predictionsChart').getContext('2d');
-    const predictionsChart = new Chart(predictionsCtx, {
-        type: 'bar',
-        data: {
-            labels: {!! json_encode(array_column($predictionChartData, 'date')) !!},
-            datasets: [
-                {
-                    label: 'Gagnés',
-                    data: {!! json_encode(array_column($predictionChartData, 'won')) !!},
-                    backgroundColor: '#10B981',
-                    borderRadius: 4,
-                },
-                {
-                    label: 'Perdus',
-                    data: {!! json_encode(array_column($predictionChartData, 'lost')) !!},
-                    backgroundColor: '#EF4444',
-                    borderRadius: 4,
-                },
-                {
-                    label: 'En attente',
-                    data: {!! json_encode(array_column($predictionChartData, 'pending')) !!},
-                    backgroundColor: '#F59E0B',
-                    borderRadius: 4,
-                }
-            ]
         },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
-            layout: {
-                padding: {
-                    left: 5,
-                    right: 5,
-                    top: 5,
-                    bottom: 5
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: {
-                        color: '#9CA3AF',
-                        padding: 15,
-                        boxWidth: 12,
-                        boxHeight: 12
-                    }
-                },
-                tooltip: {
-                    enabled: true
-                }
-            },
-            scales: {
-                x: {
-                    grid: {
-                        display: false,
-                        drawBorder: false
-                    },
-                    ticks: {
-                        color: '#9CA3AF',
-                        maxRotation: 0,
-                        autoSkip: true,
-                        maxTicksLimit: 7
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    stacked: true,
-                    grid: {
-                        color: 'rgba(255,255,255,0.05)',
-                        drawBorder: false,
-                        display: true
-                    },
-                    ticks: {
-                        color: '#9CA3AF',
-                        maxTicksLimit: 5
-                    }
-                }
-            }
+        scales: {
+            x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, maxTicksLimit: 10 } },
+            y: { ...chartDefaults.scales.y, position: 'left' },
+            y2: { display: false, beginAtZero: true },
         }
-    });
-    
-    // Forcer le redimensionnement des graphiques après chargement et lors du resize
-    window.addEventListener('resize', function() {
-        if (usersChart) usersChart.resize();
-        if (predictionsChart) predictionsChart.resize();
-    });
-    
-    // Redimensionner après le chargement complet de la page
-    window.addEventListener('load', function() {
-        setTimeout(function() {
-            if (usersChart) usersChart.resize();
-            if (predictionsChart) predictionsChart.resize();
-        }, 100);
-    });
-    
-    // Redimensionner après que le DOM soit complètement chargé
-    document.addEventListener('DOMContentLoaded', function() {
-        setTimeout(function() {
-            if (usersChart) usersChart.resize();
-            if (predictionsChart) predictionsChart.resize();
-        }, 200);
-    });
+    }
+});
+
+window.addEventListener('resize', () => { usersChart.resize(); predictionsChart.resize(); revenueChart.resize(); });
+window.addEventListener('load', () => setTimeout(() => { usersChart.resize(); predictionsChart.resize(); revenueChart.resize(); }, 100));
 </script>
 @endpush
-

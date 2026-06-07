@@ -41,16 +41,22 @@ class UpdateLiveScoresJob implements ShouldQueue
                     $matchId = (string) $fixtureId;
                     $status  = $this->mapStatus($fixture['fixture']['status']['short'] ?? 'NS');
 
-                    $footballMatch = FootballMatch::where('match_id', $matchId)->first();
+                    // Chercher avec ou sans préfixe apf_ (FetchMatchesJob ajoute le préfixe)
+                    $footballMatch = FootballMatch::where('match_id', $matchId)
+                        ->orWhere('match_id', 'apf_' . $matchId)
+                        ->first();
 
                     if (!$footballMatch) {
                         Log::warning("UpdateLiveScoresJob: match {$matchId} non trouvé en base");
                         continue;
                     }
 
+                    $homeScore = $fixture['goals']['home'];
+                    $awayScore = $fixture['goals']['away'];
+
                     $footballMatch->update([
-                        'home_score'          => $fixture['goals']['home'],
-                        'away_score'          => $fixture['goals']['away'],
+                        'home_score'          => $homeScore,
+                        'away_score'          => $awayScore,
                         'home_score_halftime' => $fixture['score']['halftime']['home'] ?? null,
                         'away_score_halftime' => $fixture['score']['halftime']['away'] ?? null,
                         'status'              => $status,
@@ -58,6 +64,16 @@ class UpdateLiveScoresJob implements ShouldQueue
                         'elapsed_time'        => $fixture['fixture']['status']['elapsed'] ?? null,
                         'last_api_fetch'      => now(),
                     ]);
+
+                    // Propager les scores dans la table predictions
+                    if ($homeScore !== null && $awayScore !== null) {
+                        \App\Models\Prediction::where('match_id', $matchId)
+                            ->orWhere('match_id', 'apf_' . $matchId)
+                            ->update([
+                                'home_score' => $homeScore,
+                                'away_score' => $awayScore,
+                            ]);
+                    }
 
                     $matchesUpdated++;
 

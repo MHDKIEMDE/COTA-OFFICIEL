@@ -265,6 +265,17 @@ class FootballApiService
     }
 
     /**
+     * Récupérer les meilleurs buteurs d'une compétition
+     */
+    public function getTopScorers(int $leagueId, int $season): ?array
+    {
+        return $this->makeRequest('/players/topscorers', [
+            'league' => $leagueId,
+            'season' => $season,
+        ], 3600); // 1h de cache
+    }
+
+    /**
      * Récupérer les derniers matchs d'une équipe
      */
     public function getTeamRecentMatches(int $teamId, int $last = 5, int $season = null): ?array

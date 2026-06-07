@@ -43,8 +43,8 @@ async def initiate_payment(body: InitiatePaymentRequest):
     if not plan:
         raise HTTPException(status_code=400, detail="Plan invalide")
 
-    web_url = os.getenv("WEB_URL", "https://cota.ci")
-    backend_url = os.getenv("BACKEND_URL", "https://api.cota.ci")
+    web_url = os.getenv("WEB_URL", "https://cota.app")
+    backend_url = os.getenv("BACKEND_URL", "https://api.cota.app")
 
     payload = {
         "invoice": {

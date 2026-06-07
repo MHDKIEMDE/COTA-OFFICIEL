@@ -104,7 +104,7 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     
     // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
+    Route::redirect('/dashboard', '/admin')->name('dashboard.index');
 
     // Pronostics
     Route::resource('predictions', PredictionController::class);
@@ -156,6 +156,7 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
     Route::get('/stats/active-users', [StatsController::class, 'activeUsers'])->name('stats.active-users');
     Route::get('/stats/funnel', [StatsController::class, 'funnel'])->name('stats.funnel');
+    Route::get('/stats/segments', [StatsController::class, 'segments'])->name('stats.segments');
 
     // Monitoring APIs
     Route::get('/api-monitor', [ApiMonitorController::class, 'index'])->name('api-monitor.index');

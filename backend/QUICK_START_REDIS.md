@@ -25,7 +25,7 @@ redis-cli ping  # Doit répondre: PONG
 php migrate_to_redis.php
 
 # 5. Tester Redis
-php test_redis.php
+j
 
 # 6. Tester l'API (dans un autre terminal)
 php artisan serve

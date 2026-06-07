@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -93,6 +94,11 @@ class UserController extends Controller
 
         $validated['is_premium'] = $request->boolean('is_premium');
         $validated['is_admin'] = $request->boolean('is_admin');
+
+        // Seul un super_admin peut promouvoir un autre super_admin
+        if (isset($validated['is_super_admin']) && $validated['is_super_admin']) {
+            abort_unless(auth()->user()?->is_super_admin, 403, 'Action réservée aux super-admins.');
+        }
         $validated['is_super_admin'] = $request->boolean('is_super_admin');
 
         $user->update($validated);
@@ -156,7 +162,17 @@ class UserController extends Controller
      */
     public function export(Request $request)
     {
-        $users = User::all();
+        Log::info('Admin CSV export', [
+            'admin_id'   => auth()->id(),
+            'admin_name' => auth()->user()?->name,
+            'ip'         => request()->ip(),
+            'at'         => now()->toIso8601String(),
+        ]);
+
+        $users = User::select(
+            'id','name','email','phone','is_premium','premium_expires_at',
+            'referral_code','created_at','last_login_at'
+        )->withCount('referrals as referral_count')->lazy(500);
 
         $filename = 'users_export_' . date('Y-m-d_His') . '.csv';
         $handle = fopen('php://temp', 'r+');

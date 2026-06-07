@@ -1,31 +1,57 @@
 @extends('layouts.auth')
 
 @section('content')
-    <div style="min-height: 100vh; display: flex; flex-direction: column; background: var(--cota-bg-primary);">
-        {{-- Header --}}
-        <div style="padding: var(--cota-spacing-lg) var(--cota-spacing-md);">
-            <a href="{{ route('home') }}" style="display: inline-flex; align-items: center; gap: 8px; color: var(--cota-text-muted); text-decoration: none; font-size: 0.875rem;">
-                <i class="bi bi-arrow-left"></i> Retour
-            </a>
-        </div>
-        
-        {{-- Content --}}
-        <div style="flex: 1; padding: var(--cota-spacing-md); display: flex; flex-direction: column;">
-            {{-- Logo & Title --}}
-            <div style="text-align: center; margin-bottom: var(--cota-spacing-xl);">
-                <div style="width: 72px; height: 72px; background: var(--cota-accent); border: 1px solid rgba(232, 255, 54, 0.45); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; box-shadow: 0 16px 36px rgba(232, 255, 54, 0.16);">
-                    <span style="font-size: 2rem; font-weight: 800; color: var(--cota-on-accent);">C</span>
-                </div>
-                <h1 style="font-size: 1.75rem; font-weight: 700; color: var(--cota-text-primary); margin-bottom: 8px;">
-                    Connexion
-                </h1>
-                <p style="color: var(--cota-text-muted); font-size: 0.9375rem;">
-                    Accédez à vos pronostics premium
-                </p>
-            </div>
-            
-            {{-- Login Form (contient tout: formulaire, séparateur, boutons sociaux, liens) --}}
-            <livewire:auth.login-form />
-        </div>
+<style>
+    .auth-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 16px;
+        color: var(--dim);
+        text-decoration: none;
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 13px;
+    }
+    .auth-logo {
+        width: 68px; height: 68px;
+        background: var(--acc);
+        border-radius: 16px;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 16px;
+        box-shadow: 0 16px 36px rgba(232,255,54,.16);
+    }
+    .auth-logo span {
+        font-family: 'Archivo', sans-serif;
+        font-size: 32px; font-weight: 900;
+        color: var(--bg);
+    }
+    .auth-title {
+        font-family: 'Archivo', sans-serif;
+        font-size: 26px; font-weight: 900;
+        color: var(--ink);
+        text-align: center;
+        margin-bottom: 6px;
+    }
+    .auth-sub {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 14px;
+        color: var(--dim);
+        text-align: center;
+        margin-bottom: 32px;
+    }
+</style>
+
+<a href="{{ route('home') }}" class="auth-back">
+    <i class="bi bi-arrow-left"></i> Retour
+</a>
+
+<div style="flex:1;padding:0 16px 32px;display:flex;flex-direction:column;">
+    <div style="margin-bottom:32px;">
+        <div class="auth-logo"><span>C</span></div>
+        <div class="auth-title">Connexion</div>
+        <div class="auth-sub">Accède à tes pronostics premium</div>
     </div>
+
+    <livewire:auth.login-form />
+</div>
 @endsection

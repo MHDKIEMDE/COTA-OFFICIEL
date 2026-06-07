@@ -46,7 +46,7 @@ export default async function BookmakersPage() {
             <p className="text-[#888888]">Aucun bookmaker disponible pour le moment.</p>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="bookmakers-page-grid grid sm:grid-cols-2 gap-6">
             {bookmakers.map((bm) => (
               <div
                 key={bm.id}

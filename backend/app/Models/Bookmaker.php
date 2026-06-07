@@ -19,16 +19,29 @@ class Bookmaker extends Model
         'download_link',
         'is_active',
         'sort_order',
+        'popular_rank',
         'logo_url',
         'description',
+        'deposit_methods',
+        'withdrawal_methods',
+        'min_deposit',
+        'min_withdrawal',
+        'bonus_label',
+        'rating',
     ];
 
     protected $casts = [
-        'is_active'  => 'boolean',
-        'sort_order' => 'integer',
-        'regions'    => 'array',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
+        'is_active'          => 'boolean',
+        'sort_order'         => 'integer',
+        'popular_rank'       => 'integer',
+        'regions'            => 'array',
+        'deposit_methods'    => 'array',
+        'withdrawal_methods' => 'array',
+        'min_deposit'        => 'integer',
+        'min_withdrawal'     => 'integer',
+        'rating'             => 'float',
+        'created_at'         => 'datetime',
+        'updated_at'         => 'datetime',
     ];
 
     /**

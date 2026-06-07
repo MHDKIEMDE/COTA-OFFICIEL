@@ -19,7 +19,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Tailwind CDN -->
+    <!-- Tailwind CDN (à remplacer par un build compilé avant mise en production) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {

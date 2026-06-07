@@ -10,6 +10,7 @@ use App\Models\Subscription;
 use App\Models\AffiliationBonus;
 use App\Models\Referral;
 use App\Models\Feedback;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
@@ -71,9 +72,12 @@ class DashboardController extends Controller
 
         // Graphiques - Inscriptions sur 7 jours
         $userChartData = $this->getUserChartData();
-        
+
         // Graphiques - Pronostics sur 7 jours
         $predictionChartData = $this->getPredictionChartData();
+
+        // Graphiques - Revenus sur 30 jours
+        $revenueChartData = $this->getRevenueChartData();
 
         // Dernières activités
         $recentActivities = $this->getRecentActivities();
@@ -84,6 +88,19 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
+        // Dernières prédictions (temps réel)
+        $latestPredictions = Prediction::where('is_published', true)
+            ->whereDate('match_date', today())
+            ->orderByDesc('total_score')
+            ->take(8)
+            ->get(['id', 'home_team', 'away_team', 'home_team_logo', 'away_team_logo', 'prediction', 'bet_type', 'confidence_stars', 'total_score', 'odds', 'status', 'match_date', 'match_time', 'competition', 'is_premium']);
+
+        // Derniers abonnements (temps réel)
+        $latestSubscriptions = Subscription::with('user')
+            ->latest()
+            ->take(8)
+            ->get(['id', 'user_id', 'plan', 'amount', 'status', 'created_at']);
+
         return view('admin.dashboard', compact(
             'stats',
             'predictionStats',
@@ -92,47 +109,89 @@ class DashboardController extends Controller
             'referralStats',
             'userChartData',
             'predictionChartData',
+            'revenueChartData',
             'recentActivities',
-            'recentFeedbacks'
+            'recentFeedbacks',
+            'latestPredictions',
+            'latestSubscriptions'
         ));
     }
 
-    /**
-     * Données pour le graphique des utilisateurs
-     */
     private function getUserChartData(): array
     {
-        $data = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
-            $count = User::whereDate('created_at', $date)->count();
-            $data[] = [
-                'date' => $date->format('d/m'),
-                'count' => $count,
-            ];
-        }
-        return $data;
+        return Cache::remember('admin.chart.users_7d', 300, function () {
+            $start = now()->subDays(6)->startOfDay();
+
+            $rows = DB::table('users')
+                ->selectRaw('DATE(created_at) as day, COUNT(*) as cnt')
+                ->where('created_at', '>=', $start)
+                ->groupByRaw('DATE(created_at)')
+                ->pluck('cnt', 'day');
+
+            $data = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $date = now()->subDays($i);
+                $key  = $date->format('Y-m-d');
+                $data[] = ['date' => $date->format('d/m'), 'count' => (int) ($rows[$key] ?? 0)];
+            }
+            return $data;
+        });
     }
 
-    /**
-     * Données pour le graphique des pronostics
-     */
     private function getPredictionChartData(): array
     {
-        $data = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $date = now()->subDays($i);
-            $won = Prediction::whereDate('created_at', $date)->where('status', 'won')->count();
-            $lost = Prediction::whereDate('created_at', $date)->where('status', 'lost')->count();
-            $pending = Prediction::whereDate('created_at', $date)->where('status', 'pending')->count();
-            $data[] = [
-                'date' => $date->format('d/m'),
-                'won' => $won,
-                'lost' => $lost,
-                'pending' => $pending,
-            ];
-        }
-        return $data;
+        return Cache::remember('admin.chart.predictions_7d', 300, function () {
+            $start = now()->subDays(6)->startOfDay();
+
+            $rows = DB::table('predictions')
+                ->selectRaw('DATE(created_at) as day, status, COUNT(*) as cnt')
+                ->where('created_at', '>=', $start)
+                ->groupByRaw('DATE(created_at), status')
+                ->get()
+                ->groupBy('day');
+
+            $data = [];
+            for ($i = 6; $i >= 0; $i--) {
+                $date  = now()->subDays($i);
+                $key   = $date->format('Y-m-d');
+                $group = $rows[$key] ?? collect();
+                $data[] = [
+                    'date'    => $date->format('d/m'),
+                    'won'     => (int) ($group->firstWhere('status', 'won')?->cnt     ?? 0),
+                    'lost'    => (int) ($group->firstWhere('status', 'lost')?->cnt    ?? 0),
+                    'pending' => (int) ($group->firstWhere('status', 'pending')?->cnt ?? 0),
+                ];
+            }
+            return $data;
+        });
+    }
+
+    private function getRevenueChartData(): array
+    {
+        return Cache::remember('admin.chart.revenue_30d', 300, function () {
+            $start = now()->subDays(29)->startOfDay();
+
+            $rows = DB::table('subscriptions')
+                ->selectRaw('DATE(created_at) as day, SUM(amount) as total, COUNT(*) as cnt')
+                ->where('status', 'completed')
+                ->where('created_at', '>=', $start)
+                ->groupByRaw('DATE(created_at)')
+                ->get()
+                ->keyBy('day');
+
+            $data = [];
+            for ($i = 29; $i >= 0; $i--) {
+                $date = now()->subDays($i);
+                $key  = $date->format('Y-m-d');
+                $row  = $rows[$key] ?? null;
+                $data[] = [
+                    'date'    => $date->format('d/m'),
+                    'revenue' => (int) ($row?->total ?? 0),
+                    'count'   => (int) ($row?->cnt   ?? 0),
+                ];
+            }
+            return $data;
+        });
     }
 
     /**

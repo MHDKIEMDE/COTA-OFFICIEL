@@ -4,13 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>@yield('code') — COTA</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Space+Grotesk:wght@600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       background: #0b0d10;
       color: #f4efe2;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Space Grotesk', sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -20,12 +25,14 @@
     }
 
     .wordmark {
-      font-size: 13px;
+      font-family: 'Archivo', sans-serif;
+      font-size: 20px;
       font-weight: 900;
-      letter-spacing: 0.25em;
-      color: #e8ff36;
+      letter-spacing: -0.02em;
+      color: #f4efe2;
       margin-bottom: 56px;
     }
+    .wordmark span { color: #e8ff36; }
 
     .icon {
       width: 64px;
@@ -39,13 +46,14 @@
       letter-spacing: 0.2em;
       color: #e8ff36;
       margin-bottom: 12px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     h1 {
-      font-size: 20px;
+      font-family: 'Archivo', sans-serif;
+      font-size: 22px;
       font-weight: 900;
-      letter-spacing: 0.06em;
+      letter-spacing: -0.01em;
       color: #f4efe2;
       margin-bottom: 12px;
       text-align: center;
@@ -77,7 +85,7 @@
     .error-ref {
       margin-top: 48px;
       font-size: 10px;
-      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-family: 'JetBrains Mono', monospace;
       color: #3a3a3a;
       letter-spacing: 0.08em;
     }
@@ -85,7 +93,7 @@
 </head>
 <body>
 
-  <div class="wordmark">COTA</div>
+  <div class="wordmark">COT<span>A</span></div>
 
   @yield('icon')
 

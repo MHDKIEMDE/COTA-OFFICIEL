@@ -15,6 +15,7 @@ class MatchSeeder extends Seeder
      */
     public function run(): void
     {
-        // Seeder désactivé - utiliser uniquement les vraies données de l'API
+        // Seeder désactivé — les matchs sont synchronisés en temps réel
+        // par FetchMatchesJob (API-Football) et le scheduler Laravel.
     }
 }

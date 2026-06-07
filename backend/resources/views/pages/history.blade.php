@@ -1,118 +1,89 @@
-@extends('layouts.app')
+<x-web-layout pageTitle="Historique — COTA">
+<style>
+    .h-stats { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:22px; }
+    .h-stat { background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center; }
+    .h-stat__val { font-family:var(--title);font-size:24px;line-height:1;color:var(--ink); }
+    .h-stat__label { font-family:var(--mono);font-size:8px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-top:5px; }
+    .h-tabs { display:flex;gap:6px;margin-bottom:18px;overflow-x:auto;scrollbar-width:none; }
+    .h-tabs::-webkit-scrollbar { display:none; }
+    .h-tab { flex-shrink:0;padding:6px 16px;border-radius:20px;font-family:var(--ui);font-size:12px;font-weight:700;color:var(--dim);background:var(--bg2);border:1px solid var(--line);text-decoration:none;transition:all .15s; }
+    .h-tab.active { background:var(--accent);border-color:var(--accent);color:var(--bg); }
+    .h-row { display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--line2);text-decoration:none;color:inherit;transition:background .1s; }
+    .h-row:last-child { border-bottom:none; }
+    .h-row:hover { background:var(--bg3); }
+    .h-row__bar { width:3px;align-self:stretch;border-radius:2px;flex-shrink:0; }
+    .h-row__logos { display:flex;flex-direction:column;align-items:center;gap:2px; }
+    .h-row__logo { width:22px;height:22px;border-radius:4px;object-fit:contain;background:var(--bg3); }
+    .h-row__logo--placeholder { display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;font-weight:800;color:var(--dim);background:var(--bg3);border:1px solid var(--line); }
+    .h-row__info { flex:1;min-width:0; }
+    .h-row__match { font-family:var(--ui);font-size:13px;font-weight:700;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+    .h-row__sub { font-family:var(--ui);font-size:11px;color:var(--dim);margin-top:2px; }
+    .h-row__right { text-align:right;flex-shrink:0; }
+    .h-row__date { font-family:var(--mono);font-size:10px;color:var(--dim); }
+    .h-row__score { font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);margin-top:3px; }
+    .h-row__status { font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px;margin-top:3px;display:inline-block; }
+    @media(max-width:760px){ .h-stats { grid-template-columns:repeat(2,1fr); } }
+</style>
 
-@php
-    $hideDate = true;
-@endphp
+  <div class="wd-topbar">
+    <div>
+      <div class="wd-date">VOTRE PARCOURS</div>
+      <h1 class="wd-h1">Historique</h1>
+    </div>
+    <a href="{{ route('history') }}" class="wd-ghost-btn">Tout voir</a>
+  </div>
 
-@section('header')
-    <div class="app-header__title">
-        <i class="bi bi-clock-history"></i>
-        <span>Historique</span>
-    </div>
-    <div class="app-header__actions">
-        <button class="app-header__btn">
-            <i class="bi bi-filter"></i>
-        </button>
-    </div>
-@endsection
+  {{-- Stats --}}
+  <div class="h-stats">
+    <div class="h-stat"><div class="h-stat__val">{{ $stats['total'] ?? 0 }}</div><div class="h-stat__label">Total</div></div>
+    <div class="h-stat"><div class="h-stat__val" style="color:var(--win);">{{ $stats['won'] ?? 0 }}</div><div class="h-stat__label">Gagnés</div></div>
+    <div class="h-stat"><div class="h-stat__val" style="color:var(--loss);">{{ $stats['lost'] ?? 0 }}</div><div class="h-stat__label">Perdus</div></div>
+    <div class="h-stat"><div class="h-stat__val" style="color:var(--accent);">{{ $stats['win_rate'] ?? 0 }}%</div><div class="h-stat__label">Taux</div></div>
+  </div>
 
-@section('content')
-    {{-- Stats Cards --}}
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: var(--cota-spacing-md);">
-        <div style="background: var(--cota-bg-secondary); border-radius: var(--cota-spacing-sm); padding: 12px; text-align: center;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--cota-text-primary);">{{ $stats['total'] ?? 0 }}</div>
-            <div style="font-size: 0.6875rem; color: var(--cota-text-muted); text-transform: uppercase;">Total</div>
-        </div>
-        <div style="background: var(--cota-bg-secondary); border-radius: var(--cota-spacing-sm); padding: 12px; text-align: center;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--cota-win);">{{ $stats['won'] ?? 0 }}</div>
-            <div style="font-size: 0.6875rem; color: var(--cota-text-muted); text-transform: uppercase;">Gagnés</div>
-        </div>
-        <div style="background: var(--cota-bg-secondary); border-radius: var(--cota-spacing-sm); padding: 12px; text-align: center;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--cota-loss);">{{ $stats['lost'] ?? 0 }}</div>
-            <div style="font-size: 0.6875rem; color: var(--cota-text-muted); text-transform: uppercase;">Perdus</div>
-        </div>
-        <div style="background: var(--cota-bg-secondary); border-radius: var(--cota-spacing-sm); padding: 12px; text-align: center;">
-            <div style="font-size: 1.5rem; font-weight: 700; color: var(--cota-accent);">{{ $stats['win_rate'] ?? 0 }}%</div>
-            <div style="font-size: 0.6875rem; color: var(--cota-text-muted); text-transform: uppercase;">Taux</div>
-        </div>
-    </div>
-    
-    {{-- Tabs --}}
-    <div class="cota-tabs">
-        <a href="#" class="cota-tabs__item active">Tous</a>
-        <a href="#" class="cota-tabs__item">
-            <i class="bi bi-check-circle-fill text-win me-1"></i> Gagnés
-        </a>
-        <a href="#" class="cota-tabs__item">
-            <i class="bi bi-x-circle-fill text-loss me-1"></i> Perdus
-        </a>
-        <a href="#" class="cota-tabs__item">En attente</a>
-    </div>
-    
-    {{-- History List --}}
+  {{-- Filtres --}}
+  <div class="h-tabs">
+    <a href="{{ route('history') }}" class="h-tab {{ !request('status') ? 'active' : '' }}">Tous</a>
+    <a href="{{ route('history', ['status' => 'won']) }}"     class="h-tab {{ request('status') === 'won'     ? 'active' : '' }}">★ Gagnés</a>
+    <a href="{{ route('history', ['status' => 'lost']) }}"    class="h-tab {{ request('status') === 'lost'    ? 'active' : '' }}">Perdus</a>
+    <a href="{{ route('history', ['status' => 'pending']) }}" class="h-tab {{ request('status') === 'pending' ? 'active' : '' }}">En attente</a>
+  </div>
+
+  <div class="wd-panel">
     @forelse($predictions ?? [] as $prediction)
-        <a href="{{ route('predictions.show', $prediction) }}" class="match-card">
-            {{-- Status Indicator --}}
-            <div style="width: 4px; border-radius: 2px; margin-right: 12px; align-self: stretch; 
-                        background: {{ $prediction->status === 'won' ? 'var(--cota-win)' : ($prediction->status === 'lost' ? 'var(--cota-loss)' : 'var(--cota-draw)') }};">
-            </div>
-            
-            {{-- Teams --}}
-            <div class="match-card__teams">
-                <div class="match-card__team">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode(substr($prediction->home_team, 0, 3)) }}&size=40&background=21262D&color=fff&bold=true" 
-                         alt="" class="match-card__team-logo">
-                    <span class="match-card__team-name">{{ $prediction->home_team }}</span>
-                </div>
-                <div class="match-card__team">
-                    <img src="https://ui-avatars.com/api/?name={{ urlencode(substr($prediction->away_team, 0, 3)) }}&size=40&background=21262D&color=fff&bold=true" 
-                         alt="" class="match-card__team-logo">
-                    <span class="match-card__team-name">{{ $prediction->away_team }}</span>
-                </div>
-            </div>
-            
-            {{-- Result --}}
-            <div class="match-card__result">
-                <div class="d-flex flex-column align-items-end gap-1">
-                    <span style="font-size: 0.75rem; color: var(--cota-text-muted);">
-                        {{ \Carbon\Carbon::parse($prediction->match_date)->format('d/m') }}
-                    </span>
-                    <div class="d-flex align-items-center gap-2">
-                        <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; background: var(--cota-bg-tertiary); color: var(--cota-text-secondary);">
-                            {{ $prediction->prediction }}
-                        </span>
-                        @if($prediction->status === 'won')
-                            <i class="bi bi-check-circle-fill text-win"></i>
-                        @elseif($prediction->status === 'lost')
-                            <i class="bi bi-x-circle-fill text-loss"></i>
-                        @else
-                            <i class="bi bi-clock text-muted-custom"></i>
-                        @endif
-                    </div>
-                    <span style="font-size: 0.875rem; font-weight: 700;">
-                        {{ $prediction->home_score ?? '-' }} : {{ $prediction->away_score ?? '-' }}
-                    </span>
-                </div>
-            </div>
-        </a>
-    @empty
-        <div class="empty-state">
-            <div class="empty-state__icon">
-                <i class="bi bi-clock-history"></i>
-            </div>
-            <h3 class="empty-state__title">Aucun historique</h3>
-            <p class="empty-state__text">
-                @auth
-                    Vos pronostics terminés apparaîtront ici.
-                @else
-                    Connectez-vous pour voir votre historique de pronostics.
-                @endauth
-            </p>
-            @guest
-                <a href="{{ route('login') }}" class="btn-cota btn-cota--primary">
-                    <i class="bi bi-box-arrow-in-right"></i> Connexion
-                </a>
-            @endguest
+      @php
+        $status    = $prediction->result ?? $prediction->status ?? 'pending';
+        $barColor  = match($status) { 'won' => 'var(--win)', 'lost' => 'var(--loss)', default => 'var(--line)' };
+        $badgeBg   = match($status) { 'won' => 'rgba(61,220,145,.15)', 'lost' => 'rgba(255,91,58,.12)', default => 'var(--bg3)' };
+        $badgeColor = match($status) { 'won' => 'var(--win)', 'lost' => 'var(--loss)', default => 'var(--dim)' };
+        $badgeLabel = match($status) { 'won' => '✓ WIN', 'lost' => '✗ LOSS', default => '⏳' };
+      @endphp
+      <a href="{{ isset($prediction->id) ? route('predictions.show', $prediction->id) : '#' }}" class="h-row">
+        <div class="h-row__bar" style="background:{{ $barColor }};"></div>
+        <div class="h-row__logos">
+          @if($prediction->home_team_logo ?? null)<img src="{{ $prediction->home_team_logo }}" class="h-row__logo" alt="">
+          @else<div class="h-row__logo h-row__logo--placeholder">{{ strtoupper(substr($prediction->home_team ?? '?', 0, 3)) }}</div>@endif
+          @if($prediction->away_team_logo ?? null)<img src="{{ $prediction->away_team_logo }}" class="h-row__logo" alt="">
+          @else<div class="h-row__logo h-row__logo--placeholder">{{ strtoupper(substr($prediction->away_team ?? '?', 0, 3)) }}</div>@endif
         </div>
+        <div class="h-row__info">
+          <div class="h-row__match">{{ $prediction->home_team ?? '—' }} vs {{ $prediction->away_team ?? '—' }}</div>
+          <div class="h-row__sub">{{ $prediction->predicted_outcome ?? $prediction->prediction ?? '—' }}</div>
+        </div>
+        <div class="h-row__right">
+          <div class="h-row__date">{{ isset($prediction->match_date) ? \Carbon\Carbon::parse($prediction->match_date)->format('d/m') : '—' }}</div>
+          <div class="h-row__score">{{ $prediction->home_score ?? '-' }} : {{ $prediction->away_score ?? '-' }}</div>
+          <span class="h-row__status" style="background:{{ $badgeBg }};color:{{ $badgeColor }};">{{ $badgeLabel }}</span>
+        </div>
+      </a>
+    @empty
+      <div style="text-align:center;padding:40px 32px;color:var(--dim)">
+        <div style="font-family:var(--title);font-size:18px;color:var(--ink);margin-bottom:8px">Aucun historique</div>
+        @auth<div style="font-size:13.5px">Tes pronostics terminés apparaîtront ici.</div>
+        @else<div style="font-size:13.5px">Connecte-toi pour voir ton historique.</div>
+        <a href="{{ route('login') }}" style="display:inline-block;margin-top:14px;padding:10px 22px;background:var(--accent);border-radius:10px;font-family:var(--ui);font-size:13px;font-weight:700;color:var(--bg);text-decoration:none;">Se connecter →</a>@endauth
+      </div>
     @endforelse
-@endsection
+  </div>
+
+</x-web-layout>

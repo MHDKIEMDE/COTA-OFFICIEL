@@ -216,12 +216,15 @@ class AdminSettingsController extends Controller
     public function updateApp(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'prediction_publish_hours'         => 'nullable|array',
-            'prediction_publish_hours.*'       => 'integer|min:0|max:23',
-            'premium_plans'                    => 'nullable|array',
-            'premium_plans.*.label'            => 'required_with:premium_plans|string|max:50',
-            'premium_plans.*.price'            => 'required_with:premium_plans|integer|min:0',
-            'premium_plans.*.days'             => 'required_with:premium_plans|integer|min:1',
+            'prediction_publish_hours'                    => 'nullable|array',
+            'prediction_publish_hours.*'                  => 'integer|min:0|max:23',
+            'premium_plans'                               => 'nullable|array',
+            'premium_plans.*.label'                       => 'required_with:premium_plans|string|max:50',
+            'premium_plans.*.price'                       => 'required_with:premium_plans|integer|min:0',
+            'premium_plans.*.days'                        => 'required_with:premium_plans|integer|min:1',
+            'premium_plans.*.features'                    => 'nullable|array',
+            'premium_plans.*.features.*.title'            => 'required_with:premium_plans.*.features|string|max:100',
+            'premium_plans.*.features.*.description'      => 'nullable|string|max:200',
         ]);
 
         if (array_key_exists('prediction_publish_hours', $validated)) {

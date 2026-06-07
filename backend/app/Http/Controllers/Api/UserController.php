@@ -130,6 +130,9 @@ class UserController extends Controller
             'favorite_team'   => 'sometimes|nullable|string|max:100',
             'favorite_league' => 'sometimes|nullable|string|max:100',
             'frequency'       => 'sometimes|nullable|in:daily,important,manual',
+            // Segments onboarding
+            'profil'          => 'sometimes|nullable|in:daily,weekend,big_games',
+            'bookmaker'       => 'sometimes|nullable|string|max:50',
         ]);
 
         if ($validator->fails()) {
@@ -141,9 +144,49 @@ class UserController extends Controller
             $request->only(['competitions', 'favorite_team', 'favorite_league', 'frequency'])
         );
 
-        $user->update(['preferences' => $preferences]);
+        $update = ['preferences' => $preferences];
+
+        // Colonnes de segmentation dédiées (indexées pour stats admin)
+        if ($request->has('bookmaker')) {
+            $update['bookmaker_slug'] = $request->input('bookmaker');
+        }
+        if ($request->has('profil')) {
+            $update['parieur_profil'] = $request->input('profil');
+        }
+        // Mémoriser la région détectée à ce moment si pas encore renseignée
+        if (empty($user->detected_region)) {
+            $update['detected_region'] = $this->detectRegionFromIp($request->ip());
+        }
+
+        $user->update($update);
 
         return response()->json(['success' => true, 'message' => 'Préférences sauvegardées.', 'data' => $preferences]);
+    }
+
+    private function detectRegionFromIp(string $ip): string
+    {
+        if (in_array($ip, ['127.0.0.1', '::1']) || str_starts_with($ip, '192.168.') || str_starts_with($ip, '10.')) {
+            return 'west_africa';
+        }
+        try {
+            $resp = \Illuminate\Support\Facades\Http::timeout(3)
+                ->get("http://ip-api.com/json/{$ip}?fields=continentCode,countryCode");
+            if (!$resp->successful()) return 'global';
+
+            $continent   = strtoupper($resp->json('continentCode') ?? '');
+            $countryCode = strtoupper($resp->json('countryCode') ?? '');
+
+            if ($continent === 'EU') return 'europe';
+            if ($continent !== 'AF') return 'global';
+
+            // Sous-régions africaines uniquement
+            if (in_array($countryCode, ['BF','ML','SN','CI','NE','GN','GW','MR','GM','SL','LR','GH','TG','BJ','NG','CV'])) return 'west_africa';
+            if (in_array($countryCode, ['CM','CG','CD','GA','CF','TD','GQ','ST','AO']))                                      return 'central_africa';
+            if (in_array($countryCode, ['KE','TZ','UG','RW','BI','ET','SO','DJ','ER','MZ','ZM','MW','ZW','MG','SC','MU'])) return 'east_africa';
+            if (in_array($countryCode, ['MA','DZ','TN','EG','LY','SD','SS']))                                               return 'north_africa';
+            if (in_array($countryCode, ['ZA','NA','BW','SZ','LS']))                                                         return 'south_africa';
+        } catch (\Throwable) {}
+        return 'global';
     }
 
     /**

@@ -6,194 +6,178 @@
 @section('content')
 <div class="space-y-6">
 
-    {{-- Stats --}}
+    {{-- ── Stats ───────────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-white">{{ number_format($stats['total']) }}</p>
-            <p class="text-sm text-gray-400">Total</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-success">{{ number_format($stats['active']) }}</p>
-            <p class="text-sm text-gray-400">Actifs</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-warning">{{ number_format($stats['pending']) }}</p>
-            <p class="text-sm text-gray-400">En attente</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-primary">{{ number_format($stats['revenue_month']) }} <span class="text-sm">FCFA</span></p>
-            <p class="text-sm text-gray-400">Ce mois</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-secondary">{{ number_format($stats['revenue_total']) }} <span class="text-sm">FCFA</span></p>
-            <p class="text-sm text-gray-400">Total revenus</p>
-        </div>
+        @foreach([
+            ['Total',         number_format($stats['total']),            'var(--ink)'],
+            ['Actifs',        number_format($stats['active']),           'var(--win)'],
+            ['En attente',    number_format($stats['pending']),          '#f5a623'],
+            ['Ce mois',       number_format($stats['revenue_month']) . ' FCFA', 'var(--accent)'],
+            ['Total revenus', number_format($stats['revenue_total']) . ' FCFA',  'var(--ink-2)'],
+        ] as [$label, $val, $color])
+            <div class="card text-center">
+                <p class="text-xl font-bold" style="color:{{ $color }};font-family:Archivo,sans-serif">{{ $val }}</p>
+                <p class="text-sm mt-1" style="color:var(--dim)">{{ $label }}</p>
+            </div>
+        @endforeach
     </div>
 
-    {{-- Répartition plans + Graphique revenus --}}
+    {{-- ── Répartition + Graphique ─────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {{-- Répartition --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4"><i class="fa-solid fa-chart-pie mr-2 text-primary"></i>Répartition plans</h3>
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-chart-pie mr-2" style="color:var(--accent)"></i>Répartition plans</p>
             <div class="space-y-3">
-                @foreach(['weekly' => ['Hebdomadaire', 'text-blue-400', $stats['weekly_count']], 'monthly' => ['Mensuel', 'text-success', $stats['monthly_count']], 'quarterly' => ['Trimestriel', 'text-secondary', $stats['quarterly_count']]] as $plan => [$label, $color, $count])
-                <div class="flex items-center justify-between">
-                    <span class="text-gray-400 text-sm">{{ $label }}</span>
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500">{{ $stats['total'] > 0 ? round(($count / $stats['total']) * 100) : 0 }}%</span>
-                        <span class="px-3 py-1 rounded-full text-xs font-medium bg-gray-700 {{ $color }}">{{ $count }}</span>
+                @foreach(['weekly' => ['Hebdomadaire', $stats['weekly_count']], 'monthly' => ['Mensuel', $stats['monthly_count']], 'quarterly' => ['Trimestriel', $stats['quarterly_count']]] as $plan => [$label, $count])
+                    <div class="flex items-center justify-between">
+                        <span style="color:var(--ink-2);font-size:13px">{{ $label }}</span>
+                        <div class="flex items-center gap-2">
+                            <span style="font-size:11px;color:var(--dim)">{{ $stats['total'] > 0 ? round(($count / $stats['total']) * 100) : 0 }}%</span>
+                            <span class="badge-accent">{{ $count }}</span>
+                        </div>
                     </div>
-                </div>
                 @endforeach
             </div>
         </div>
 
-        {{-- Graphique revenus 6 mois --}}
-        <div class="lg:col-span-2 bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-            <h3 class="text-white font-semibold mb-4"><i class="fa-solid fa-chart-bar mr-2 text-success"></i>Revenus (6 derniers mois)</h3>
-            <div class="chart-container">
+        <div class="card lg:col-span-2 overflow-hidden">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-chart-bar mr-2" style="color:var(--win)"></i>Revenus (6 derniers mois)</p>
+            <div style="height:180px">
                 <canvas id="revenueChart"></canvas>
             </div>
         </div>
     </div>
 
-    {{-- Accorder abonnement manuel --}}
-    <div class="bg-dark-100 rounded-xl border border-primary/30 p-6">
-        <h3 class="text-white font-semibold mb-4"><i class="fa-solid fa-plus-circle mr-2 text-primary"></i>Accorder un abonnement manuel</h3>
-        <form method="POST" action="{{ route('admin.subscriptions.grant') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+    {{-- ── Accord abonnement manuel ─────────────────────────────────────────── --}}
+    <div class="card" style="border-color:rgba(232,255,54,.25)">
+        <p class="tag-mono mb-4"><i class="fa-solid fa-plus-circle mr-2" style="color:var(--accent)"></i>Accorder un abonnement manuel</p>
+        <form method="POST" action="{{ route('admin.subscriptions.grant') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
             @csrf
-            <select name="user_id" required class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+            <select name="user_id" required class="input-brand" style="height:40px;padding:0 12px">
                 <option value="">Sélectionner un utilisateur</option>
-                @foreach(\App\Models\User::orderBy('name')->get() as $u)
+                @foreach($users as $u)
                     <option value="{{ $u->id }}">{{ $u->name }} ({{ $u->email ?? $u->phone }})</option>
                 @endforeach
             </select>
-            <select name="plan" required class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+            <select name="plan" required class="input-brand" style="height:40px;padding:0 12px">
                 <option value="weekly">Hebdomadaire (7j)</option>
                 <option value="monthly" selected>Mensuel (30j)</option>
                 <option value="quarterly">Trimestriel (90j)</option>
             </select>
             <input type="text" name="reason" required placeholder="Raison (ex: compensation bug)"
-                   class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
-            <button type="submit" class="bg-primary hover:bg-primary/80 text-white rounded-lg px-4 py-2 transition font-medium">
+                   class="input-brand" style="height:40px">
+            <button type="submit" class="btn-primary">
                 <i class="fa-solid fa-gift mr-1"></i> Accorder
             </button>
         </form>
     </div>
 
-    {{-- Flash --}}
+    {{-- ── Flash ────────────────────────────────────────────────────────────── --}}
     @if(session('success'))
-        <div class="bg-success/20 border border-success/40 text-success rounded-lg px-4 py-3">{{ session('success') }}</div>
+        <div class="alert-brand alert-success">{{ session('success') }}</div>
     @endif
 
-    {{-- Filtres --}}
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-5">
-        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
-            <select name="status" class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+    {{-- ── Filtres ──────────────────────────────────────────────────────────── --}}
+    <div class="card">
+        <form method="GET" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            <select name="status" class="input-brand" style="height:40px;padding:0 12px">
                 <option value="">Tous statuts</option>
                 <option value="active"    {{ request('status') === 'active'    ? 'selected' : '' }}>Actif</option>
                 <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Annulé</option>
                 <option value="expired"   {{ request('status') === 'expired'   ? 'selected' : '' }}>Expiré</option>
             </select>
-            <select name="plan" class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+            <select name="plan" class="input-brand" style="height:40px;padding:0 12px">
                 <option value="">Tous les plans</option>
                 <option value="weekly"    {{ request('plan') === 'weekly'    ? 'selected' : '' }}>Hebdomadaire</option>
                 <option value="monthly"   {{ request('plan') === 'monthly'   ? 'selected' : '' }}>Mensuel</option>
                 <option value="quarterly" {{ request('plan') === 'quarterly' ? 'selected' : '' }}>Trimestriel</option>
             </select>
-            <select name="payment_method" class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+            <select name="payment_method" class="input-brand" style="height:40px;padding:0 12px">
                 <option value="">Tous moyens</option>
                 <option value="paydunya"    {{ request('payment_method') === 'paydunya'    ? 'selected' : '' }}>Paydunya</option>
                 <option value="admin"       {{ request('payment_method') === 'admin'       ? 'selected' : '' }}>Admin</option>
                 <option value="referral"    {{ request('payment_method') === 'referral'    ? 'selected' : '' }}>Parrainage</option>
                 <option value="affiliation" {{ request('payment_method') === 'affiliation' ? 'selected' : '' }}>Affiliation</option>
             </select>
-            <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher utilisateur..."
-                   class="bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+            <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher utilisateur…"
+                   class="input-brand" style="height:40px">
             <div class="flex gap-2">
-                <button type="submit" class="flex-1 bg-primary hover:bg-primary/80 text-white rounded-lg px-4 py-2 transition">
+                <button type="submit" class="btn-primary btn-sm flex-1">
                     <i class="fa-solid fa-search mr-1"></i> Filtrer
                 </button>
-                <a href="{{ route('admin.subscriptions.index') }}" class="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-4 py-2 transition">
+                <a href="{{ route('admin.subscriptions.index') }}" class="btn-secondary btn-sm px-3">
                     <i class="fa-solid fa-xmark"></i>
                 </a>
             </div>
         </form>
     </div>
 
-    {{-- Table --}}
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 overflow-hidden">
+    {{-- ── Table ────────────────────────────────────────────────────────────── --}}
+    <div class="card" style="padding:0;overflow:hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="table-brand w-full">
                 <thead>
-                    <tr class="border-b border-gray-700/50 text-gray-400 text-xs uppercase tracking-wider">
-                        <th class="px-6 py-4 text-left">#</th>
-                        <th class="px-6 py-4 text-left">Utilisateur</th>
-                        <th class="px-6 py-4 text-left">Plan</th>
-                        <th class="px-6 py-4 text-left">Montant</th>
-                        <th class="px-6 py-4 text-left">Moyen</th>
-                        <th class="px-6 py-4 text-left">Statut</th>
-                        <th class="px-6 py-4 text-left">Expiration</th>
-                        <th class="px-6 py-4 text-left">Date</th>
-                        <th class="px-6 py-4 text-right">Action</th>
+                    <tr>
+                        <th class="text-left">#</th>
+                        <th class="text-left">Utilisateur</th>
+                        <th class="text-left">Plan</th>
+                        <th class="text-left">Montant</th>
+                        <th class="text-left">Moyen</th>
+                        <th class="text-left">Statut</th>
+                        <th class="text-left">Expiration</th>
+                        <th class="text-left">Date</th>
+                        <th class="text-right">Action</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-700/30">
+                <tbody>
                     @forelse($subscriptions as $sub)
                     @php
-                        $isActive  = $sub->status === 'active' && $sub->expires_at && $sub->expires_at->isFuture();
-                        $planLabels = ['weekly' => 'Hebdo', 'monthly' => 'Mensuel', 'quarterly' => 'Trimestriel'];
-                        $statusColor = match($sub->status) {
-                            'active'    => $isActive ? 'bg-success/20 text-success' : 'bg-gray-500/20 text-gray-400',
-                            'cancelled' => 'bg-danger/20 text-danger',
-                            'expired'   => 'bg-gray-500/20 text-gray-400',
-                            default     => 'bg-warning/20 text-warning',
-                        };
-                        $statusLabel = $isActive ? 'Actif' : ucfirst($sub->status);
+                        $isActive = $sub->status === 'active' && $sub->expires_at && $sub->expires_at->isFuture();
                     @endphp
-                    <tr class="hover:bg-gray-800/30 transition">
-                        <td class="px-6 py-4 text-gray-500">{{ $sub->id }}</td>
-                        <td class="px-6 py-4">
-                            <p class="text-white font-medium">{{ $sub->user->name ?? '—' }}</p>
-                            <p class="text-gray-500 text-xs">{{ $sub->user->email ?? $sub->user->phone ?? '' }}</p>
+                    <tr>
+                        <td style="color:var(--dim-2);font-size:12px;font-family:JetBrains Mono,monospace">{{ $sub->id }}</td>
+                        <td>
+                            <p style="color:var(--ink);font-weight:600;font-size:14px">{{ $sub->user->name ?? '—' }}</p>
+                            <p style="color:var(--dim);font-size:12px">{{ $sub->user->email ?? $sub->user->phone ?? '' }}</p>
                         </td>
-                        <td class="px-6 py-4">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium bg-primary/20 text-primary">
-                                {{ $planLabels[$sub->plan] ?? $sub->plan }}
-                            </span>
+                        <td>
+                            <span class="badge-accent">{{ ['weekly' => 'Hebdo', 'monthly' => 'Mensuel', 'quarterly' => 'Trimestriel'][$sub->plan] ?? $sub->plan }}</span>
                         </td>
-                        <td class="px-6 py-4 text-white font-medium">
+                        <td style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace;font-size:13px">
                             {{ $sub->amount > 0 ? number_format($sub->amount) . ' FCFA' : 'Gratuit' }}
                         </td>
-                        <td class="px-6 py-4 text-gray-400 capitalize">{{ $sub->payment_method }}</td>
-                        <td class="px-6 py-4">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusColor }}">{{ $statusLabel }}</span>
-                        </td>
-                        <td class="px-6 py-4 text-gray-400 text-xs">
-                            {{ $sub->expires_at ? $sub->expires_at->format('d/m/Y') : '—' }}
+                        <td style="color:var(--ink-2);font-size:13px;text-transform:capitalize">{{ $sub->payment_method }}</td>
+                        <td>
                             @if($isActive)
-                                <span class="block text-success">{{ $sub->expires_at->diffForHumans() }}</span>
+                                <span class="badge-win">Actif</span>
+                            @elseif($sub->status === 'cancelled')
+                                <span class="badge-loss">Annulé</span>
+                            @else
+                                <span style="font-size:11px;color:var(--dim)">{{ ucfirst($sub->status) }}</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 text-gray-400 text-xs">{{ $sub->created_at->format('d/m/Y') }}</td>
-                        <td class="px-6 py-4 text-right">
+                        <td style="font-size:12px;color:var(--dim)">
+                            {{ $sub->expires_at ? $sub->expires_at->format('d/m/Y') : '—' }}
+                            @if($isActive)
+                                <span style="display:block;color:var(--win)">{{ $sub->expires_at->diffForHumans() }}</span>
+                            @endif
+                        </td>
+                        <td style="font-size:12px;color:var(--dim)">{{ $sub->created_at->format('d/m/Y') }}</td>
+                        <td class="text-right">
                             @if($sub->status === 'active' && $isActive)
-                            <form method="POST" action="{{ route('admin.subscriptions.cancel', $sub) }}"
-                                  onsubmit="return confirm('Annuler cet abonnement ?')">
-                                @csrf @method('PATCH')
-                                <button class="px-3 py-1.5 rounded-lg text-xs bg-danger/20 text-danger hover:bg-danger/30 transition">
-                                    Annuler
-                                </button>
-                            </form>
+                                <form method="POST" action="{{ route('admin.subscriptions.cancel', $sub) }}"
+                                      onsubmit="return confirm('Annuler cet abonnement ?')">
+                                    @csrf @method('PATCH')
+                                    <button class="btn-danger btn-sm">Annuler</button>
+                                </form>
                             @else
-                                <span class="text-gray-600 text-xs">—</span>
+                                <span style="color:var(--dim-2);font-size:12px">—</span>
                             @endif
                         </td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="9" class="px-6 py-12 text-center text-gray-500">
-                            <i class="fa-solid fa-credit-card text-3xl mb-3 block"></i>
+                        <td colspan="9" style="padding:48px;text-align:center;color:var(--dim)">
+                            <i class="fa-solid fa-credit-card" style="font-size:28px;display:block;margin-bottom:12px;color:var(--dim-2)"></i>
                             Aucun abonnement trouvé
                         </td>
                     </tr>
@@ -203,38 +187,39 @@
         </div>
 
         @if($subscriptions->hasPages())
-        <div class="px-6 py-4 border-t border-gray-700/50">
+        <div style="padding:16px 24px;border-top:1px solid var(--line)">
             {{ $subscriptions->links('vendor.pagination.tailwind') }}
         </div>
         @endif
     </div>
+
 </div>
 @endsection
 
 @push('scripts')
 <script>
-    const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-    new Chart(revenueCtx, {
-        type: 'bar',
-        data: {
-            labels: {!! json_encode(array_column($revenueChart, 'month')) !!},
-            datasets: [{
-                label: 'Revenus (FCFA)',
-                data: {!! json_encode(array_column($revenueChart, 'amount')) !!},
-                backgroundColor: 'rgba(99,102,241,0.7)',
-                borderColor: '#6366F1',
-                borderWidth: 1,
-                borderRadius: 4,
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } },
-                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } }
-            }
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+new Chart(revenueCtx, {
+    type: 'bar',
+    data: {
+        labels: {!! json_encode(array_column($revenueChart, 'month')) !!},
+        datasets: [{
+            label: 'Revenus (FCFA)',
+            data: {!! json_encode(array_column($revenueChart, 'amount')) !!},
+            backgroundColor: 'rgba(61,220,145,0.5)',
+            borderColor: '#3ddc91',
+            borderWidth: 1,
+            borderRadius: 4,
+        }]
+    },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b8a85' } },
+            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b8a85' } }
         }
-    });
+    }
+});
 </script>
 @endpush

@@ -6,89 +6,74 @@
 @section('content')
 <div class="space-y-6">
 
-    {{-- Stats --}}
+    {{-- ── Stats ───────────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-white">{{ $stats['total'] }}</p>
-            <p class="text-sm text-gray-400">Total</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-success">{{ $stats['completed'] }}</p>
-            <p class="text-sm text-gray-400">Complétés</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-warning">{{ $stats['pending'] }}</p>
-            <p class="text-sm text-gray-400">En attente</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-primary">{{ $stats['rewards_given'] }}</p>
-            <p class="text-sm text-gray-400">Récompenses</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-2xl font-bold text-secondary">{{ $stats['this_month'] }}</p>
-            <p class="text-sm text-gray-400">Ce mois</p>
-        </div>
+        @foreach([
+            ['Total',        $stats['total'],         'var(--ink)'],
+            ['Complétés',    $stats['completed'],     'var(--win)'],
+            ['En attente',   $stats['pending'],       '#f5a623'],
+            ['Récompenses',  $stats['rewards_given'], 'var(--accent)'],
+            ['Ce mois',      $stats['this_month'],    'var(--ink-2)'],
+        ] as [$label, $val, $color])
+            <div class="card text-center">
+                <p class="text-2xl font-bold" style="color:{{ $color }};font-family:Archivo,sans-serif">{{ $val }}</p>
+                <p class="text-sm mt-1" style="color:var(--dim)">{{ $label }}</p>
+            </div>
+        @endforeach
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {{-- Top parrains --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-trophy mr-2 text-warning"></i>Top Parrains
-            </h3>
+        {{-- ── Top Parrains ────────────────────────────────────────────────── --}}
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-trophy mr-2" style="color:#f5a623"></i>Top Parrains</p>
             <div class="space-y-3">
                 @forelse($topReferrers as $i => $referrer)
-                <div class="flex items-center gap-3">
-                    <span class="w-6 text-center text-xs font-bold {{ $i === 0 ? 'text-yellow-400' : ($i === 1 ? 'text-gray-300' : ($i === 2 ? 'text-amber-600' : 'text-gray-500')) }}">
-                        #{{ $i + 1 }}
-                    </span>
-                    <div class="flex-1 min-w-0">
-                        <p class="text-white text-sm font-medium truncate">{{ $referrer->name }}</p>
-                        <p class="text-gray-500 text-xs">Code: {{ $referrer->referral_code }}</p>
+                    <div class="flex items-center gap-3">
+                        <span style="width:20px;text-align:center;font-size:12px;font-weight:700;
+                            {{ $i === 0 ? 'color:#f5a623' : ($i === 1 ? 'color:var(--dim)' : ($i === 2 ? 'color:#b87333' : 'color:var(--dim-2)')) }}">#{{ $i + 1 }}</span>
+                        <div class="flex-1 min-w-0">
+                            <p style="color:var(--ink);font-size:13px;font-weight:500" class="truncate">{{ $referrer->name }}</p>
+                            <p style="color:var(--dim);font-size:11px">Code : {{ $referrer->referral_code }}</p>
+                        </div>
+                        <span class="badge-win">{{ $referrer->referral_count }} filleuls</span>
                     </div>
-                    <span class="px-2 py-1 rounded-full text-xs font-bold bg-success/20 text-success">
-                        {{ $referrer->referral_count }} filleuls
-                    </span>
-                </div>
                 @empty
-                <p class="text-gray-500 text-sm text-center py-4">Aucun parrainage complété</p>
+                    <p style="color:var(--dim);font-size:13px;text-align:center;padding:16px 0">Aucun parrainage complété</p>
                 @endforelse
             </div>
         </div>
 
-        {{-- Paliers de récompenses --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-gift mr-2 text-primary"></i>Paliers de récompenses
-            </h3>
+        {{-- ── Paliers ──────────────────────────────────────────────────────── --}}
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-gift mr-2" style="color:var(--accent)"></i>Paliers de récompenses</p>
             <div class="space-y-3">
-                @foreach([1 => '3 jours', 3 => '7 jours', 10 => '30 jours', 50 => '🏆 Premium à vie'] as $filleuls => $reward)
-                <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-                    <span class="text-gray-300 text-sm">{{ $filleuls }} filleul{{ $filleuls > 1 ? 's' : '' }}</span>
-                    <span class="text-primary font-medium text-sm">{{ $reward }}</span>
-                </div>
+                @foreach([1 => '3 jours', 3 => '7 jours', 10 => '30 jours', 50 => 'Premium à vie'] as $filleuls => $reward)
+                    <div class="flex items-center justify-between p-3 rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
+                        <span style="color:var(--ink-2);font-size:13px">{{ $filleuls }} filleul{{ $filleuls > 1 ? 's' : '' }}</span>
+                        <span style="color:var(--accent);font-weight:600;font-size:13px">{{ $reward }}</span>
+                    </div>
                 @endforeach
             </div>
         </div>
 
-        {{-- Filtres --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4"><i class="fa-solid fa-filter mr-2 text-gray-400"></i>Filtres</h3>
+        {{-- ── Filtres ──────────────────────────────────────────────────────── --}}
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-filter mr-2" style="color:var(--dim)"></i>Filtres</p>
             <form method="GET" class="space-y-3">
-                <select name="status" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+                <select name="status" class="input-brand w-full" style="height:40px;padding:0 12px">
                     <option value="">Tous les statuts</option>
                     <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>Complété</option>
                     <option value="pending"   {{ request('status') === 'pending'   ? 'selected' : '' }}>En attente</option>
                     <option value="cancelled" {{ request('status') === 'cancelled' ? 'selected' : '' }}>Annulé</option>
                 </select>
-                <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher parrain / filleul..."
-                       class="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary">
+                <input type="text" name="search" value="{{ request('search') }}" placeholder="Rechercher parrain / filleul…"
+                       class="input-brand w-full" style="height:40px">
                 <div class="flex gap-2">
-                    <button type="submit" class="flex-1 bg-primary hover:bg-primary/80 text-white rounded-lg px-4 py-2 transition">
+                    <button type="submit" class="btn-primary btn-sm flex-1">
                         <i class="fa-solid fa-search mr-1"></i> Filtrer
                     </button>
-                    <a href="{{ route('admin.referrals.index') }}" class="bg-gray-700 hover:bg-gray-600 text-white rounded-lg px-4 py-2 transition">
+                    <a href="{{ route('admin.referrals.index') }}" class="btn-secondary btn-sm px-3">
                         <i class="fa-solid fa-xmark"></i>
                     </a>
                 </div>
@@ -96,71 +81,61 @@
         </div>
     </div>
 
-    {{-- Flash --}}
+    {{-- ── Flash ────────────────────────────────────────────────────────────── --}}
     @if(session('success'))
-        <div class="bg-success/20 border border-success/40 text-success rounded-lg px-4 py-3">{{ session('success') }}</div>
+        <div class="alert-brand alert-success">{{ session('success') }}</div>
     @endif
 
-    {{-- Table --}}
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 overflow-hidden">
+    {{-- ── Table ────────────────────────────────────────────────────────────── --}}
+    <div class="card" style="padding:0;overflow:hidden">
         <div class="overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="table-brand w-full">
                 <thead>
-                    <tr class="border-b border-gray-700/50 text-gray-400 text-xs uppercase tracking-wider">
-                        <th class="px-6 py-4 text-left">#</th>
-                        <th class="px-6 py-4 text-left">Parrain</th>
-                        <th class="px-6 py-4 text-left">Filleul</th>
-                        <th class="px-6 py-4 text-left">Code</th>
-                        <th class="px-6 py-4 text-left">Statut</th>
-                        <th class="px-6 py-4 text-left">Récompense</th>
-                        <th class="px-6 py-4 text-left">Date</th>
+                    <tr>
+                        <th class="text-left">#</th>
+                        <th class="text-left">Parrain</th>
+                        <th class="text-left">Filleul</th>
+                        <th class="text-left">Code</th>
+                        <th class="text-left">Statut</th>
+                        <th class="text-left">Récompense</th>
+                        <th class="text-left">Date</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-700/30">
+                <tbody>
                     @forelse($referrals as $referral)
-                    @php
-                        $statusColors = [
-                            'completed' => 'bg-success/20 text-success',
-                            'pending'   => 'bg-warning/20 text-warning',
-                            'cancelled' => 'bg-danger/20 text-danger',
-                        ];
-                        $statusLabels = ['completed' => 'Complété', 'pending' => 'En attente', 'cancelled' => 'Annulé'];
-                    @endphp
-                    <tr class="hover:bg-gray-800/30 transition">
-                        <td class="px-6 py-4 text-gray-500">{{ $referral->id }}</td>
-                        <td class="px-6 py-4">
-                            <p class="text-white font-medium">{{ $referral->referrer->name ?? '—' }}</p>
-                            <p class="text-gray-500 text-xs">{{ $referral->referrer->email ?? $referral->referrer->phone ?? '' }}</p>
+                    <tr>
+                        <td style="color:var(--dim-2);font-size:12px;font-family:JetBrains Mono,monospace">{{ $referral->id }}</td>
+                        <td>
+                            <p style="color:var(--ink);font-weight:600;font-size:14px">{{ $referral->referrer->name ?? '—' }}</p>
+                            <p style="color:var(--dim);font-size:12px">{{ $referral->referrer->email ?? $referral->referrer->phone ?? '' }}</p>
                         </td>
-                        <td class="px-6 py-4">
-                            <p class="text-white">{{ $referral->referred->name ?? '—' }}</p>
-                            <p class="text-gray-500 text-xs">{{ $referral->referred->email ?? $referral->referred->phone ?? '' }}</p>
+                        <td>
+                            <p style="color:var(--ink-2);font-size:14px">{{ $referral->referred->name ?? '—' }}</p>
+                            <p style="color:var(--dim);font-size:12px">{{ $referral->referred->email ?? $referral->referred->phone ?? '' }}</p>
                         </td>
-                        <td class="px-6 py-4">
-                            <span class="font-mono text-xs text-gray-300 bg-gray-800 px-2 py-1 rounded">
-                                {{ $referral->referral_code ?? '—' }}
-                            </span>
+                        <td>
+                            <code style="padding:2px 8px;background:var(--bg-3);border:1px solid var(--line-2);border-radius:6px;color:var(--accent);font-family:JetBrains Mono,monospace;font-size:12px">{{ $referral->referral_code ?? '—' }}</code>
                         </td>
-                        <td class="px-6 py-4">
-                            <span class="px-2 py-1 rounded-full text-xs font-medium {{ $statusColors[$referral->status] ?? 'bg-gray-500/20 text-gray-400' }}">
-                                {{ $statusLabels[$referral->status] ?? $referral->status }}
-                            </span>
+                        <td>
+                            @php
+                                $sMap = ['completed' => 'badge-win', 'pending' => 'badge-pending', 'cancelled' => 'badge-loss'];
+                                $lMap = ['completed' => 'Complété', 'pending' => 'En attente', 'cancelled' => 'Annulé'];
+                            @endphp
+                            <span class="{{ $sMap[$referral->status] ?? '' }}">{{ $lMap[$referral->status] ?? $referral->status }}</span>
                         </td>
-                        <td class="px-6 py-4">
+                        <td>
                             @if($referral->reward_granted)
-                                <span class="px-2 py-1 rounded-full text-xs bg-primary/20 text-primary">
-                                    {{ $referral->reward_days ?? '?' }}j offerts
-                                </span>
+                                <span class="badge-accent">{{ $referral->reward_days ?? '?' }}j offerts</span>
                             @else
-                                <span class="text-gray-600 text-xs">—</span>
+                                <span style="color:var(--dim-2);font-size:12px">—</span>
                             @endif
                         </td>
-                        <td class="px-6 py-4 text-gray-400 text-xs">{{ $referral->created_at->format('d/m/Y') }}</td>
+                        <td style="color:var(--dim);font-size:12px">{{ $referral->created_at->format('d/m/Y') }}</td>
                     </tr>
                     @empty
                     <tr>
-                        <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                            <i class="fa-solid fa-people-arrows text-3xl mb-3 block"></i>
+                        <td colspan="7" style="padding:48px;text-align:center;color:var(--dim)">
+                            <i class="fa-solid fa-people-arrows" style="font-size:28px;display:block;margin-bottom:12px;color:var(--dim-2)"></i>
                             Aucun parrainage trouvé
                         </td>
                     </tr>
@@ -170,10 +145,11 @@
         </div>
 
         @if($referrals->hasPages())
-        <div class="px-6 py-4 border-t border-gray-700/50">
+        <div style="padding:16px 24px;border-top:1px solid var(--line)">
             {{ $referrals->links('vendor.pagination.tailwind') }}
         </div>
         @endif
     </div>
+
 </div>
 @endsection

@@ -13,9 +13,9 @@ final class ReferralService
 {
     private const REWARD_TIERS = [
         1  => 3,
-        3  => 7,
+        5  => 7,
         10 => 30,
-        50 => 365,
+        20 => 45,
     ];
 
     public function getStats(User $user): array

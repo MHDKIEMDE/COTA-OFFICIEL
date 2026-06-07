@@ -1,0 +1,20 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.cotafoot.app",
+        "paths": [
+          "/predictions/*",
+          "/coupon/*",
+          "/subscribe/*",
+          "/bookmakers/*",
+          "/auth/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.cotafoot.app"]
+  }
+}

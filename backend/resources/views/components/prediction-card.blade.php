@@ -1,125 +1,103 @@
 @props([
     'prediction',
-    'isLive' => false
+    'isLive' => false,
 ])
 
 @php
     $isPremium = auth()->check() && auth()->user()->is_premium;
-    $isLocked = $prediction->confidence >= 3 && !$isPremium;
-    
-    $statusClasses = [
-        'pending' => 'pending',
-        'won' => 'won',
-        'lost' => 'lost',
-        'live' => 'live',
-    ];
-    $statusClass = $statusClasses[$prediction->status] ?? 'pending';
+    $isLocked  = ($prediction->confidence_stars ?? $prediction->confidence ?? 0) >= 3 && !$isPremium;
+
+    $statusColor = match($prediction->status ?? 'pending') {
+        'won'  => 'var(--cota-win)',
+        'lost' => 'var(--cota-loss)',
+        'live' => 'var(--cota-loss)',
+        default => '#f5a623',
+    };
+    $statusLabel = match($prediction->status ?? 'pending') {
+        'won'  => 'Gagné',
+        'lost' => 'Perdu',
+        'live' => 'LIVE',
+        default => 'En attente',
+    };
+    $statusIcon = match($prediction->status ?? 'pending') {
+        'won'  => 'bi-check-circle-fill',
+        'lost' => 'bi-x-circle-fill',
+        'live' => 'bi-broadcast',
+        default => 'bi-clock',
+    };
 @endphp
 
-<div class="prediction-card h-100">
-    <div class="card-header d-flex align-items-center justify-content-between">
-        <div class="d-flex align-items-center gap-2">
-            @if($prediction->competition)
-                <span class="competition-badge">
-                    {{ $prediction->competition }}
-                </span>
-            @endif
+<a href="{{ route('predictions.show', $prediction) }}"
+   style="display:block;background:var(--cota-bg-secondary);border:1px solid var(--cota-border);border-radius:16px;overflow:hidden;text-decoration:none;transition:border-color .2s;"
+   onmouseover="this.style.borderColor='var(--cota-accent)'"
+   onmouseout="this.style.borderColor='var(--cota-border)'">
+
+    {{-- Header --}}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--cota-border);">
+        @if($prediction->competition ?? null)
+            <span style="font-size:0.6875rem;font-weight:600;color:var(--cota-text-muted);text-transform:uppercase;letter-spacing:0.04em;">{{ $prediction->competition }}</span>
+        @endif
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.6875rem;font-weight:700;padding:3px 8px;border-radius:6px;background:{{ $statusColor }}18;color:{{ $statusColor }};">
+            <i class="bi {{ $statusIcon }}" style="font-size:0.6875rem;"></i>
+            {{ $statusLabel }}
+        </span>
+    </div>
+
+    {{-- Teams --}}
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 14px 12px;">
+        {{-- Home --}}
+        <div style="flex:1;text-align:center;">
+            <div style="width:40px;height:40px;border-radius:10px;background:var(--cota-bg-tertiary);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-weight:800;font-size:0.875rem;color:var(--cota-text-primary);">
+                @if($prediction->home_team_logo ?? null)
+                    <img src="{{ $prediction->home_team_logo }}" style="width:28px;height:28px;object-fit:contain;" alt="">
+                @else
+                    {{ strtoupper(substr($prediction->home_team ?? 'H', 0, 2)) }}
+                @endif
+            </div>
+            <span style="font-size:0.75rem;font-weight:600;color:var(--cota-text-primary);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;margin:0 auto;">{{ $prediction->home_team ?? '?' }}</span>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            @if($isLive)
-                <span class="status-badge live">
-                    <i class="bi bi-broadcast"></i> LIVE
-                </span>
-            @else
-                <span class="status-badge {{ $statusClass }}">
-                    @if($prediction->status === 'won')
-                        <i class="bi bi-check-circle-fill"></i> Gagné
-                    @elseif($prediction->status === 'lost')
-                        <i class="bi bi-x-circle-fill"></i> Perdu
-                    @else
-                        <i class="bi bi-clock"></i> En attente
-                    @endif
-                </span>
-            @endif
+
+        {{-- VS --}}
+        <div style="padding:0 8px;text-align:center;">
+            <span style="font-size:0.6875rem;font-weight:800;color:var(--cota-text-muted);letter-spacing:0.08em;">VS</span>
+            <div style="font-size:0.6875rem;color:var(--cota-text-muted);margin-top:2px;">{{ \Carbon\Carbon::parse($prediction->match_date)->format('H:i') }}</div>
+        </div>
+
+        {{-- Away --}}
+        <div style="flex:1;text-align:center;">
+            <div style="width:40px;height:40px;border-radius:10px;background:var(--cota-bg-tertiary);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-weight:800;font-size:0.875rem;color:var(--cota-text-primary);">
+                @if($prediction->away_team_logo ?? null)
+                    <img src="{{ $prediction->away_team_logo }}" style="width:28px;height:28px;object-fit:contain;" alt="">
+                @else
+                    {{ strtoupper(substr($prediction->away_team ?? 'A', 0, 2)) }}
+                @endif
+            </div>
+            <span style="font-size:0.75rem;font-weight:600;color:var(--cota-text-primary);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px;margin:0 auto;">{{ $prediction->away_team ?? '?' }}</span>
         </div>
     </div>
-    
-    <div class="card-body p-4">
-        <!-- Teams -->
-        <div class="d-flex align-items-center justify-content-between mb-4">
-            <div class="text-center flex-grow-1">
-                <div class="mb-2">
-                    @if($prediction->home_team_logo)
-                        <img src="{{ $prediction->home_team_logo }}" alt="{{ $prediction->home_team }}" class="team-logo">
-                    @else
-                        <div class="d-flex align-items-center justify-content-center mx-auto rounded-circle bg-secondary bg-opacity-25" 
-                             style="width: 48px; height: 48px;">
-                            <i class="bi bi-shield fs-4 text-muted-light"></i>
-                        </div>
-                    @endif
-                </div>
-                <span class="text-white fw-medium small d-block text-truncate" style="max-width: 100px;">
-                    {{ $prediction->home_team }}
-                </span>
-            </div>
-            
-            <div class="px-3">
-                <span class="vs-badge">VS</span>
-            </div>
-            
-            <div class="text-center flex-grow-1">
-                <div class="mb-2">
-                    @if($prediction->away_team_logo)
-                        <img src="{{ $prediction->away_team_logo }}" alt="{{ $prediction->away_team }}" class="team-logo">
-                    @else
-                        <div class="d-flex align-items-center justify-content-center mx-auto rounded-circle bg-secondary bg-opacity-25" 
-                             style="width: 48px; height: 48px;">
-                            <i class="bi bi-shield fs-4 text-muted-light"></i>
-                        </div>
-                    @endif
-                </div>
-                <span class="text-white fw-medium small d-block text-truncate" style="max-width: 100px;">
-                    {{ $prediction->away_team }}
-                </span>
-            </div>
-        </div>
-        
-        <!-- Match Time -->
-        <div class="text-center mb-4">
-            <div class="match-timer d-inline-flex">
-                <i class="bi bi-clock"></i>
-                <span>{{ \Carbon\Carbon::parse($prediction->match_date)->format('H:i') }}</span>
-            </div>
-        </div>
-        
-        <!-- Prediction (locked or visible) -->
-        @if($isLocked)
-            <div class="text-center py-3 rounded-3" style="background: rgba(233, 30, 140, 0.1); border: 1px dashed rgba(233, 30, 140, 0.3);">
-                <i class="bi bi-lock-fill text-primary fs-4 mb-2 d-block"></i>
-                <p class="text-muted-light small mb-2">Pronostic Premium</p>
-                <a href="{{ route('subscription') }}" class="btn btn-primary btn-sm">
-                    <i class="bi bi-star me-1"></i> Débloquer
-                </a>
-            </div>
-        @else
-            <div class="text-center py-3 rounded-3" style="background: rgba(255, 255, 255, 0.03);">
-                <p class="text-muted-light small mb-1">Pronostic</p>
-                <h5 class="text-white fw-bold mb-2">{{ $prediction->bet_type }}</h5>
-                <span class="odds-badge">{{ number_format($prediction->odds, 2) }}</span>
-            </div>
-        @endif
-        
-        <!-- Confidence Stars -->
-        <div class="d-flex align-items-center justify-content-between mt-4 pt-3 border-top border-secondary">
-            <div class="star-rating">
-                @for($i = 1; $i <= 4; $i++)
-                    <i class="bi bi-star{{ $i <= $prediction->confidence ? '-fill' : '' }} star {{ $i <= $prediction->confidence ? 'filled' : '' }}"></i>
-                @endfor
-            </div>
-            <a href="{{ route('predictions.show', $prediction) }}" class="btn btn-link text-primary text-decoration-none p-0">
-                Détails <i class="bi bi-arrow-right ms-1"></i>
+
+    {{-- Prediction / Lock --}}
+    @if($isLocked)
+        <div style="margin:0 14px 12px;padding:12px;background:rgba(232,255,54,.06);border:1px dashed rgba(232,255,54,.25);border-radius:10px;text-align:center;">
+            <i class="bi bi-lock-fill" style="color:var(--cota-accent);font-size:1rem;display:block;margin-bottom:4px;"></i>
+            <p style="font-size:0.75rem;color:var(--cota-text-muted);margin-bottom:6px;">Pronostic Premium</p>
+            <a href="{{ route('subscription') }}" style="display:inline-flex;align-items:center;gap:4px;background:var(--cota-accent);color:var(--cota-on-accent);font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:8px;text-decoration:none;">
+                <i class="bi bi-star-fill"></i> Débloquer
             </a>
         </div>
-    </div>
-</div>
+    @else
+        <div style="margin:0 14px 12px;padding:10px 12px;background:var(--cota-bg-tertiary);border-radius:10px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+                <div style="font-size:0.6875rem;color:var(--cota-text-muted);">Pronostic</div>
+                <div style="font-size:0.9375rem;font-weight:700;color:var(--cota-text-primary);">{{ $prediction->bet_type ?? $prediction->prediction_value ?? '?' }}</div>
+            </div>
+            <x-odds-chip :odds="$prediction->odds ?? null" />
+        </div>
+    @endif
 
+    {{-- Footer : étoiles --}}
+    <div style="padding:8px 14px 12px;display:flex;align-items:center;justify-content:space-between;">
+        <x-confidence-ring :stars="$prediction->confidence_stars ?? $prediction->confidence ?? 0" size="sm" />
+        <span style="font-size:0.75rem;color:var(--cota-accent);font-weight:600;">Détails →</span>
+    </div>
+</a>

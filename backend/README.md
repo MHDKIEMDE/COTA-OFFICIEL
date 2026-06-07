@@ -202,7 +202,8 @@ Schedule::job(new UpdatePredictionResultsJob())->hourly();
 
 Activer le scheduler en développement :
 ```bash
-php artisan schedule:work
+
+
 ```
 
 Crontab en production :

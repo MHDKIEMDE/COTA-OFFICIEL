@@ -24,26 +24,30 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://cota.app"),
   title: {
     default: "COTA — Pronostics Football IA",
     template: "%s | COTA",
   },
   description:
     "Pronostics football alimentés par l'IA — matchs du jour, coupon combiné, analyses détaillées pour l'Afrique de l'Ouest.",
-  keywords: ["pronostics football", "paris sportifs", "IA", "Afrique", "COTA"],
+  keywords: ["pronostics football", "paris sportifs", "IA", "Afrique", "COTA", "pronostics Côte d'Ivoire", "coupon combiné"],
   authors: [{ name: "COTA" }],
   creator: "COTA",
   openGraph: {
     type: "website",
     locale: "fr_CI",
+    url: "https://cota.app",
     siteName: "COTA",
     title: "COTA — Pronostics Football IA",
     description: "Pronostics football alimentés par l'IA pour l'Afrique de l'Ouest.",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "COTA — Pronostics Football IA" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "COTA — Pronostics Football IA",
     description: "Pronostics football IA pour l'Afrique de l'Ouest.",
+    images: ["/og-image.png"],
   },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -72,7 +76,7 @@ export default function RootLayout({
               <div style={{ background: "rgba(249,255,0,0.10)", border: "1px solid rgba(249,255,0,0.25)", borderRadius: 8, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>⚽</div>
               <span style={{ fontWeight: 900, fontSize: 18, color: "#FFFFFF", letterSpacing: "-0.3px" }}>COTA</span>
             </a>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div className="nav-links" style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {[
                 { href: "/predictions", label: "Picks"       },
                 { href: "/coupon",      label: "Coupon"      },
@@ -83,7 +87,7 @@ export default function RootLayout({
                   onMouseLeave={(e) => { const el = e.currentTarget; el.style.color = "#888888"; el.style.background = "transparent"; }}
                 >{l.label}</a>
               ))}
-              <a href="/subscribe" style={{ marginLeft: 8, background: "#F9FF00", color: "#000000", fontWeight: 800, fontSize: 12, padding: "7px 14px", borderRadius: 8, textDecoration: "none" }}>Premium</a>
+              <a href="/subscribe" className="nav-cta" style={{ marginLeft: 8, background: "#F9FF00", color: "#000000", fontWeight: 800, fontSize: 12, padding: "7px 14px", borderRadius: 8, textDecoration: "none" }}>Premium</a>
             </div>
           </div>
         </nav>

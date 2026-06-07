@@ -5,20 +5,56 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 // ============================================================
-// COTA — Scheduler optimisé pour plan API gratuit (100 req/j)
+// COTA — Scheduler
 //
-// Stratégie quota :
-//   - 1 requête /fixtures à 05:00 UTC → cache 24h
-//   - Prédictions générées depuis ce cache → 0 requête supplémentaire
-//   - Live scores désactivé sur plan gratuit
-//   - Résultats mis à jour depuis la DB locale uniquement
+// Stratégie principale (23h UTC) :
+//   1. Fetch matchs J+1 (données complètes, matchs du soir terminés)
+//   2. Résultats d'hier → historique frais pour l'algo
+//   3. Cotes 1xBet pré-match via The Odds API (cache 4h)
+//   4. Génération prédictions algo 9 critères + coupon IA
+//
+// Stratégie de rattrapage (00:05 UTC) :
+//   - Quota API-Football renouvelé à minuit UTC
+//   - Complète ce qui n'a pas pu être généré à 23h
+//   - Régénère si prédictions insuffisantes
 //
 // Pour activer : * * * * * cd /path && php artisan schedule:run >> /dev/null 2>&1
 // ============================================================
 
-// ── 00:05 UTC — Peuplement auto BD dès que le quota se renouvelle (minuit UTC)
-// Si quota ok : peupler BD historique top ligues + régénérer prédictions algo complet
-// Si quota encore vide : skip silencieux (fallback RapidAPI prend le relais à 05:30)
+// ── 22:50 UTC — Résultats d'hier (TheSportsDB, gratuit, 0 quota)
+// Doit tourner AVANT FetchMatchesJob pour que l'algo ait l'historique frais
+Schedule::command('matches:fetch-history --days=1')
+    ->dailyAt('22:50')
+    ->timezone('UTC')
+    ->name('fetch-yesterday-results')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 23:00 UTC — Fetch matchs J+1
+// Tous les matchs européens du soir sont terminés → scores complets, stats à jour
+// Derniers quotas du jour utilisés avant renouvellement minuit
+Schedule::job(new \App\Jobs\FetchMatchesJob)
+    ->dailyAt('23:00')
+    ->timezone('UTC')
+    ->name('fetch-matches-eve')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 23:15 UTC — Génération prédictions + cotes 1xBet + coupon IA
+// OddsApiService charge les cotes 1xBet pré-match (The Odds API) en début de job
+// Quota dispo  → algo 9 critères complet (données réelles API-Football)
+// Quota épuisé → fallback prédictions tierces RapidAPI
+Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
+    ->dailyAt('23:15')
+    ->timezone('UTC')
+    ->name('generate-predictions')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 00:05 UTC — Rattrapage dès que le quota se renouvelle (minuit UTC)
+// Complète les prédictions manquantes ou régénère si génération de 23h15 insuffisante
+// Si quota ok → algo complet sur les matchs non couverts
+// Si quota encore vide → skip silencieux
 Schedule::job(new \App\Jobs\RefreshDatabaseWhenQuotaRestoredJob)
     ->dailyAt('00:05')
     ->timezone('UTC')
@@ -26,40 +62,19 @@ Schedule::job(new \App\Jobs\RefreshDatabaseWhenQuotaRestoredJob)
     ->withoutOverlapping()
     ->onOneServer();
 
-// ── 05:00 UTC — Récupérer les matchs du jour (1 seule requête API)
-// Le cache 24h fait que tous les appels suivants lisent depuis Redis
-Schedule::job(new \App\Jobs\FetchMatchesJob)
-    ->dailyAt('05:00')
-    ->timezone('UTC')
-    ->name('fetch-matches-daily')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// ── 05:10 UTC — Récupérer les résultats d'hier (TheSportsDB, gratuit, 0 quota)
-// Doit tourner AVANT GenerateAllPredictionsJob pour que l'algo ait l'historique frais
-Schedule::command('matches:fetch-history --days=1')
-    ->dailyAt('05:10')
-    ->timezone('UTC')
-    ->name('fetch-yesterday-results')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// ── 05:30 UTC — Générer les prédictions
-// Quota dispo  → algo 9 critères complet (données réelles API-Football)
-// Quota épuisé → fallback prédictions tierces RapidAPI (abonnés ont toujours du contenu)
-Schedule::job(new \App\Jobs\GenerateAllPredictionsJob)
-    ->dailyAt('05:30')
-    ->timezone('UTC')
-    ->name('generate-predictions')
-    ->withoutOverlapping()
-    ->onOneServer();
-
-// ── 06:30 UTC — Envoyer les notifications quotidiennes (legacy)
-// 1h de marge après génération — prédictions garanties prêtes
+// ── 09:00 UTC (09h WAT) — Envoyer les notifications quotidiennes
+// Prédictions + coupon garantis prêts depuis 23h15 la veille
 Schedule::job(new \App\Jobs\SendDailyNotificationJob)
-    ->dailyAt('06:30')
+    ->dailyAt('09:00')
     ->timezone('UTC')
     ->name('send-daily-notifications')
+    ->onOneServer();
+
+// ── Toutes les 30 min — Fetch sources RSS actualités
+Schedule::job(new \App\Jobs\FetchNewsSourcesJob)
+    ->everyThirtyMinutes()
+    ->name('fetch-news-sources')
+    ->withoutOverlapping()
     ->onOneServer();
 
 // ── Toutes les 15 min — Détection anomalies de cotes (live 1xBet vs marché)
@@ -151,6 +166,17 @@ Schedule::command('bookmakers:discover --notify')
     ->at('06:00')
     ->timezone('UTC')
     ->name('discover-bookmakers')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── Dimanche 03:00 UTC — Nettoyage hebdomadaire DB (archive + prune)
+// predictions > 90j archivées en JSON, matches > 60j supprimés, notifications > 30j supprimées
+Schedule::job(new \App\Jobs\PruneOldDataJob)
+    ->weekly()
+    ->sundays()
+    ->at('03:00')
+    ->timezone('UTC')
+    ->name('prune-old-data')
     ->withoutOverlapping()
     ->onOneServer();
 

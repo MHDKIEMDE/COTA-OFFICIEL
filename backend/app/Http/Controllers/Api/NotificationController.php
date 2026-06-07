@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
+use App\Models\NotificationPreference;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -147,5 +148,62 @@ class NotificationController extends Controller
         Log::info('Notification settings updated', ['user_id' => $user->id]);
 
         return response()->json(['success' => true, 'message' => 'Paramètres mis à jour.', 'data' => ['settings' => $updated]]);
+    }
+
+    // GET /api/notifications/routine-preferences
+    public function getRoutinePreferences(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $defaults = array_fill_keys(NotificationPreference::TYPES, [
+            'enabled'           => true,
+            'quiet_hours_start' => 23,
+            'quiet_hours_end'   => 7,
+        ]);
+
+        $prefs = NotificationPreference::where('user_id', $userId)->get();
+        foreach ($prefs as $pref) {
+            $defaults[$pref->type] = [
+                'enabled'           => $pref->enabled,
+                'quiet_hours_start' => $pref->quiet_hours_start,
+                'quiet_hours_end'   => $pref->quiet_hours_end,
+            ];
+        }
+
+        return response()->json(['success' => true, 'data' => ['preferences' => $defaults]]);
+    }
+
+    // PUT /api/notifications/routine-preferences
+    public function updateRoutinePreferences(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            '*.enabled'           => 'sometimes|boolean',
+            '*.quiet_hours_start' => 'sometimes|integer|min:0|max:23',
+            '*.quiet_hours_end'   => 'sometimes|integer|min:0|max:23',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $userId = $request->user()->id;
+        $types  = NotificationPreference::TYPES;
+
+        foreach ($types as $type) {
+            if (!$request->has($type)) continue;
+
+            $data = $request->input($type);
+            NotificationPreference::updateOrCreate(
+                ['user_id' => $userId, 'type' => $type],
+                array_filter([
+                    'enabled'           => $data['enabled']           ?? null,
+                    'quiet_hours_start' => $data['quiet_hours_start'] ?? null,
+                    'quiet_hours_end'   => $data['quiet_hours_end']   ?? null,
+                ], fn($v) => $v !== null)
+            );
+        }
+
+        Log::info('Routine preferences updated', ['user_id' => $userId]);
+
+        return response()->json(['success' => true, 'message' => 'Préférences routines mises à jour.']);
     }
 }

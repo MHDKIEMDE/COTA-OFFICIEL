@@ -52,7 +52,9 @@ class SubscriptionController extends Controller
 
         $revenueChart = $this->getRevenueChartData();
 
-        return view('admin.subscriptions.index', compact('subscriptions', 'stats', 'revenueChart'));
+        $users = User::orderBy('name')->select('id', 'name', 'email', 'phone')->get();
+
+        return view('admin.subscriptions.index', compact('subscriptions', 'stats', 'revenueChart', 'users'));
     }
 
     public function show(Subscription $subscription): View

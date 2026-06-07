@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             BookmakerRegionSeeder::class,
             BookmakerPaymentMethodsSeeder::class,
             BookmakerBlogSeeder::class,
+            BookmakerTipSeeder::class,
             AdminUserSeeder::class,
         ]);
     }

@@ -339,7 +339,7 @@ export default function HomePage() {
 
           {/* CTA */}
           <div
-            className="reveal reveal-3"
+            className="reveal reveal-3 hero-cta"
             style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}
           >
             <Link
@@ -392,7 +392,7 @@ export default function HomePage() {
 
         {/* Stats band */}
         <div
-          className="reveal reveal-4"
+          className="reveal reveal-4 stats-band"
           style={{
             display: "flex",
             gap: 0,
@@ -455,7 +455,7 @@ export default function HomePage() {
             La science au service du sport
           </h2>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+        <div className="features-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
           {FEATURES.map((f, i) => (
             <div
               key={i}
@@ -610,7 +610,7 @@ export default function HomePage() {
         <h2 style={{ fontFamily: "'Bebas Neue', 'Impact', sans-serif", fontSize: "clamp(36px, 5vw, 52px)", letterSpacing: 1, marginBottom: 48 }}>
           Un seul paiement, tous les pronostics
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, textAlign: "left" }}>
+        <div className="plans-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, textAlign: "left" }}>
           {[
             { key: "mensuel", label: "Mensuel", price: "2 500", per: "/ mois", highlight: false },
             { key: "trimestriel", label: "Trimestriel", price: "6 500", per: "/ 3 mois", highlight: true, badge: "Populaire", save: "-13%" },
@@ -618,7 +618,7 @@ export default function HomePage() {
           ].map((plan) => (
             <div
               key={plan.key}
-              className="card-hover"
+              className={`card-hover${plan.highlight ? " plan-popular" : ""}`}
               style={{
                 background: plan.highlight ? "rgba(59,130,246,0.06)" : "var(--bg3)",
                 border: `1px solid ${plan.highlight ? "var(--primary)" : "var(--border)"}`,
@@ -699,7 +699,7 @@ export default function HomePage() {
             Voir tous →
           </Link>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+        <div className="bookmakers-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
           {BOOKMAKERS.map((bm) => (
             <Link
               key={bm.name}
@@ -745,6 +745,7 @@ export default function HomePage() {
 
       {/* ── Footer ───────────────────────────────────────────── */}
       <footer
+        className="site-footer"
         style={{
           borderTop: "1px solid var(--border)",
           padding: "32px 24px",

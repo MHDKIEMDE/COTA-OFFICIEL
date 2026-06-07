@@ -16,6 +16,7 @@ __pycache__/
 .codex/
 skills-lock.json
 graphify-out/
+keystore.properties
 
 # Base de données locale SQLite
 backend/database/*.sqlite

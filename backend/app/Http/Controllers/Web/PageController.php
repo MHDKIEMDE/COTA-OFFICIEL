@@ -31,7 +31,7 @@ class PageController extends Controller
 
         $liveCount = $liveMatches->count();
 
-        return view('pages.live', compact('liveMatches', 'upcomingMatches', 'liveCount'));
+        return view('web.live', compact('liveMatches', 'upcomingMatches', 'liveCount'));
     }
 
     /**
@@ -39,7 +39,7 @@ class PageController extends Controller
      */
     public function favorites()
     {
-        return view('pages.favorites');
+        return view('web.favorites');
     }
 
     /**
@@ -53,7 +53,7 @@ class PageController extends Controller
             ->get()
             ->groupBy('country');
 
-        return view('pages.competitions', compact('competitions'));
+        return view('web.competitions', compact('competitions'));
     }
 
     /**
@@ -99,7 +99,7 @@ class PageController extends Controller
                 'live'  => (int) $comp->live_count > 0,
             ]);
 
-        return view('pages.dashboard', compact('predictions', 'stats', 'favoriteCompetitions'));
+        return view('web.dashboard', compact('predictions', 'stats', 'favoriteCompetitions'));
     }
 
     /**
@@ -139,7 +139,7 @@ class PageController extends Controller
             'confidence' => $confidence,
         ];
 
-        return view('pages.predictions.index', compact('predictions', 'competitions', 'filters'));
+        return view('web.predictions', compact('predictions', 'competitions', 'filters'));
     }
 
     /**
@@ -147,7 +147,7 @@ class PageController extends Controller
      */
     public function showPrediction(Prediction $prediction)
     {
-        return view('pages.predictions.show', compact('prediction'));
+        return view('web.prediction-detail', compact('prediction'));
     }
 
     /**
@@ -182,7 +182,7 @@ class PageController extends Controller
             ];
         }
 
-        return view('pages.history', compact('predictions', 'stats'));
+        return view('web.history', compact('predictions', 'stats'));
     }
 
     /**
@@ -229,7 +229,7 @@ class PageController extends Controller
                 });
         }
 
-        return view('pages.statistics', compact('stats', 'byCompetition'));
+        return view('web.statistics', compact('stats', 'byCompetition'));
     }
 
     /**
@@ -237,7 +237,7 @@ class PageController extends Controller
      */
     public function profile()
     {
-        return view('pages.profile');
+        return view('web.profile');
     }
 
     /**
@@ -255,49 +255,22 @@ class PageController extends Controller
                 ->first();
         }
 
-        $plans = [
-            [
-                'id' => 'weekly',
-                'name' => 'Hebdomadaire',
-                'price' => 2000,
-                'duration' => '7 jours',
-                'features' => [
-                    'Tous les pronostics 3-4 étoiles',
-                    'Alertes en temps réel',
-                    'Analyses détaillées',
-                ],
-            ],
-            [
-                'id' => 'monthly',
-                'name' => 'Mensuel',
-                'price' => 5000,
-                'duration' => '30 jours',
-                'popular' => true,
-                'savings' => '30%',
-                'features' => [
-                    'Tous les pronostics 3-4 étoiles',
-                    'Alertes en temps réel',
-                    'Analyses détaillées',
-                    'Statistiques avancées',
-                    'Support prioritaire',
-                ],
-            ],
-            [
-                'id' => 'yearly',
-                'name' => 'Annuel',
-                'price' => 40000,
-                'duration' => '365 jours',
-                'savings' => '50%',
-                'features' => [
-                    'Tous les avantages Mensuel',
-                    'Accès aux paris combinés',
-                    'Badge membre VIP',
-                    'Support WhatsApp dédié',
-                ],
-            ],
+        $dbPlans = \App\Models\AppConfig::get('app.premium_plans');
+        $plans   = $dbPlans ? array_values($dbPlans) : [
+            ['key'=>'weekly',  'name'=>'Hebdomadaire','price'=>2000, 'duration'=>'7 jours', 'popular'=>false,'savings'=>null,  'features'=>['Pronostics 3–4 étoiles','Alertes temps réel']],
+            ['key'=>'monthly', 'name'=>'Mensuel',     'price'=>5000, 'duration'=>'30 jours','popular'=>true, 'savings'=>'30%', 'features'=>['Tous les pronostics','Alertes temps réel','Stats avancées','Support prioritaire']],
+            ['key'=>'annual',  'name'=>'Annuel',      'price'=>40000,'duration'=>'365 jours','popular'=>false,'savings'=>'50%','features'=>['Tous les avantages','Badge VIP','Support WhatsApp dédié']],
         ];
 
-        return view('pages.subscription', compact('plans', 'currentSubscription'));
+        $dbChannels     = \App\Models\AppConfig::get('payment.channels');
+        $paymentChannels = $dbChannels ?? [
+            ['emoji'=>'🟠','name'=>'Orange Money','color'=>'#FF6600'],
+            ['emoji'=>'🟡','name'=>'MTN MoMo',    'color'=>'#FFCB00'],
+            ['emoji'=>'🔵','name'=>'Wave',         'color'=>'#1573E5'],
+            ['emoji'=>'🟢','name'=>'Moov Money',   'color'=>'#00A859'],
+        ];
+
+        return view('web.subscription', compact('plans', 'currentSubscription', 'paymentChannels'));
     }
 
     /**
@@ -333,7 +306,7 @@ class PageController extends Controller
             ];
         }
 
-        return view('pages.referral', compact('referrals', 'stats'));
+        return view('web.referral', compact('referrals', 'stats'));
     }
 
     /**

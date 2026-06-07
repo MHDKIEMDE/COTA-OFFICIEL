@@ -196,3 +196,181 @@ Schedule::call(function () {
     }
 })->everyFiveMinutes()->name('check-replica-lag');
 ```
+  ⎿  (timeout 2m)
+
+⏺ Le job de génération tourne en arrière-plan. Je vais attendre sa complétion.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      \$count = App\Models\Prediction::whereDate('match_date', now()->toDa…)
+  ⎿  Prédictions publiées aujourd'hui: 181
+     Jobs échoués: 0
+
+⏺ 181 prédictions publiées aujourd'hui, 0 job échoué. Le bug est résolu.
+
+  ---
+  Résumé du problème :
+  
+  L'API-Football renvoyait fixtures.wins.away sous forme de tableau ({"home": 3, "away": 5, "total": 8}) au lieu d'un entier simple. Le code faisait (int) 
+  $stats['fixtures']['wins']['away'] qui lançait un TypeError: Unsupported operand types: array * int.
+
+  Correction appliquée (PredictionAlgorithmService.php) :
+  - Ajout d'une méthode safeInt() qui détecte si la valeur est un tableau et extrait total ou home/away selon le contexte
+  - Les méthodes extractHomeWinRatio() et extractAwayWinRatio() utilisent maintenant safeInt() au lieu de (int)
+
+  Actions manuelles effectuées :
+  1. FetchMatchesJob → 826 matchs récupérés
+  2. GenerateAllPredictionsJob → 181 prédictions publiées pour aujourd'hui
+  
+  Les prédictions devraient maintenant apparaître dans l'app mobile.
+
+✻ Sautéed for 7m 22s · 2 shells still running
+
+❯ On devais avoir des historique de coupon pour hier aussi explique moi la signification de contredie                                                                                   
+
+⏺ Je vais d'abord vérifier l'état des coupons en base.
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      \$dates = \App\Models\CombinedBet::selectRaw('DATE(date) as d, count…)
+  ⎿     Error  Class "App\Models\CombinedBet" not found.
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      \$tables = \DB::select('SHOW TABLES');…)
+  ⎿  combined_bets
+     user_coupons
+     winning_coupons
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Coupons combinés…)
+  ⎿  === combined_bets ===
+     === user_coupons ===
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Voir la structure de combined_bets…)
+  ⎿  id (bigint(20) unsigned)
+     type (enum('daily','welcome'))
+     date (date)
+     … +13 lines (ctrl+o to expand)
+
+⏺ Les tables existent mais sont complètement vides — aucun coupon n'a jamais été généré.
+
+  ---
+  Sur ta question : que signifie "contredie" ?
+  
+  Tu veux dire "contredire" — voilà l'explication :
+
+  ---
+  Contradiction dans la logique actuelle
+  
+  Le problème c'est une incohérence entre ce que tu vois côté mobile et ce qui existe vraiment en base :
+
+  ┌──────────────────────────────────┬──────────────────────────────────────────────────┐
+  │   Ce que l'app mobile affiche    │              Ce qui existe en base               │
+  ├──────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Onglet "Coupons" avec historique │ Table combined_bets vide                         │
+  ├──────────────────────────────────┼──────────────────────────────────────────────────┤
+  │ Prédictions d'hier visibles      │ 1317 prédictions en base, mais combined_bets = 0 │
+  └──────────────────────────────────┴──────────────────────────────────────────────────┘
+
+  La contradiction : l'app mobile a un écran "Mes Coupons" qui attend des données de combined_bets, mais le job GenerateAllPredictionsJob génère des prédictions individuelles sans 
+  jamais créer de coupon combiné dans cette table.
+
+  Deux systèmes parallèles qui ne se parlent pas :
+  1. predictions — bien remplie (1317 lignes)
+  2. combined_bets — jamais alimentée 
+  
+  Pourquoi il n'y a pas de coupons pour hier ? Parce que la logique de création du coupon (sélectionner les 4–5 meilleures prédictions et les sauvegarder dans combined_bets) n'a jamais
+   été branchée au job de génération.
+
+  ---
+  Veux-tu que je connecte la génération du coupon au job existant pour que chaque jour, après avoir créé les prédictions, il génère automatiquement le coupon combiné dans combined_bets
+   ?
+
+✻ Brewed for 31s · 2 shells still running
+
+❯ Lidee c;esr aussi d'avoir des lecon sur la manier hier on na combiener de sorte a ameliore demain donc si possible une section d'historique de coupon pour me permettre de savoire si 
+   le pick d'hier est valider ou pas et pourquoi avec une expliquation et uine lecon a retenir                                                                                          
+  
+⏺ Bonne idée. Laisse-moi d'abord lire ce qui existe avant de proposer quoi que ce soit.
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Voir la structure des prédictions pour comprendre ce qu'on a…)
+  ⎿  prediction (varchar(255)) default=
+     odds (decimal(5,2)) default=
+     confidence_stars (int(11)) default=1
+     … +27 lines (ctrl+o to expand)
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Voir un exemple de prédiction terminée (résultat connu)…)
+  ⎿     Illuminate\Database\QueryException  SQLSTATE[42S22]: Column not found: 1054 Unknown column 'result' in 'where clause' (Connection: mysql, Socket: /Applications/MAMP/tmp/my
+     sql/mysql.sock, Database: COTA_DB, SQL: select * from `predictions` where `result` is not null and `result` != pending order by `created_at` desc limit 1).
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Prédictions avec statut won/lost (résultats connus)…)
+  ⎿  Won: 0 | Lost: 0 | Pending: 1734
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Voir les matchs terminés avec leurs scores…)
+  ⎿  Matchs terminés: 209
+     Prédictions pending sur match terminé: 0
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // La relation entre predictions et matches…)
+  ⎿  Colonnes clé: {"id":4457,"match_id":"1539926","match_date":"2026-05-24T15:00:00.000000Z","home_team":"Grafi\u010dar","away_team":"FK Trayal","prediction":"1","bet_type":"1X2"
+     ,"odds":"2.17","status":"pending","confidence_score":null,"total_score":"54.30"}
+     Avec match_id: 1744 | Sans match_id: 0
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Prédictions d'hier avec leurs matchs…)
+  ⎿  Prédictions d'hier (2026-05-23): 1021
+     {
+         "id": 3009,
+     … +11 lines (ctrl+o to expand)
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Le match_id dans predictions est une string API externe, pas l'id…)
+  ⎿     Illuminate\Database\QueryException  SQLSTATE[42S02]: Base table or view not found: 1146 Table 'cota_db.football_matches' doesn't exist (Connection: mysql, Socket: /Applica
+     tions/MAMP/tmp/mysql/mysql.sock, Database: COTA_DB, SQL: DESCRIBE football_matches).
+
+  Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Trouver la vraie table des matchs…)
+  ⎿  matches
+
+⏺ J'ai maintenant tout le contexte. Voici la situation complète et le plan :
+
+  ---
+  Diagnostic complet
+  
+  Problème 1 — Les scores ne remontent jamais dans predictions
+  Le job UpdatePredictionResultsJob cherche home_score et away_score directement dans la table predictions, mais ces colonnes restent NULL car personne ne les remplit après le match.
+  Le match_id dans predictions est l'ID externe API ("1511590") mais la table matches utilise un id local — la jointure ne se fait jamais.
+
+  Problème 2 — combined_bets est vide
+  Aucun coupon n'a jamais été sauvegardé en base, donc l'historique est inexistant.
+
+  ---
+  Ce que je vais construire
+
+  Backend :
+  1. Corriger UpdatePredictionResultsJob — joindre predictions → matches via api_match_id pour récupérer les vrais scores et marquer won/lost
+  2. Brancher la création du coupon dans GenerateAllPredictionsJob — sauvegarder dans combined_bets après chaque génération
+  3. Ajouter colonne lesson + failure_reason dans combined_bets — une leçon auto-générée basée sur quels critères ont trahi
+
+  Mobile — section "Historique Coupons" :
+  4. Écran avec liste des coupons passés : date, statut (✅/❌/⏳), cote totale
+  5. Détail coupon : chaque pick avec son résultat individuel + explication de l'algo (quel critère a dominé)
+  6. Leçon du jour : texte court généré à partir des picks perdus — "Le critère H2H avait surestimé X"
+
+  Veux-tu que je commence ?
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka SAS/COTA/backend" && php artisan tinker --execute="
+      // Vérifier la structure de la table matches…)
+  ⎿  away_team (varchar(255))
+     competition (varchar(255))
+     country (varchar(255))
+     … +22 lines (ctrl+o to expand)
+
+⏺ Bash(cd "/Users/massakambp12/Desktop/Massaka

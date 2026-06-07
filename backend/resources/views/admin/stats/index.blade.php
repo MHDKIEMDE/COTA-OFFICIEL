@@ -6,91 +6,62 @@
 @section('content')
 <div class="space-y-6">
 
-    {{-- KPIs globaux --}}
+    {{-- ── KPIs ────────────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold text-white">{{ $winRate }}%</p>
-            <p class="text-sm text-gray-400">Taux de réussite</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold text-success">{{ number_format($won) }}</p>
-            <p class="text-sm text-gray-400">Gagnés</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold text-danger">{{ number_format($lost) }}</p>
-            <p class="text-sm text-gray-400">Perdus</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold text-warning">{{ number_format($pending) }}</p>
-            <p class="text-sm text-gray-400">En attente</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold text-primary">{{ number_format(round($avgOdds, 2)) }}</p>
-            <p class="text-sm text-gray-400">Cote moy. gagnée</p>
-        </div>
-        <div class="bg-dark-100 rounded-lg border border-gray-700/50 p-4 text-center">
-            <p class="text-3xl font-bold {{ $roi >= 0 ? 'text-success' : 'text-danger' }}">{{ $roi > 0 ? '+' : '' }}{{ $roi }}%</p>
-            <p class="text-sm text-gray-400">ROI estimé</p>
-        </div>
+        @foreach([
+            ['Taux réussite', $winRate . '%',                           'var(--accent)'],
+            ['Gagnés',        number_format($won),                      'var(--win)'],
+            ['Perdus',        number_format($lost),                     'var(--loss)'],
+            ['En attente',    number_format($pending),                  '#f5a623'],
+            ['Cote moy.',     number_format(round($avgOdds, 2)),        'var(--ink)'],
+            ['ROI estimé',    ($roi > 0 ? '+' : '') . $roi . '%',       $roi >= 0 ? 'var(--win)' : 'var(--loss)'],
+        ] as [$label, $val, $color])
+            <div class="card text-center">
+                <p class="text-2xl font-bold" style="color:{{ $color }};font-family:Archivo,sans-serif">{{ $val }}</p>
+                <p class="text-sm mt-1" style="color:var(--dim)">{{ $label }}</p>
+            </div>
+        @endforeach
     </div>
 
-    {{-- Graphiques ligne 1 : Taux réussite 30j + Croissance users --}}
+    {{-- ── Graphiques ligne 1 ───────────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-chart-line mr-2 text-success"></i>Taux de réussite — 30 derniers jours
-            </h3>
-            <div class="chart-container">
-                <canvas id="winRateChart"></canvas>
-            </div>
+        <div class="card overflow-hidden">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-chart-line mr-2" style="color:var(--win)"></i>Taux de réussite — 30 jours</p>
+            <div style="height:180px"><canvas id="winRateChart"></canvas></div>
         </div>
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-user-plus mr-2 text-primary"></i>Nouveaux utilisateurs — 30 jours
-            </h3>
-            <div class="chart-container">
-                <canvas id="usersChart"></canvas>
-            </div>
+        <div class="card overflow-hidden">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-user-plus mr-2" style="color:var(--accent)"></i>Nouveaux utilisateurs — 30 jours</p>
+            <div style="height:180px"><canvas id="usersChart"></canvas></div>
         </div>
     </div>
 
-    {{-- Graphique revenus 12 mois --}}
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 overflow-hidden">
-        <h3 class="text-white font-semibold mb-4">
-            <i class="fa-solid fa-wallet mr-2 text-secondary"></i>Revenus & abonnements — 12 derniers mois
-        </h3>
-        <div style="height: 250px; position: relative;">
-            <canvas id="revenueChart"></canvas>
-        </div>
+    {{-- ── Revenus 12 mois ─────────────────────────────────────────────────── --}}
+    <div class="card overflow-hidden">
+        <p class="tag-mono mb-4"><i class="fa-solid fa-wallet mr-2" style="color:var(--accent)"></i>Revenus & abonnements — 12 derniers mois</p>
+        <div style="height:250px"><canvas id="revenueChart"></canvas></div>
     </div>
 
-    {{-- Taux par étoiles + Taux par type de pari --}}
+    {{-- ── Par étoiles + Par type ───────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {{-- Par étoiles --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-star mr-2 text-warning"></i>Réussite par niveau de confiance
-            </h3>
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-star mr-2" style="color:#f5a623"></i>Réussite par niveau de confiance</p>
             <div class="space-y-4">
                 @foreach($byStars as $row)
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center gap-1">
                             @for($s = 1; $s <= 4; $s++)
-                                <i class="fa-solid fa-star text-xs {{ $s <= $row['stars'] ? 'text-warning' : 'text-gray-600' }}"></i>
+                                <i class="fa-solid fa-star" style="font-size:11px;color:{{ $s <= $row['stars'] ? '#f5a623' : 'var(--dim-2)' }}"></i>
                             @endfor
-                            <span class="text-gray-400 text-sm ml-2">{{ $row['total'] }} pronostics</span>
+                            <span style="color:var(--dim);font-size:13px;margin-left:8px">{{ $row['total'] }} pronostics</span>
                         </div>
-                        <span class="font-bold {{ $row['win_rate'] >= 60 ? 'text-success' : ($row['win_rate'] >= 45 ? 'text-warning' : 'text-danger') }}">
-                            {{ $row['win_rate'] }}%
-                        </span>
+                        <span style="font-weight:700;color:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}">{{ $row['win_rate'] }}%</span>
                     </div>
-                    <div class="w-full bg-gray-700 rounded-full h-2">
-                        <div class="h-2 rounded-full {{ $row['win_rate'] >= 60 ? 'bg-success' : ($row['win_rate'] >= 45 ? 'bg-warning' : 'bg-danger') }}"
-                             style="width: {{ $row['win_rate'] }}%"></div>
+                    <div style="height:6px;border-radius:3px;background:var(--bg-3);overflow:hidden">
+                        <div style="height:100%;border-radius:3px;width:{{ $row['win_rate'] }}%;background:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}"></div>
                     </div>
-                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <div class="flex justify-between mt-1" style="font-size:11px;color:var(--dim-2)">
                         <span>{{ $row['won'] }} gagnés</span>
                         <span>{{ $row['lost'] }} perdus</span>
                     </div>
@@ -99,75 +70,77 @@
             </div>
         </div>
 
-        {{-- Par type de pari --}}
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-white font-semibold mb-4">
-                <i class="fa-solid fa-futbol mr-2 text-primary"></i>Réussite par type de pari
-            </h3>
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-futbol mr-2" style="color:var(--accent)"></i>Réussite par type de pari</p>
             @if($byBetType->isEmpty())
-                <p class="text-gray-500 text-center py-8">Pas encore de données</p>
+                <p style="color:var(--dim);text-align:center;padding:32px 0">Pas encore de données</p>
             @else
-            <div class="space-y-3">
-                @foreach($byBetType as $row)
-                <div class="flex items-center gap-3">
-                    <span class="text-gray-300 text-sm w-28 flex-shrink-0">{{ strtoupper($row['bet_type'] ?? '?') }}</span>
-                    <div class="flex-1 bg-gray-700 rounded-full h-2">
-                        <div class="h-2 rounded-full {{ $row['win_rate'] >= 60 ? 'bg-success' : ($row['win_rate'] >= 45 ? 'bg-warning' : 'bg-danger') }}"
-                             style="width: {{ $row['win_rate'] }}%"></div>
-                    </div>
-                    <span class="text-sm font-bold w-12 text-right {{ $row['win_rate'] >= 60 ? 'text-success' : ($row['win_rate'] >= 45 ? 'text-warning' : 'text-danger') }}">
-                        {{ $row['win_rate'] }}%
-                    </span>
-                    <span class="text-gray-500 text-xs w-16 text-right">{{ $row['total'] }} paris</span>
+                <div class="space-y-3">
+                    @foreach($byBetType as $row)
+                        <div class="flex items-center gap-3">
+                            <span style="color:var(--ink-2);font-size:13px;width:100px;flex-shrink:0">{{ strtoupper($row['bet_type'] ?? '?') }}</span>
+                            <div style="flex:1;height:6px;border-radius:3px;background:var(--bg-3);overflow:hidden">
+                                <div style="height:100%;border-radius:3px;width:{{ $row['win_rate'] }}%;background:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}"></div>
+                            </div>
+                            <span style="font-weight:700;font-size:13px;width:44px;text-align:right;color:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}">{{ $row['win_rate'] }}%</span>
+                            <span style="color:var(--dim);font-size:12px;width:64px;text-align:right">{{ $row['total'] }} paris</span>
+                        </div>
+                    @endforeach
                 </div>
-                @endforeach
-            </div>
             @endif
         </div>
     </div>
 
-    {{-- Top 10 compétitions --}}
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-        <h3 class="text-white font-semibold mb-4">
-            <i class="fa-solid fa-trophy mr-2 text-warning"></i>Top 10 compétitions — taux de réussite
-        </h3>
+    {{-- ── Top compétitions ────────────────────────────────────────────────── --}}
+    <div class="card">
+        <p class="tag-mono mb-4"><i class="fa-solid fa-trophy mr-2" style="color:#f5a623"></i>Top 10 compétitions — taux de réussite</p>
         @if($byCompetition->isEmpty())
-            <p class="text-gray-500 text-center py-8">Pas encore de données</p>
+            <p style="color:var(--dim);text-align:center;padding:32px 0">Pas encore de données</p>
         @else
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-gray-400 text-xs uppercase tracking-wider border-b border-gray-700/50">
-                        <th class="pb-3 text-left">Compétition</th>
-                        <th class="pb-3 text-center">Gagnés</th>
-                        <th class="pb-3 text-center">Perdus</th>
-                        <th class="pb-3 text-center">Total</th>
-                        <th class="pb-3 text-right">Taux</th>
-                        <th class="pb-3 text-right w-40">Barre</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700/30">
-                    @foreach($byCompetition as $row)
-                    <tr class="hover:bg-gray-800/30">
-                        <td class="py-3 text-gray-200 font-medium">{{ $row['competition'] ?? 'Inconnue' }}</td>
-                        <td class="py-3 text-center text-success">{{ $row['won'] }}</td>
-                        <td class="py-3 text-center text-danger">{{ $row['lost'] }}</td>
-                        <td class="py-3 text-center text-gray-400">{{ $row['total'] }}</td>
-                        <td class="py-3 text-right font-bold {{ $row['win_rate'] >= 60 ? 'text-success' : ($row['win_rate'] >= 45 ? 'text-warning' : 'text-danger') }}">
-                            {{ $row['win_rate'] }}%
-                        </td>
-                        <td class="py-3 text-right">
-                            <div class="w-32 ml-auto bg-gray-700 rounded-full h-1.5">
-                                <div class="h-1.5 rounded-full {{ $row['win_rate'] >= 60 ? 'bg-success' : ($row['win_rate'] >= 45 ? 'bg-warning' : 'bg-danger') }}"
-                                     style="width: {{ $row['win_rate'] }}%"></div>
-                            </div>
-                        </td>
-                    </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+            <div class="overflow-x-auto">
+                <table class="table-brand w-full">
+                    <thead>
+                        <tr>
+                            <th class="text-left">Compétition</th>
+                            <th class="text-center">Gagnés</th>
+                            <th class="text-center">Perdus</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-right">Taux</th>
+                            <th class="text-right" style="width:160px">Barre</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($byCompetition as $row)
+                        <tr>
+                            <td style="color:var(--ink-2);font-weight:500">{{ $row['competition'] ?? 'Inconnue' }}</td>
+                            <td class="text-center" style="color:var(--win)">{{ $row['won'] }}</td>
+                            <td class="text-center" style="color:var(--loss)">{{ $row['lost'] }}</td>
+                            <td class="text-center" style="color:var(--dim)">{{ $row['total'] }}</td>
+                            <td class="text-right" style="font-weight:700;color:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}">{{ $row['win_rate'] }}%</td>
+                            <td class="text-right">
+                                <div style="width:128px;height:5px;border-radius:3px;background:var(--bg-3);overflow:hidden;margin-left:auto">
+                                    <div style="height:100%;border-radius:3px;width:{{ $row['win_rate'] }}%;background:{{ $row['win_rate'] >= 60 ? 'var(--win)' : ($row['win_rate'] >= 45 ? '#f5a623' : 'var(--loss)') }}"></div>
+                                </div>
+                            </td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         @endif
+    </div>
+
+    {{-- ── UTILISATEURS ACTIFS (5 dernières minutes, polling 30 s) ──────────── --}}
+    <div class="card" id="activeUsersCard">
+        <div class="flex items-center justify-between mb-4">
+            <p class="tag-mono"><i class="fa-solid fa-circle fa-beat-fade mr-2" style="color:#22c55e;font-size:9px"></i>Utilisateurs actifs <span style="color:var(--dim);font-size:11px">(5 min)</span></p>
+            <div class="flex items-center gap-3">
+                <span id="activeCount" style="font-size:28px;font-weight:900;color:var(--ink);font-family:'Archivo',sans-serif">–</span>
+                <span id="premiumBadge" class="hidden px-2 py-1 rounded text-xs font-semibold" style="background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25)"></span>
+            </div>
+        </div>
+        <div id="activeUsersList" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+        <p id="activeUpdatedAt" class="text-right mt-3" style="color:var(--dim);font-size:11px"></p>
     </div>
 
 </div>
@@ -175,95 +148,93 @@
 
 @push('scripts')
 <script>
-// Taux de réussite 30j
-const winRateCtx = document.getElementById('winRateChart').getContext('2d');
+const chartBase = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b8a85', maxTicksLimit: 7 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b8a85' } }
+    }
+};
+
 const winRateData = {!! json_encode($last30Days) !!};
-new Chart(winRateCtx, {
+new Chart(document.getElementById('winRateChart').getContext('2d'), {
     type: 'line',
     data: {
         labels: winRateData.map(d => d.date),
-        datasets: [{
-            label: 'Taux de réussite (%)',
-            data: winRateData.map(d => d.win_rate),
-            borderColor: '#10B981',
-            backgroundColor: 'rgba(16,185,129,0.1)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 2,
-            spanGaps: true,
-        }]
+        datasets: [{ data: winRateData.map(d => d.win_rate), borderColor: '#3ddc91', backgroundColor: 'rgba(61,220,145,0.08)', tension: 0.4, fill: true, pointRadius: 2, spanGaps: true }]
     },
-    options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF', maxTicksLimit: 7 } },
-            y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF', callback: v => v + '%' } }
-        }
-    }
+    options: { ...chartBase, scales: { ...chartBase.scales, y: { ...chartBase.scales.y, min: 0, max: 100, ticks: { color: '#8b8a85', callback: v => v + '%' } } } }
 });
 
-// Croissance users
-const usersCtx = document.getElementById('usersChart').getContext('2d');
 const usersData = {!! json_encode($userGrowth) !!};
-new Chart(usersCtx, {
+new Chart(document.getElementById('usersChart').getContext('2d'), {
     type: 'bar',
-    data: {
-        labels: usersData.map(d => d.date),
-        datasets: [{
-            label: 'Nouveaux utilisateurs',
-            data: usersData.map(d => d.count),
-            backgroundColor: 'rgba(99,102,241,0.7)',
-            borderRadius: 3,
-        }]
-    },
-    options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            x: { grid: { display: false }, ticks: { color: '#9CA3AF', maxTicksLimit: 7 } },
-            y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } }
-        }
-    }
+    data: { labels: usersData.map(d => d.date), datasets: [{ data: usersData.map(d => d.count), backgroundColor: 'rgba(232,255,54,0.5)', borderRadius: 3 }] },
+    options: { ...chartBase }
 });
 
-// Revenus 12 mois
-const revenueCtx = document.getElementById('revenueChart').getContext('2d');
 const revenueData = {!! json_encode($revenueByMonth) !!};
-new Chart(revenueCtx, {
+new Chart(document.getElementById('revenueChart').getContext('2d'), {
     type: 'bar',
     data: {
         labels: revenueData.map(d => d.month),
         datasets: [
-            {
-                label: 'Revenus (FCFA)',
-                data: revenueData.map(d => d.amount),
-                backgroundColor: 'rgba(139,92,246,0.7)',
-                borderRadius: 4,
-                yAxisID: 'y',
-            },
-            {
-                label: 'Nouveaux abonnés',
-                data: revenueData.map(d => d.new_premium),
-                type: 'line',
-                borderColor: '#F59E0B',
-                backgroundColor: 'rgba(245,158,11,0.1)',
-                tension: 0.4,
-                fill: false,
-                pointRadius: 3,
-                yAxisID: 'y1',
-            }
+            { label: 'Revenus (FCFA)', data: revenueData.map(d => d.amount), backgroundColor: 'rgba(61,220,145,0.5)', borderRadius: 4, yAxisID: 'y' },
+            { label: 'Nouveaux abonnés', data: revenueData.map(d => d.new_premium), type: 'line', borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,0.1)', tension: 0.4, fill: false, pointRadius: 3, yAxisID: 'y1' }
         ]
     },
     options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: '#9CA3AF', boxWidth: 12 } } },
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: '#8b8a85', boxWidth: 12 } } },
         scales: {
-            x: { grid: { display: false }, ticks: { color: '#9CA3AF' } },
-            y:  { beginAtZero: true, position: 'left',  grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#9CA3AF' } },
-            y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { color: '#F59E0B' } }
+            x: { grid: { display: false }, ticks: { color: '#8b8a85' } },
+            y:  { beginAtZero: true, position: 'left',  grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8b8a85' } },
+            y1: { beginAtZero: true, position: 'right', grid: { display: false }, ticks: { color: '#f5a623' } }
         }
     }
 });
+
+// ── Utilisateurs actifs — polling toutes les 30 s ──────────────────────────
+function fetchActiveUsers() {
+    fetch('{{ route("admin.stats.active-users") }}')
+        .then(r => r.json())
+        .then(res => {
+            if (!res.success) return;
+            const d = res.data;
+            document.getElementById('activeCount').textContent = d.count;
+            const badge = document.getElementById('premiumBadge');
+            if (d.premium > 0) {
+                badge.textContent = d.premium + ' premium';
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+            const list = document.getElementById('activeUsersList');
+            if (d.users.length === 0) {
+                list.innerHTML = '<p style="color:var(--dim);font-size:13px;text-align:center;padding:12px 0">Aucun utilisateur actif ces 5 dernières minutes</p>';
+            } else {
+                list.innerHTML = d.users.map(u => `
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;background:var(--bg-3);border:1px solid var(--line)">
+                        <div style="display:flex;align-items:center;gap:10px">
+                            <div style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></div>
+                            <div>
+                                <p style="color:var(--ink);font-size:13px;font-weight:600">${u.name || u.email}</p>
+                                ${u.name ? `<p style="color:var(--dim);font-size:11px">${u.email}</p>` : ''}
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px">
+                            ${u.is_premium ? '<span style="padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25)">PREMIUM</span>' : ''}
+                            <span style="color:var(--dim);font-size:11px;font-family:\'Space Mono\',monospace">${new Date(u.last_seen).toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            document.getElementById('activeUpdatedAt').textContent = 'Actualisé à ' + new Date().toLocaleTimeString('fr-FR');
+        })
+        .catch(() => {});
+}
+fetchActiveUsers();
+setInterval(fetchActiveUsers, 30000);
 </script>
 @endpush

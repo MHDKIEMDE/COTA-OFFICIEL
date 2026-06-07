@@ -1,125 +1,193 @@
-# Guide de déploiement COTA
+# Guide de deploiement COTA
 
-## 1. Vercel — Web + Admin
+Ce guide decrit l'architecture actuelle du dossier `COTA` : backend Laravel 12 + application Flutter. Les anciennes instructions Vercel/Railway/Supabase/Expo concernaient le monorepo archive et ne sont plus la source de verite.
 
-### Prérequis
-- Compte Vercel : https://vercel.com
-- CLI : `npm i -g vercel`
+## 1. Backend Laravel
 
-### Web
+### Prerequis serveur
+
+- PHP 8.2+ avec les extensions Laravel usuelles.
+- Composer.
+- Redis.
+- Nginx avec HTTPS.
+- Base SQLite ou MySQL selon l'environnement cible.
+- Acces au dossier de deploiement, par exemple `/var/www/cota-backend`.
+
+### Installation
+
 ```bash
-cd apps/web
-vercel --prod
-```
-Variables d'env à ajouter dans Vercel Dashboard → Settings → Environment Variables :
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-NEXT_PUBLIC_API_URL          # https://api.cota.ci
-NEXT_PUBLIC_ONESIGNAL_APP_ID
-SUPABASE_SERVICE_ROLE_KEY
-NEXT_PUBLIC_AFFILIATE_1XBET
-NEXT_PUBLIC_AFFILIATE_BETWAY
-NEXT_PUBLIC_AFFILIATE_BET9JA
-NEXT_PUBLIC_AFFILIATE_MELBET
+cd /var/www/cota-backend
+composer install --no-dev --optimize-autoloader
+cp .env.production.example .env
+php artisan key:generate
+php artisan migrate --force
+php artisan storage:link
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 ```
 
-### Admin
+### Variables importantes
+
+Configurer au minimum :
+
+```env
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://api.cota.app
+APP_FRONTEND_URL=https://www.cota.app
+
+QUEUE_CONNECTION=redis
+CACHE_STORE=redis
+SESSION_DRIVER=redis
+REDIS_HOST=127.0.0.1
+
+FOOTBALL_API_KEY=...
+OPENWEATHERMAP_KEY=...
+
+FIREBASE_PROJECT_ID=...
+FIREBASE_CREDENTIALS_PATH=/var/www/html/storage/app/firebase-service-account.json
+
+PAYDUNYA_MODE=live
+PAYDUNYA_MASTER_KEY=...
+PAYDUNYA_PRIVATE_KEY=...
+PAYDUNYA_TOKEN=...
+PAYDUNYA_WEBHOOK_URL=https://api.cota.app/api/webhooks/payment
+```
+
+Les cles de paiement peuvent aussi etre gerees depuis le dashboard admin via `payment.active_provider` et `payment.providers`.
+
+## 2. HTTPS et Nginx
+
+Le dossier `backend/docker/` contient deux fichiers utiles :
+
+- `nginx.conf` pour le conteneur interne expose sur le port `8082`.
+- `nginx-vhost.conf` pour le reverse proxy HTTPS public avec Let's Encrypt.
+
+Points a verifier en production :
+
+- `server_name` correspond au domaine reel.
+- Le certificat Let's Encrypt existe dans `/etc/letsencrypt/live/<domaine>/`.
+- Le port public `443` redirige vers le backend.
+- `APP_URL` utilise le meme domaine HTTPS.
+- CORS est limite aux domaines COTA avant ouverture publique.
+
+## 3. Queue worker
+
+Deux modes sont possibles.
+
+### Docker Compose
+
+`backend/docker/docker-compose.yml` definit deja un service `queue` :
+
 ```bash
-cd apps/admin
-vercel --prod
-```
-Variables :
-```
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+cd backend/docker
+docker compose up -d queue
 ```
 
----
+### Serveur classique
 
-## 2. Railway — FastAPI
+Utiliser Horizon si Redis est active :
 
-### Prérequis
-- Compte Railway : https://railway.app
-- CLI : `npm i -g @railway/cli`
-
-### Déploiement
 ```bash
-cd backend/algo
-railway login
-railway init        # Crée un nouveau projet
-railway up          # Déploie via Dockerfile
+php artisan horizon
 ```
 
-Variables d'env à ajouter dans Railway Dashboard :
-```
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
-API_FOOTBALL_KEY
-PAYDUNYA_MASTER_KEY
-PAYDUNYA_PRIVATE_KEY
-PAYDUNYA_TOKEN
-PAYDUNYA_PUBLIC_KEY
-WEB_URL             # https://cota.ci
-BACKEND_URL         # https://api.cota.ci (ton domaine Railway)
-ONESIGNAL_APP_ID
-ONESIGNAL_REST_KEY
-```
+ou un worker Laravel simple :
 
-Railway génère une URL comme `https://cota-algo.up.railway.app` → utilise-la comme `NEXT_PUBLIC_API_URL` dans Vercel.
-
----
-
-## 3. Expo EAS Build — Android
-
-### Prérequis
-- Compte Expo : https://expo.dev
-- CLI EAS : `npm i -g eas-cli`
-- Connexion : `eas login`
-
-### APK interne (test)
 ```bash
-cd apps/mobile
-eas build --profile preview --platform android
+php artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
 ```
-→ Génère un `.apk` téléchargeable directement.
 
-### Production (Play Store)
+En production, lancer ce processus via systemd ou Supervisor, avec redemarrage automatique.
+
+## 4. Scheduler
+
+Les taches planifiees sont dans `backend/routes/console.php`. Verifier avec :
+
 ```bash
-eas build --profile production --platform android
-eas submit --platform android
-```
-→ Upload l'`.aab` sur le Play Store (compte Google Play requis).
-
-### Mettre à jour l'EAS project ID
-Dans `app.json`, remplace :
-```json
-"projectId": "your-eas-project-id"
-```
-par l'ID généré après `eas init`.
-
----
-
-## 4. Supabase — Actions manuelles
-
-1. Aller sur https://app.supabase.com → ton projet → SQL Editor
-2. Coller et exécuter le contenu de `backend/api/schema.sql`
-3. Créer la table `push_tokens` :
-```sql
-CREATE TABLE push_tokens (
-  user_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
-  expo_token TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+php artisan schedule:list
 ```
 
----
+### Docker Compose
 
-## 5. Domaine personnalisé
+`backend/docker/docker-compose.yml` definit deja un service `scheduler` qui lance `schedule:run` toutes les 60 secondes.
 
-- **cota.ci** → Vercel (web)
-- **admin.cota.ci** → Vercel (admin)
-- **api.cota.ci** → Railway (FastAPI)
+```bash
+cd backend/docker
+docker compose up -d scheduler
+```
 
-Configurer dans les dashboards respectifs après déploiement.
+### Serveur classique
+
+Ajouter la crontab Laravel :
+
+```cron
+* * * * * cd /var/www/cota-backend && php artisan schedule:run >> /dev/null 2>&1
+```
+
+## 5. Firebase Cloud Messaging
+
+### Backend
+
+Le backend utilise FCM HTTP v1. Le fichier service account JSON doit exister sur le serveur et le chemin doit correspondre a `FIREBASE_CREDENTIALS_PATH`.
+
+```bash
+test -f "$FIREBASE_CREDENTIALS_PATH"
+```
+
+### Mobile Flutter
+
+Le projet initialise Firebase via `mobile/lib/firebase_options.dart`. Verifier aussi :
+
+- Le package name Android : `com.cotafoot.app`.
+- Le bundle id iOS correspond a celui configure dans Firebase.
+- Les notifications push/APNs sont activees cote Apple avant publication iOS.
+
+## 6. Mobile Flutter
+
+Installation :
+
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+```
+
+Build Android :
+
+```bash
+flutter build appbundle --release --dart-define=APP_BASE_URL=https://api.cota.app/api
+```
+
+Build iOS :
+
+```bash
+flutter build ipa --release --dart-define=APP_BASE_URL=https://api.cota.app/api
+```
+
+En developpement, `NetworkConfigService` peut decouvrir automatiquement le backend local. En production, toujours passer `APP_BASE_URL` au build.
+
+## 7. Verification finale
+
+Avant publication :
+
+```bash
+cd backend
+php artisan test
+php artisan schedule:list
+php artisan config:clear && php artisan config:cache
+
+cd ../mobile
+flutter analyze
+```
+
+Tester ensuite :
+
+- `GET https://api.cota.app/api/health`
+- Auth OTP.
+- Achat abonnement Paydunya en mode test puis live.
+- Enregistrement token FCM depuis un vrai appareil.
+- Reception notification push.
+- Execution d'un job queue.
+- Execution scheduler apres une minute.

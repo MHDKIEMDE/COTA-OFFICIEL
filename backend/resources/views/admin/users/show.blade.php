@@ -5,141 +5,95 @@
 
 @section('content')
 <div class="space-y-6">
-    <!-- Header Card -->
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
+
+    {{-- ── Header ──────────────────────────────────────────────────────────── --}}
+    <div class="card">
         <div class="flex flex-col md:flex-row gap-6 items-start">
-            <!-- Avatar -->
-            <div class="w-24 h-24 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-white text-3xl font-bold">
-                {{ substr($user->name ?? 'U', 0, 1) }}
+            <div class="w-16 h-16 rounded-xl flex items-center justify-center shrink-0"
+                 style="background:rgba(232,255,54,.12);border:1px solid rgba(232,255,54,.2);font-family:Archivo,sans-serif;font-weight:900;font-size:28px;color:var(--accent)">
+                {{ strtoupper(substr($user->name ?? 'U', 0, 1)) }}
             </div>
-            
-            <!-- Info -->
             <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                    <h2 class="text-2xl font-bold text-white">{{ $user->name ?? 'Sans nom' }}</h2>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <h2 style="font-family:Archivo,sans-serif;font-weight:900;font-size:22px;color:var(--ink)">{{ $user->name ?? 'Sans nom' }}</h2>
                     @if($user->is_premium)
-                        <span class="px-3 py-1 rounded-full bg-yellow-500/20 text-yellow-400 text-sm font-medium">
-                            <i class="fa-solid fa-crown mr-1"></i>Premium
-                        </span>
+                        <span class="badge-accent"><i class="fa-solid fa-crown mr-1"></i>Premium</span>
                     @endif
                     @if($user->is_super_admin)
-                        <span class="px-3 py-1 rounded-full bg-danger/20 text-danger text-sm font-medium">
-                            <i class="fa-solid fa-shield mr-1"></i>Super Admin
-                        </span>
+                        <span class="badge-loss"><i class="fa-solid fa-shield mr-1"></i>Super Admin</span>
                     @endif
                 </div>
-                
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-400">Téléphone</span>
-                        <p class="text-white font-medium">{{ $user->phone }}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Email</span>
-                        <p class="text-white font-medium">{{ $user->email ?? '-' }}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Inscrit le</span>
-                        <p class="text-white font-medium">{{ $user->created_at->format('d/m/Y H:i') }}</p>
-                    </div>
-                    <div>
-                        <span class="text-gray-400">Dernière connexion</span>
-                        <p class="text-white font-medium">{{ $user->last_login_at?->format('d/m/Y H:i') ?? '-' }}</p>
-                    </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    @foreach([['Téléphone', $user->phone], ['Email', $user->email ?? '—'], ['Inscrit le', $user->created_at->format('d/m/Y H:i')], ['Dernière connexion', $user->last_login_at?->format('d/m/Y H:i') ?? '—']] as [$label, $val])
+                        <div>
+                            <p class="text-xs mb-1" style="color:var(--dim);text-transform:uppercase;letter-spacing:.06em">{{ $label }}</p>
+                            <p style="color:var(--ink-2);font-size:14px;font-weight:500">{{ $val }}</p>
+                        </div>
+                    @endforeach
                 </div>
             </div>
-            
-            <!-- Actions -->
-            <div class="flex gap-2">
-                <a href="{{ route('admin.users.edit', $user) }}" class="bg-primary hover:bg-primary/80 text-white px-4 py-2 rounded-lg transition">
-                    <i class="fa-solid fa-edit mr-1"></i> Modifier
-                </a>
-            </div>
+            <a href="{{ route('admin.users.edit', $user) }}" class="btn-primary btn-sm">
+                <i class="fa-solid fa-edit mr-1"></i> Modifier
+            </a>
         </div>
     </div>
-    
-    <!-- Stats & Premium -->
+
+    {{-- ── Stats & Premium ─────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Stats -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">Statistiques</h3>
+        <div class="card">
+            <p class="tag-mono mb-4">Statistiques</p>
             <div class="space-y-3">
-                <div class="flex justify-between">
-                    <span class="text-gray-400">Abonnements</span>
-                    <span class="text-white font-medium">{{ $user->subscriptions_count ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-400">Parrainages</span>
-                    <span class="text-white font-medium">{{ $user->referrals_count ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-400">Feedbacks</span>
-                    <span class="text-white font-medium">{{ $user->feedbacks_count ?? 0 }}</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-gray-400">Affiliations</span>
-                    <span class="text-white font-medium">{{ $user->affiliation_bonus_count ?? 0 }}</span>
-                </div>
+                @foreach([['Abonnements', $user->subscriptions_count ?? 0], ['Parrainages', $user->referrals_count ?? 0], ['Feedbacks', $user->feedbacks_count ?? 0], ['Affiliations', $user->affiliation_bonus_count ?? 0]] as [$label, $val])
+                    <div class="flex justify-between items-center">
+                        <span style="color:var(--ink-2);font-size:13px">{{ $label }}</span>
+                        <span style="color:var(--ink);font-weight:600;font-family:JetBrains Mono,monospace">{{ $val }}</span>
+                    </div>
+                @endforeach
             </div>
         </div>
-        
-        <!-- Premium Management -->
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6 md:col-span-2">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-crown text-yellow-400 mr-2"></i>
-                Gestion Premium
-            </h3>
-            
+
+        <div class="card md:col-span-2">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-crown mr-2" style="color:var(--accent)"></i>Gestion Premium</p>
             <div class="mb-4">
                 @if($user->is_premium)
-                    <div class="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                        <div class="flex items-center gap-2 text-yellow-400 font-medium mb-2">
-                            <i class="fa-solid fa-check-circle"></i>
-                            Abonnement Premium actif
+                    <div class="p-4 rounded-lg" style="background:rgba(232,255,54,.06);border:1px solid rgba(232,255,54,.2)">
+                        <div class="flex items-center gap-2 mb-2" style="color:var(--accent);font-weight:600">
+                            <i class="fa-solid fa-check-circle"></i>Abonnement Premium actif
                         </div>
                         @if($user->premium_expires_at)
-                            <p class="text-sm text-gray-300">
+                            <p style="font-size:13px;color:var(--ink-2)">
                                 Expire le <strong>{{ $user->premium_expires_at->format('d/m/Y H:i') }}</strong>
                                 ({{ $user->premium_expires_at->diffForHumans() }})
                             </p>
                         @else
-                            <p class="text-sm text-yellow-300">Premium à vie</p>
+                            <p style="font-size:13px;color:var(--accent)">Premium à vie</p>
                         @endif
-                        <p class="text-xs text-gray-400 mt-1">Source: {{ $user->premium_source ?? 'Non spécifié' }}</p>
+                        <p style="font-size:12px;color:var(--dim);margin-top:4px">Source : {{ $user->premium_source ?? 'Non spécifié' }}</p>
                     </div>
                 @else
-                    <div class="p-4 bg-gray-700/30 border border-gray-600 rounded-lg">
-                        <p class="text-gray-400">Cet utilisateur n'a pas d'abonnement Premium actif.</p>
+                    <div class="p-4 rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
+                        <p style="color:var(--dim);font-size:14px">Pas d'abonnement Premium actif.</p>
                     </div>
                 @endif
             </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- Ajouter des jours -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <form action="{{ route('admin.users.addPremium', $user) }}" method="POST" class="flex gap-2">
                     @csrf
-                    <input type="number" name="days" min="1" max="365" value="7" 
-                           class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm">
-                    <button type="submit" class="bg-success hover:bg-success/80 text-white px-4 py-2 rounded-lg text-sm transition">
-                        + Jours
-                    </button>
+                    <input type="number" name="days" min="1" max="365" value="7" class="input-brand flex-1" style="height:40px">
+                    <button type="submit" class="btn-primary btn-sm">+ Jours</button>
                 </form>
-                
-                <!-- Premium à vie -->
                 <form action="{{ route('admin.users.lifetimePremium', $user) }}" method="POST"
                       onsubmit="return confirm('Accorder le premium à vie ?')">
                     @csrf
-                    <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded-lg text-sm font-medium transition">
-                        <i class="fa-solid fa-infinity mr-1"></i> Premium à vie
+                    <button type="submit" class="btn-primary btn-sm w-full">
+                        <i class="fa-solid fa-infinity mr-1"></i> À vie
                     </button>
                 </form>
-                
-                <!-- Révoquer -->
                 @if($user->is_premium)
                     <form action="{{ route('admin.users.revokePremium', $user) }}" method="POST"
                           onsubmit="return confirm('Révoquer le premium ?')">
                         @csrf
-                        <button type="submit" class="w-full bg-danger hover:bg-danger/80 text-white px-4 py-2 rounded-lg text-sm transition">
+                        <button type="submit" class="btn-danger btn-sm w-full">
                             <i class="fa-solid fa-ban mr-1"></i> Révoquer
                         </button>
                     </form>
@@ -147,82 +101,63 @@
             </div>
         </div>
     </div>
-    
-    <!-- Parrainage -->
-    <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-        <h3 class="text-lg font-semibold text-white mb-4">
-            <i class="fa-solid fa-gift text-primary mr-2"></i>
-            Parrainage
-        </h3>
-        
+
+    {{-- ── Parrainage ───────────────────────────────────────────────────────── --}}
+    <div class="card">
+        <p class="tag-mono mb-4"><i class="fa-solid fa-gift mr-2" style="color:var(--accent)"></i>Parrainage</p>
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div class="p-4 bg-gray-800/50 rounded-lg text-center">
-                <p class="text-gray-400 text-sm">Code parrain</p>
-                <code class="text-xl font-bold text-primary">{{ $user->referral_code }}</code>
-            </div>
-            <div class="p-4 bg-gray-800/50 rounded-lg text-center">
-                <p class="text-gray-400 text-sm">Filleuls</p>
-                <p class="text-xl font-bold text-white">{{ $user->referral_count ?? 0 }}</p>
-            </div>
-            <div class="p-4 bg-gray-800/50 rounded-lg text-center">
-                <p class="text-gray-400 text-sm">Jours gagnés</p>
-                <p class="text-xl font-bold text-success">{{ $user->referral_days_earned ?? 0 }}</p>
-            </div>
-            <div class="p-4 bg-gray-800/50 rounded-lg text-center">
-                <p class="text-gray-400 text-sm">Parrainé par</p>
-                <p class="text-xl font-bold text-white">
-                    @if($user->referred_by)
-                        <a href="{{ route('admin.users.show', $user->referred_by) }}" class="text-primary hover:underline">
-                            #{{ $user->referred_by }}
-                        </a>
-                    @else
-                        -
-                    @endif
-                </p>
-            </div>
+            @foreach([
+                ['Code parrain', $user->referral_code, true],
+                ['Filleuls', $user->referral_count ?? 0, false],
+                ['Jours gagnés', ($user->referral_days_earned ?? 0) . 'j', false],
+                ['Parrainé par', $user->referred_by ? '#' . $user->referred_by : '—', false],
+            ] as [$label, $val, $mono])
+                <div class="p-4 text-center rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
+                    <p class="text-xs mb-2" style="color:var(--dim);text-transform:uppercase;letter-spacing:.06em">{{ $label }}</p>
+                    <p style="font-weight:700;{{ $mono ? 'font-family:JetBrains Mono,monospace;color:var(--accent)' : 'color:var(--ink)' }};font-size:16px">{{ $val }}</p>
+                </div>
+            @endforeach
         </div>
-        
+
         @if($user->referrals->count() > 0)
-            <h4 class="text-sm font-medium text-gray-400 mb-3">Derniers filleuls</h4>
+            <p class="text-xs mb-3" style="color:var(--dim);text-transform:uppercase;letter-spacing:.06em">Derniers filleuls</p>
             <div class="space-y-2">
                 @foreach($user->referrals as $referral)
-                    <div class="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                    <div class="flex items-center justify-between p-3 rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
                         <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm">
-                                {{ substr($referral->referredUser->name ?? 'U', 0, 1) }}
+                            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                                 style="background:rgba(232,255,54,.1);color:var(--accent);font-size:12px;font-weight:700">
+                                {{ strtoupper(substr($referral->referredUser->name ?? 'U', 0, 1)) }}
                             </div>
                             <div>
-                                <p class="text-white text-sm">{{ $referral->referredUser->name ?? 'Sans nom' }}</p>
-                                <p class="text-gray-500 text-xs">{{ $referral->created_at->format('d/m/Y') }}</p>
+                                <p style="color:var(--ink);font-size:13px">{{ $referral->referredUser->name ?? 'Sans nom' }}</p>
+                                <p style="color:var(--dim);font-size:11px">{{ $referral->created_at->format('d/m/Y') }}</p>
                             </div>
                         </div>
-                        <span class="text-success text-sm">+{{ $referral->bonus_days ?? 0 }}j</span>
+                        <span style="color:var(--win);font-size:13px;font-family:JetBrains Mono,monospace">+{{ $referral->bonus_days ?? 0 }}j</span>
                     </div>
                 @endforeach
             </div>
         @endif
     </div>
-    
-    <!-- Affiliations -->
+
+    {{-- ── Affiliations ─────────────────────────────────────────────────────── --}}
     @if($user->affiliationBonus->count() > 0)
-        <div class="bg-dark-100 rounded-xl border border-gray-700/50 p-6">
-            <h3 class="text-lg font-semibold text-white mb-4">
-                <i class="fa-solid fa-handshake text-secondary mr-2"></i>
-                Affiliations
-            </h3>
+        <div class="card">
+            <p class="tag-mono mb-4"><i class="fa-solid fa-handshake mr-2" style="color:var(--accent)"></i>Affiliations</p>
             <div class="space-y-2">
                 @foreach($user->affiliationBonus as $bonus)
-                    <div class="flex items-center justify-between p-3 bg-gray-800/30 rounded-lg">
+                    <div class="flex items-center justify-between p-3 rounded-lg" style="background:var(--bg-3);border:1px solid var(--line)">
                         <div>
-                            <span class="text-white font-medium">{{ ucfirst($bonus->bookmaker) }}</span>
-                            <span class="text-gray-500 text-sm ml-2">ID: {{ $bonus->player_id }}</span>
+                            <span style="color:var(--ink);font-weight:600">{{ ucfirst($bonus->bookmaker) }}</span>
+                            <span style="color:var(--dim);font-size:12px;margin-left:8px">ID : {{ $bonus->player_id }}</span>
                         </div>
                         <div class="flex items-center gap-3">
-                            <span class="text-success text-sm">+{{ $bonus->bonus_days }}j</span>
+                            <span style="color:var(--win);font-family:JetBrains Mono,monospace;font-size:13px">+{{ $bonus->bonus_days }}j</span>
                             @if($bonus->is_verified)
-                                <span class="px-2 py-1 rounded text-xs bg-success/20 text-success">Vérifié</span>
+                                <span class="badge-win">Vérifié</span>
                             @else
-                                <span class="px-2 py-1 rounded text-xs bg-warning/20 text-warning">En attente</span>
+                                <span class="badge-pending">En attente</span>
                             @endif
                         </div>
                     </div>
@@ -230,13 +165,10 @@
             </div>
         </div>
     @endif
-    
-    <!-- Back -->
-    <div>
-        <a href="{{ route('admin.users.index') }}" class="text-gray-400 hover:text-white transition">
-            <i class="fa-solid fa-arrow-left mr-2"></i> Retour à la liste
-        </a>
-    </div>
+
+    <a href="{{ route('admin.users.index') }}" style="font-size:13px;color:var(--dim)">
+        <i class="fa-solid fa-arrow-left mr-2"></i> Retour à la liste
+    </a>
+
 </div>
 @endsection
-

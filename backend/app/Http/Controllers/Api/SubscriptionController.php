@@ -196,12 +196,18 @@ class SubscriptionController extends Controller
     {
         $default = [
             'weekly' => [
-                'id'       => 'weekly',
-                'name'     => 'Hebdomadaire',
-                'duration' => '7 jours',
-                'price'    => 2500,
-                'currency' => 'FCFA',
-                'features' => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire'],
+                'id'          => 'weekly',
+                'name'        => 'Hebdo',
+                'duration'    => '7 jours',
+                'price'       => 2500,
+                'currency'    => 'FCFA',
+                'badge'       => null,
+                'recommended' => false,
+                'features'    => [
+                    ['title' => 'Pronostics 3–4 étoiles',   'description' => 'Accès aux prédictions premium pendant 7 jours'],
+                    ['title' => 'Coupon combiné quotidien',  'description' => '4–5 meilleurs picks combinés chaque jour'],
+                    ['title' => 'Alertes push',              'description' => 'Notifications en temps réel sur vos matchs'],
+                ],
             ],
             'monthly' => [
                 'id'          => 'monthly',
@@ -209,25 +215,46 @@ class SubscriptionController extends Controller
                 'duration'    => '30 jours',
                 'price'       => 8000,
                 'currency'    => 'FCFA',
-                'savings'     => '20%',
+                'badge'       => 'Populaire',
                 'recommended' => true,
-                'features'    => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire', 'Historique complet'],
+                'features'    => [
+                    ['title' => 'Pronostics 3–4 étoiles illimités', 'description' => 'Accès complet à toutes les prédictions premium'],
+                    ['title' => 'Coupon combiné quotidien',          'description' => '4–5 meilleurs picks combinés chaque jour'],
+                    ['title' => 'Analyses détaillées',               'description' => 'Critères, cotes estimées, historique complet'],
+                    ['title' => 'Alertes push',                      'description' => 'Notifications en temps réel sur vos matchs'],
+                    ['title' => 'Historique 30 jours',               'description' => 'Toutes vos prédictions et résultats du mois'],
+                ],
             ],
             'quarterly' => [
-                'id'       => 'quarterly',
-                'name'     => 'Trimestriel',
-                'duration' => '90 jours',
-                'price'    => 20000,
-                'currency' => 'FCFA',
-                'savings'  => '33%',
-                'features' => ['Tous les pronostics quotidiens', 'Combinés premium', 'Statistiques détaillées', 'Support prioritaire', 'Historique complet', 'Analyses avancées'],
+                'id'          => 'quarterly',
+                'name'        => 'Trimestriel',
+                'duration'    => '90 jours',
+                'price'       => 20000,
+                'currency'    => 'FCFA',
+                'badge'       => '-17%',
+                'recommended' => false,
+                'features'    => [
+                    ['title' => 'Pronostics 3–4 étoiles illimités',       'description' => 'Accès complet à toutes les prédictions premium'],
+                    ['title' => 'Coupon combiné quotidien',                'description' => '4–5 meilleurs picks combinés chaque jour'],
+                    ['title' => 'Analyses détaillées',                     'description' => 'Critères, cotes estimées, historique complet'],
+                    ['title' => 'Alertes push prioritaires',               'description' => 'Notifications en temps réel + alertes VIP'],
+                    ['title' => 'Historique illimité',                     'description' => 'Toutes les prédictions passées et résultats'],
+                    ['title' => 'Accès prioritaire nouvelles features',    'description' => 'Fonctionnalités bêta en avant-première'],
+                ],
             ],
         ];
 
-        $configured = AppConfig::get('app.premium_plans', []);
-        $plans      = array_values(array_merge($default, $configured));
+        $overrides = AppConfig::get('app.premium_plans', []);
+        if (!empty($overrides)) {
+            foreach ($overrides as $plan) {
+                $id = $plan['id'] ?? null;
+                if ($id && isset($default[$id])) {
+                    $default[$id] = array_merge($default[$id], $plan);
+                }
+            }
+        }
 
-        return response()->json(['success' => true, 'data' => $plans]);
+        return response()->json(['success' => true, 'data' => array_values($default)]);
     }
 
     /**

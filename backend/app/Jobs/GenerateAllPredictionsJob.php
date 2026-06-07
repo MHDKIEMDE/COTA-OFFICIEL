@@ -94,11 +94,23 @@ class GenerateAllPredictionsJob implements ShouldQueue
             return;
         }
 
-        // F-01 : Filtrer sur les ligues tier 1–3 uniquement
-        $totalBefore = count($fixtures);
-        $fixtures    = $this->filterByLeagueTier($fixtures, maxTier: 3);
-        $totalAfter  = count($fixtures);
-        Log::info('GenerateAllPredictionsJob: Filtrage ligues tier 1–3', [
+        // F-01 : Filtrer sur les ligues tier 1–3, fallback sur tous si vide (hors saison)
+        $totalBefore  = count($fixtures);
+        $filtered     = $this->filterByLeagueTier($fixtures, maxTier: 3);
+        $usedMaxTier  = 3;
+
+        if (empty($filtered)) {
+            // Hors saison européenne : accepter toutes les ligues, limiter à 50 matchs
+            $filtered    = array_slice($this->filterByLeagueTier($fixtures, maxTier: 99), 0, 50);
+            $usedMaxTier = 99;
+            Log::info('GenerateAllPredictionsJob: Aucune ligue tier<=3 — fallback toutes ligues', [
+                'retenu' => count($filtered),
+            ]);
+        }
+
+        $fixtures   = $filtered;
+        $totalAfter = count($fixtures);
+        Log::info('GenerateAllPredictionsJob: Filtrage ligues tier 1–' . $usedMaxTier, [
             'avant'  => $totalBefore,
             'après'  => $totalAfter,
             'exclus' => $totalBefore - $totalAfter,
