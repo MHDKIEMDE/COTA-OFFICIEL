@@ -62,6 +62,14 @@ Schedule::job(new \App\Jobs\RefreshDatabaseWhenQuotaRestoredJob)
     ->withoutOverlapping()
     ->onOneServer();
 
+// ── 09:00 UTC (10h WAT) — Broadcast Telegram picks du jour
+Schedule::job(new \App\Jobs\SendTelegramBroadcastJob)
+    ->dailyAt('09:00')
+    ->timezone('UTC')
+    ->name('telegram-broadcast')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── 09:00 UTC (09h WAT) — Envoyer les notifications quotidiennes
 // Prédictions + coupon garantis prêts depuis 23h15 la veille
 Schedule::job(new \App\Jobs\SendDailyNotificationJob)

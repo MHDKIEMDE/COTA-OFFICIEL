@@ -110,6 +110,10 @@ return [
     ],
 
     // Couche LLM pour l'analyse IA (§9 CDC V2)
+    'telegram' => [
+        'bot_token' => env('TELEGRAM_BOT_TOKEN', ''),
+    ],
+
     // provider: 'anthropic' | 'openai' | 'none' (template fallback)
     'llm' => [
         'provider'        => env('LLM_PROVIDER', 'none'),

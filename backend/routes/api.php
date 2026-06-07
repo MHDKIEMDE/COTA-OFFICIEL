@@ -291,6 +291,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin/my-bets')->group(fun
     Route::get('/dashboard', [App\Http\Controllers\Admin\MyBetsDashboardController::class, 'dashboard']);
 });
 
+// ── Webhook Telegram Bot ──────────────────────────────────────────────────────
+Route::post('/telegram/webhook', [App\Http\Controllers\Api\TelegramController::class, 'webhook'])
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
 // ── Webhooks paiement (point d'entrée unique, tous providers) ────────────────
 Route::prefix('webhooks')->group(function () {
     // Nouveau webhook unifié — tous providers passent par là
