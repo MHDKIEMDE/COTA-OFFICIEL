@@ -2,9 +2,12 @@
 
 namespace App\Livewire\Auth;
 
+use App\Mail\OtpMail;
 use App\Models\User;
 use App\Models\Referral;
+use App\Services\Sms\SmsService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 
 class VerifyOtpForm extends Component
@@ -135,13 +138,32 @@ class VerifyOtpForm extends Component
             'otp_expires_at' => $expiresAt,
         ]);
 
-        // TODO: Send OTP via SMS or Email
-        logger()->info("New OTP for {$this->contact}: {$otp}");
+        $this->sendOtp($this->method, $this->contact, $otp);
 
         // Reset countdown
         $this->startCountdown();
 
         session()->flash('message', 'Un nouveau code OTP a été envoyé.');
+    }
+
+    /**
+     * Envoyer le code OTP par SMS (téléphone) ou email selon la méthode.
+     * Fallback sur le log si l'envoi échoue, pour ne pas bloquer le renvoi.
+     */
+    private function sendOtp(string $method, string $contact, string $code): void
+    {
+        $ttlMinutes = (int) config('sms.otp_ttl_minutes', 10);
+
+        try {
+            if ($method === 'phone') {
+                $e164 = preg_replace('/\s+/', '', $contact);
+                app(SmsService::class)->sendOtp($e164, $code, $ttlMinutes);
+            } else {
+                Mail::to($contact)->send(new OtpMail($code, $ttlMinutes));
+            }
+        } catch (\Throwable $e) {
+            logger()->error("Échec renvoi OTP {$method} à {$contact}", ['error' => $e->getMessage()]);
+        }
     }
 
     public function render()

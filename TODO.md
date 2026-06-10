@@ -74,8 +74,8 @@
 |---------|------:|--------|
 | `mobile/lib/shared/providers/user_access_providers.dart` | 17 | `_bypassPremium = false` avant lancement |
 | `mobile/lib/features/predictions/presentation/widgets/prediction_card.dart` | 66 | Réactiver l'overlay premium lock si `isLocked` |
-| `backend/app/Livewire/Auth/RegisterForm.php` | 93 | Envoyer l'OTP via SMS / Email |
-| `backend/app/Livewire/Auth/VerifyOtpForm.php` | 138 | Envoyer l'OTP via SMS / Email |
+| ~~`backend/app/Livewire/Auth/RegisterForm.php`~~ | ~~93~~ | ✅ OTP envoyé via SMS (`SmsService`) / Email (`OtpMail`) |
+| ~~`backend/app/Livewire/Auth/VerifyOtpForm.php`~~ | ~~138~~ | ✅ Renvoi OTP via SMS / Email |
 
 ---
 

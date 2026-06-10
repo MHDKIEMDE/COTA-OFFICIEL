@@ -2,8 +2,11 @@
 
 namespace App\Livewire\Auth;
 
+use App\Mail\OtpMail;
 use App\Models\User;
 use App\Models\Referral;
+use App\Services\Sms\SmsService;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -90,8 +93,7 @@ class RegisterForm extends Component
 
         $contact = $this->method === 'phone' ? $this->phone : $this->email;
 
-        // TODO: Send OTP via SMS or Email
-        logger()->info("OTP for new user {$contact}: {$otp}");
+        $this->sendOtp($this->method, $contact, $otp);
 
         session(['otp_contact' => $contact, 'otp_method' => $this->method]);
 
@@ -99,6 +101,26 @@ class RegisterForm extends Component
 
         // Redirect to OTP verification page
         return redirect()->route('auth.verify-otp');
+    }
+
+    /**
+     * Envoyer le code OTP par SMS (téléphone) ou email selon la méthode.
+     * Fallback sur le log si l'envoi échoue, pour ne pas bloquer l'inscription.
+     */
+    private function sendOtp(string $method, string $contact, string $code): void
+    {
+        $ttlMinutes = (int) config('sms.otp_ttl_minutes', 10);
+
+        try {
+            if ($method === 'phone') {
+                $e164 = preg_replace('/\s+/', '', $contact);
+                app(SmsService::class)->sendOtp($e164, $code, $ttlMinutes);
+            } else {
+                Mail::to($contact)->send(new OtpMail($code, $ttlMinutes));
+            }
+        } catch (\Throwable $e) {
+            logger()->error("Échec envoi OTP {$method} à {$contact}", ['error' => $e->getMessage()]);
+        }
     }
 
     public function render()
