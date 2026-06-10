@@ -347,7 +347,8 @@ POST /api/auth/send-otp
 POST /api/auth/verify-otp
 POST /api/auth/facebook
 POST /api/auth/check-phone
-POST /api/auth/login-pin
+POST /api/auth/login-pin                 (numéro + PIN)
+POST /api/auth/login-password            (email + mot de passe)
 
 GET  /api/predictions/today
 GET  /api/predictions/coupon            (3 variantes : prudent, équilibré, audacieux)
@@ -367,7 +368,7 @@ GET  /api/config/app
 
 ```
 GET    /api/auth/me
-POST   /api/auth/logout | complete-registration | set-pin | reset-pin
+POST   /api/auth/logout | complete-registration | set-pin | reset-pin | set-password
 GET    /api/auth/telegram-link           (générer lien de liaison Telegram)
 POST   /api/auth/unlink-telegram
 

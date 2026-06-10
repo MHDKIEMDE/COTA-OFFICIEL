@@ -60,6 +60,7 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/google',   [AuthController::class, 'loginWithGoogle']);
     Route::post('/check-phone', [AuthController::class, 'checkPhone']);
     Route::post('/login-pin', [AuthController::class, 'loginWithPin']);
+    Route::post('/login-password', [AuthController::class, 'loginWithPassword']);
 });
 
 // ── Analytics — throttle 120 req/min (fire & forget mobile) ─────────────────
@@ -183,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/complete-registration', [AuthController::class, 'completeRegistration']);
     Route::post('/auth/set-pin', [AuthController::class, 'setPin']);
     Route::post('/auth/reset-pin', [AuthController::class, 'resetPin']);
+    Route::post('/auth/set-password', [AuthController::class, 'setPassword']);
     Route::get('/auth/telegram-link', [AuthController::class, 'generateTelegramLink']);
     Route::post('/auth/unlink-telegram', [AuthController::class, 'unlinkTelegram']);
 

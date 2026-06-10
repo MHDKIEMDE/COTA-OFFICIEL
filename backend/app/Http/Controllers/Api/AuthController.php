@@ -711,6 +711,80 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /api/auth/set-password   (auth:sanctum)
+     * Définition du mot de passe après premier OTP réussi (équivalent email du PIN).
+     */
+    public function setPassword(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'password'         => 'required|string|min:8|max:255',
+            'password_confirm' => 'required|string|same:password',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = $request->user();
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Mot de passe défini avec succès.',
+        ]);
+    }
+
+    /**
+     * POST /api/auth/login-password
+     * Connexion par email + mot de passe (pendant email du login-pin).
+     */
+    public function loginWithPassword(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email'    => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user || empty($user->password) || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email ou mot de passe incorrect.',
+            ], 401);
+        }
+
+        $user->update(['last_login_at' => Carbon::now()]);
+
+        $token = $user->createToken('mobile-app')->plainTextToken;
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Connexion réussie.',
+            'user'    => [
+                'id'                          => $user->id,
+                'name'                        => $user->name,
+                'email'                       => $user->email,
+                'phone'                       => $user->phone,
+                'is_premium'                  => $user->isPremium(),
+                'premium_expires_at'          => $user->premium_expires_at,
+                'referral_code'               => $user->referral_code,
+                'registration_completed'      => $user->registration_completed,
+                'pin_set'                     => $user->pin_set,
+                'can_access_welcome_combined' => $user->canAccessWelcomeCombined(),
+            ],
+            'token' => $token,
+        ]);
+    }
+
+    /**
      * Générer un lien deep-link pour lier le compte Telegram
      * GET /api/auth/telegram-link   (auth:sanctum)
      *
