@@ -29,6 +29,9 @@ class GenerateAllPredictionsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    // ID API-Football de la FIFA World Cup — toujours incluse (aujourd'hui + demain)
+    private const WORLD_CUP_LEAGUE_ID = 1;
+
     private ValueBettingService $valueBetting;
     private PredictionAnalysisService $analysisService;
     private HybridationService $hybridation;
@@ -59,6 +62,9 @@ class GenerateAllPredictionsJob implements ShouldQueue
             Log::info('GenerateAllPredictionsJob: Quota épuisé → fallback prédictions tierces RapidAPI');
             $this->generateFromThirdPartyApi($rapidApi);
         }
+
+        // Invalider le cache 24h des endpoints prédictions (clé versionnée)
+        \Illuminate\Support\Facades\Cache::increment('predictions_cache_version');
     }
 
     // ── Vérification quota ────────────────────────────────────────────────────
@@ -115,6 +121,9 @@ class GenerateAllPredictionsJob implements ShouldQueue
             'après'  => $totalAfter,
             'exclus' => $totalBefore - $totalAfter,
         ]);
+
+        // Coupe du monde : toujours incluse, matchs d'aujourd'hui ET de demain
+        $fixtures = $this->mergeWorldCupFixtures($footballApi, $fixtures);
 
         $predictions = [];
         $processed   = 0;
@@ -640,6 +649,46 @@ class GenerateAllPredictionsJob implements ShouldQueue
                 'combined_position'  => null,
             ]
         );
+    }
+
+    /**
+     * Ajoute les fixtures Coupe du monde (J et J+1) à la liste, sans doublon.
+     * Plan free : le filtre league+season est refusé pour les saisons récentes,
+     * on passe donc par les fixtures par date (en cache 24h) filtrées en PHP.
+     */
+    private function mergeWorldCupFixtures(FootballApiService $footballApi, array $fixtures): array
+    {
+        try {
+            $response = $footballApi->getUpcomingMatches(2);
+            $all      = $response['response'] ?? [];
+        } catch (\Throwable $e) {
+            Log::warning('GenerateAllPredictionsJob: fetch Coupe du monde impossible', ['error' => $e->getMessage()]);
+            return $fixtures;
+        }
+
+        $wcFixtures = array_filter($all, fn (array $f) => (int) ($f['league']['id'] ?? 0) === self::WORLD_CUP_LEAGUE_ID);
+
+        if (empty($wcFixtures)) {
+            Log::info('GenerateAllPredictionsJob: Aucune fixture Coupe du monde sur J/J+1');
+            return $fixtures;
+        }
+
+        $existingIds = [];
+        foreach ($fixtures as $f) {
+            $existingIds[(int) ($f['fixture']['id'] ?? 0)] = true;
+        }
+
+        $added = 0;
+        foreach ($wcFixtures as $f) {
+            $id = (int) ($f['fixture']['id'] ?? 0);
+            if ($id && !isset($existingIds[$id])) {
+                $fixtures[] = $f;
+                $added++;
+            }
+        }
+
+        Log::info('GenerateAllPredictionsJob: Fixtures Coupe du monde ajoutées', ['ajoutes' => $added]);
+        return $fixtures;
     }
 
     private function buildFixturesFromDb(): array

@@ -42,6 +42,7 @@ return [
     // =========================================================================
     'popular_leagues' => [
         // Tier 1 — Grandes ligues europeennes + coupes UEFA
+        1   => ['name' => 'FIFA World Cup',        'country' => 'World',        'tier' => 1],
         2   => ['name' => 'UEFA Champions League', 'country' => 'Europe',       'tier' => 1],
         3   => ['name' => 'UEFA Europa League',    'country' => 'Europe',       'tier' => 1],
         39  => ['name' => 'Premier League',        'country' => 'England',      'tier' => 1],
@@ -67,13 +68,15 @@ return [
 
     // Tier par ID — matching exact sans doublon possible
     'league_tiers_by_id' => [
-        2 => 1, 3 => 1, 39 => 1, 140 => 1, 135 => 1, 78 => 1, 61 => 1,
+        1 => 1, 2 => 1, 3 => 1, 39 => 1, 140 => 1, 135 => 1, 78 => 1, 61 => 1,
         848 => 2, 94 => 2, 88 => 2, 144 => 2, 179 => 2, 307 => 2, 203 => 2,
         29 => 3, 12 => 3, 71 => 3, 253 => 3, 262 => 3,
     ],
 
     // Fallback par nom (si ID non disponible dans le fixture)
     'league_tiers' => [
+        'World Cup'              => 1,
+        'FIFA World Cup'         => 1,
         'UEFA Champions League'  => 1,
         'Champions League'       => 1,
         'Premier League'         => 1,

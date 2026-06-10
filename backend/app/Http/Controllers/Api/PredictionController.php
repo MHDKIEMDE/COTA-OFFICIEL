@@ -29,7 +29,7 @@ class PredictionController extends Controller
      * OPTIMISÉ: Utilise d'abord la base de données (rapide), puis API-Football si nécessaire
      * Accessible sans authentification (mode invité)
      *
-     * Cache: 5 minutes pour optimiser les performances
+     * Cache: 24h (clé versionnée, invalidée à chaque génération de prédictions)
      */
     public function today(Request $request)
     {
@@ -46,9 +46,11 @@ class PredictionController extends Controller
         $dateString = $selectedDate->format('Y-m-d');
         $competition = $request->query('competition', 'all');
 
-        // Clé de cache unique basée sur date, compétition et statut premium
-        $cacheKey = "predictions_today_{$dateString}_{$competition}_" . ($isPremium ? 'premium' : 'free');
-        $cacheTtl = 300; // 5 minutes
+        // Clé de cache versionnée : la version est incrémentée par GenerateAllPredictionsJob,
+        // ce qui invalide automatiquement le cache à chaque nouvelle génération (08h/20h)
+        $cacheVersion = (int) Cache::get('predictions_cache_version', 1);
+        $cacheKey = "predictions_today_{$dateString}_{$competition}_" . ($isPremium ? 'premium' : 'free') . "_v{$cacheVersion}";
+        $cacheTtl = 86400; // 24 heures
 
         // Vérifier le cache
         $cached = Cache::get($cacheKey);
@@ -89,11 +91,14 @@ class PredictionController extends Controller
                   ->orWhereNull('league_tier')
                   ->orWhere('league_tier', 99);
             })
-            ->where(function ($q) {
-                // Exclure les matchs déjà commencés ou terminés
-                $now = Carbon::now()->format('H:i:s');
-                $q->whereNull('match_time')
-                  ->orWhere('match_time', '>', $now);
+            ->where(function ($q) use ($selectedDate) {
+                // Exclure les matchs déjà commencés — uniquement pour la date du jour,
+                // sinon les matchs de demain plus tôt que l'heure courante seraient masqués
+                if ($selectedDate->isToday()) {
+                    $now = Carbon::now()->format('H:i:s');
+                    $q->whereNull('match_time')
+                      ->orWhere('match_time', '>', $now);
+                }
             })
             ->where(function ($q) use ($excludedLigues) {
                 foreach ($excludedLigues as $pattern) {
