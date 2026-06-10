@@ -25,6 +25,17 @@ class PredictionController extends Controller
     }
 
     /**
+     * Statut premium effectif. COTA_DISABLE_LOCKS=true (dev) → tout le monde premium.
+     */
+    private function resolvePremium(mixed $user): bool
+    {
+        if (config('cota.disable_locks', false)) {
+            return true;
+        }
+        return (bool) ($user?->is_premium);
+    }
+
+    /**
      * Récupérer les pronostics du jour
      * OPTIMISÉ: Utilise d'abord la base de données (rapide), puis API-Football si nécessaire
      * Accessible sans authentification (mode invité)
@@ -35,7 +46,7 @@ class PredictionController extends Controller
     {
         // Utiliser auth()->user() pour permettre l'accès invité
         $user = auth('sanctum')->user();
-        $isPremium = $user && $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
 
         // Accepter un paramètre date (format: YYYY-MM-DD) ou utiliser aujourd'hui par défaut
         $dateParam = $request->query('date');
@@ -258,7 +269,7 @@ class PredictionController extends Controller
     {
         // Utiliser auth()->user() pour permettre l'accès invité
         $user = auth('sanctum')->user();
-        $isPremium = $user && $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
 
         // Essayer d'abord de récupérer depuis la base pour avoir le match_id
         $prediction = DB::table('predictions')
@@ -352,7 +363,7 @@ class PredictionController extends Controller
     public function historyPublic(Request $request)
     {
         $user      = $request->user();
-        $isPremium = $user?->is_premium ?? false;
+        $isPremium = $this->resolvePremium($user);
 
         $page        = $request->input('page', 1);
         $perPage     = 15;
@@ -394,7 +405,7 @@ class PredictionController extends Controller
     public function history(Request $request)
     {
         $user = $request->user();
-        $isPremium = $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
 
         $page = $request->input('page', 1);
         $perPage = 15;
@@ -851,7 +862,7 @@ class PredictionController extends Controller
     public function combinedDaily(Request $request)
     {
         $user      = auth('sanctum')->user();
-        $isPremium = $user && $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
 
         $date       = $request->input('date', Carbon::today()->toDateString());
         $targetDate = Carbon::parse($date);
@@ -963,7 +974,7 @@ class PredictionController extends Controller
     public function search(Request $request)
     {
         $user = auth('sanctum')->user();
-        $isPremium = $user && $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
 
         $query = $request->input('q', '');
         $date = $request->input('date');
@@ -1070,7 +1081,7 @@ class PredictionController extends Controller
     public function coupon(Request $request): JsonResponse
     {
         $user      = auth('sanctum')->user();
-        $isPremium = $user && $user->is_premium;
+        $isPremium = $this->resolvePremium($user);
         $date      = $request->query('date', Carbon::today()->toDateString());
         $cacheKey  = 'coupon_v3_' . $date . '_' . ($isPremium ? 'premium' : 'free');
         $ttl       = Carbon::tomorrow()->startOfDay()->diffInSeconds(Carbon::now());

@@ -7,6 +7,11 @@
  */
 return [
 
+    // ── Désactivation globale des verrous auth/premium (dev/local uniquement) ─
+    // true → tout utilisateur (même invité) est traité comme premium :
+    // coupon complet, combiné du jour, aucune variante verrouillée.
+    'disable_locks' => (bool) env('COTA_DISABLE_LOCKS', false),
+
     // ── Seuils de score_tier (A2 CDC v3.1) ──────────────────────────────────
     'tiers' => [
         'gold'     => (float) env('COTA_TIER_GOLD',     65),
