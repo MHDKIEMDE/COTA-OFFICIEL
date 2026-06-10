@@ -72,6 +72,7 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|email|max:255|unique:users,email,' . $user->id,
+            'phone' => 'sometimes|string|min:8|max:20|unique:users,phone,' . $user->id,
             'country_code' => 'sometimes|string|max:5',
         ]);
 
@@ -89,6 +90,9 @@ class UserController extends Controller
         }
         if ($request->has('email')) {
             $updateData['email'] = $request->email;
+        }
+        if ($request->has('phone')) {
+            $updateData['phone'] = $request->phone;
         }
         if ($request->has('country_code')) {
             $updateData['country_code'] = $request->country_code;

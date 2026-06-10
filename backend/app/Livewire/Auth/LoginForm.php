@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Auth;
 
+use App\Mail\OtpMail;
 use App\Models\User;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Livewire\Component;
 
@@ -170,15 +172,20 @@ class LoginForm extends Component
                     ]);
                 }
 
+                $ttlMinutes = (int) config('sms.otp_ttl_minutes', 10);
                 $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-                $expiresAt = now()->addMinutes(10);
+                $expiresAt = now()->addMinutes($ttlMinutes);
 
                 $user->update([
                     'otp_code' => $otp,
                     'otp_expires_at' => $expiresAt,
                 ]);
 
-                logger()->info("OTP for {$this->email}: {$otp}");
+                try {
+                    Mail::to($this->email)->send(new OtpMail($otp, $ttlMinutes));
+                } catch (\Throwable $e) {
+                    logger()->error("Échec envoi OTP email à {$this->email}", ['error' => $e->getMessage()]);
+                }
                 session(['otp_contact' => $this->email, 'otp_method' => 'email']);
                 session()->flash('success', 'Code OTP envoyé par email.');
                 $this->isLoading = false;
