@@ -19,7 +19,9 @@ use Illuminate\Support\Collection;
 class CouponBuilderService
 {
     private const DIVERSITY_MAX_SAME_COMP   = 2;
-    private const DIVERSITY_MAX_SAME_MARKET = 2;
+    // 1X2 est le marché dominant et légitime en combiné : on tolère jusqu'à 4 picks
+    // du même marché, sinon les coupons ne sortent pas les jours où le 1X2 domine.
+    private const DIVERSITY_MAX_SAME_MARKET = 4;
 
     /** Compétition de grande envergure : tier ≤ ce seuil → coupon dédié. */
     private const MAJOR_COMP_MAX_TIER = 2;
