@@ -357,11 +357,28 @@ class RapidApiService
                 $out  = [];
 
                 foreach ($live as $m) {
-                    $st       = $m['status'] ?? [];
-                    $finished = (bool) ($st['finished'] ?? false);
-                    $ongoing  = (bool) ($st['ongoing'] ?? false);
-                    $minuteStr = $st['liveTime']['long'] ?? null; // "33:26"
-                    $minute    = $minuteStr ? (int) explode(':', $minuteStr)[0] : null;
+                    $st        = $m['status'] ?? [];
+                    $finished  = (bool) ($st['finished'] ?? false);
+                    $ongoing   = (bool) ($st['ongoing'] ?? false);
+                    $liveShort = (string) ($st['liveTime']['short'] ?? ''); // "34’", "HT", "FT"…
+                    $isHalfTime = stripos($liveShort, 'ht') !== false
+                        || stripos($liveShort, 'half') !== false;
+
+                    // Minute RÉELLE : 1er nombre de liveTime.short ("34’" → 34).
+                    // À la mi-temps (texte "HT"), pas de minute → on fige à 45.
+                    $minute = null;
+                    if ($isHalfTime) {
+                        $minute = 45;
+                    } elseif (preg_match('/(\d+)/', $liveShort, $mt)) {
+                        $minute = (int) $mt[1];
+                    }
+
+                    $status = match (true) {
+                        $finished    => 'finished',
+                        $isHalfTime  => 'halftime',
+                        $ongoing     => 'live',
+                        default      => 'scheduled',
+                    };
 
                     $out[] = [
                         'id'               => (string) ($m['id'] ?? ''),
@@ -376,8 +393,8 @@ class RapidApiService
                         'competition_id'   => (string) ($m['leagueId'] ?? ''),
                         'competition_logo' => null,
                         'country'          => null,
-                        'status'           => $finished ? 'finished' : ($ongoing ? 'live' : 'scheduled'),
-                        'match_status'     => $st['liveTime']['short'] ?? null,
+                        'status'           => $status,
+                        'match_status'     => $liveShort !== '' ? $liveShort : ($st['liveTime']['long'] ?? null),
                         'elapsed_time'     => $minute,
                         'venue'            => null,
                     ];
