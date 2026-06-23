@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Prediction;
 use App\Services\FootballApiService;
+use App\Services\RapidApiService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,8 +14,10 @@ use Illuminate\Support\Facades\Log;
 
 class MatchController extends Controller
 {
-    public function __construct(private readonly FootballApiService $footballApi)
-    {
+    public function __construct(
+        private readonly FootballApiService $footballApi,
+        private readonly RapidApiService $rapidApi,
+    ) {
     }
 
     /**
@@ -30,10 +33,38 @@ class MatchController extends Controller
                 $matches[] = $this->normalize($fixture);
             }
 
-            return response()->json(['success' => true, 'data' => $matches, 'meta' => ['count' => count($matches)]]);
+            // Relais RapidAPI (free-api-live-football-data, quota séparé) si
+            // API-Football n'a rien renvoyé — notamment quota journalier épuisé.
+            if (empty($matches)) {
+                $quotaExhausted = !empty($response['errors']['requests'] ?? null);
+                $fallback = $this->rapidApi->getLiveMatchesBackup();
+                if (!empty($fallback)) {
+                    Log::info('MatchController::live — relais RapidAPI', [
+                        'count' => count($fallback),
+                        'reason' => $quotaExhausted ? 'quota-apifootball' : 'vide',
+                    ]);
+                    return response()->json([
+                        'success' => true,
+                        'data'    => $fallback,
+                        'meta'    => ['count' => count($fallback), 'source' => 'rapidapi-live'],
+                    ]);
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data'    => $matches,
+                'meta'    => ['count' => count($matches), 'source' => 'api-football'],
+            ]);
         } catch (\Exception $e) {
             Log::error('MatchController::live — ' . $e->getMessage());
-            return response()->json(['success' => true, 'data' => [], 'meta' => ['count' => 0]]);
+            // Dernier recours : tenter le relais RapidAPI même en cas d'exception.
+            $fallback = $this->rapidApi->getLiveMatchesBackup();
+            return response()->json([
+                'success' => true,
+                'data'    => $fallback,
+                'meta'    => ['count' => count($fallback), 'source' => 'rapidapi-fallback'],
+            ]);
         }
     }
 

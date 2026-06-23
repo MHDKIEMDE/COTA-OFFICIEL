@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -76,29 +77,19 @@ class CouponBuilderService
                 continue;
             }
 
-            $pool = $compRows->values();
+            // Un coupon PAR JOUR, taille DYNAMIQUE (n-1 matchs du jour, min 3).
+            // Si un jour a < 3 matchs, on COMPLÈTE avec les matchs des jours
+            // suivants (report) pour ne jamais perdre un coupon.
+            $days = $this->buildDailyCoupons($compRows);
 
-            // Bandes assouplies vs coupon global : une grande compétition compte
-            // souvent beaucoup de favoris (cotes basses). On veut quand même sortir
-            // les 3 variantes dès qu'il y a 3 picks.
-            //   Prudent   : tout (favoris inclus) — combiné sûr
-            //   Équilibré : cote ≥ 1.30 — un peu de rendement
-            //   Audacieux : cote ≥ 1.80 — les paris à plus forte cote de la compétition
-            $prudent   = $this->buildCompetitionVariant($pool, 'Prudent',   1.01, null, false, false);
-            $equilibre = $this->buildCompetitionVariant($pool, 'Équilibré', 1.30, null, true,  false);
-            $audacieux = $this->buildCompetitionVariant($pool, 'Audacieux', 1.80, null, true,  true);
-
-            // Au moins une variante doit aboutir pour publier le bloc compétition.
-            if (!$prudent && !$equilibre && !$audacieux) {
+            if (empty($days)) {
                 continue;
             }
 
             $coupons[] = [
                 'competition'           => $competition,
                 'is_competition_coupon' => true,
-                'prudent'               => $prudent,
-                'equilibre'             => $equilibre,
-                'audacieux'             => $audacieux,
+                'days'                  => $days,
             ];
         }
 
@@ -106,31 +97,64 @@ class CouponBuilderService
     }
 
     /**
-     * Construit une variante de coupon pour une seule compétition, filtrée par
-     * bande de cote. Retourne null si moins de COMP_COUPON_MIN_PICKS picks.
+     * Génère un coupon par jour, taille dynamique :
+     *  - n matchs ce jour → coupon de n-1 picks (on retire le moins fiable), min 3
+     *  - moins de 3 matchs un jour → on emprunte aux jours suivants jusqu'à 3
+     *
+     * @return array<int, array>
      */
-    private function buildCompetitionVariant(
-        Collection $pool,
-        string $label,
-        float $oddsMin,
-        ?float $oddsMax,
-        bool $isPremium,
-        bool $isRisky
-    ): ?array {
-        $filtered = $pool->filter(function ($r) use ($oddsMin, $oddsMax) {
-            $odds = (float) ($r->odds ?? 0);
-            if ($odds < $oddsMin) return false;
-            if ($oddsMax !== null && $odds > $oddsMax) return false;
-            return true;
-        })->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
+    private function buildDailyCoupons(Collection $compRows): array
+    {
+        // Index des jours triés (chaque jour = matchs triés par confiance desc).
+        $byDay = $compRows
+            ->groupBy(fn ($r) => Carbon::parse($r->match_date)->format('Y-m-d'))
+            ->map(fn ($g) => $g->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values())
+            ->sortKeys();
 
-        $selected = $this->selectForCompetition($filtered, config('cota.coupon.safe.picks', 5));
+        $dayKeys = $byDay->keys()->all();
+        $days    = [];
 
-        if (count($selected) < self::COMP_COUPON_MIN_PICKS) {
-            return null;
+        foreach ($dayKeys as $i => $day) {
+            $own = $byDay[$day];
+
+            // Taille cible = n-1 (presque tous), bornée par le max de picks coupon.
+            $target = min(max($own->count() - 1, self::COMP_COUPON_MIN_PICKS), config('cota.coupon.safe.picks', 5));
+
+            $selected = $this->selectForCompetition($own, $target);
+
+            // Pas assez ce jour → emprunter aux jours SUIVANTS (report).
+            if (count($selected) < self::COMP_COUPON_MIN_PICKS) {
+                $usedIds = array_map(fn ($r) => $r->match_id ?? null, $selected);
+                for ($j = $i + 1; $j < count($dayKeys) && count($selected) < self::COMP_COUPON_MIN_PICKS; $j++) {
+                    foreach ($byDay[$dayKeys[$j]] as $row) {
+                        if (count($selected) >= self::COMP_COUPON_MIN_PICKS) break;
+                        if (in_array($row->match_id ?? null, $usedIds, true)) continue;
+                        $selected[] = $row;
+                        $usedIds[]  = $row->match_id ?? null;
+                    }
+                }
+            }
+
+            if (count($selected) < self::COMP_COUPON_MIN_PICKS) {
+                continue; // même avec report, pas assez de matchs au total
+            }
+
+            $date    = Carbon::parse($day);
+            $variant = $this->formatVariant($selected, 'Coupon ' . $this->frenchDayLabel($date), false, false);
+            $variant['day']       = $day;
+            $variant['day_label'] = $this->frenchDayLabel($date);
+            $days[] = $variant;
         }
 
-        return $this->formatVariant($selected, $label, $isPremium, $isRisky);
+        return $days;
+    }
+
+    /** Libellé jour FR court (ex. "23 juin"). */
+    private function frenchDayLabel(Carbon $date): string
+    {
+        $mois = [1=>'janv.',2=>'févr.',3=>'mars',4=>'avr.',5=>'mai',6=>'juin',
+                 7=>'juil.',8=>'août',9=>'sept.',10=>'oct.',11=>'nov.',12=>'déc.'];
+        return $date->day . ' ' . ($mois[$date->month] ?? '');
     }
 
     /**

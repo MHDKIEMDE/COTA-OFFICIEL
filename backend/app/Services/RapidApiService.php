@@ -332,6 +332,67 @@ class RapidApiService
     // =========================================================================
 
     /**
+     * Scores live de relais — free-api-live-football-data (RapidAPI).
+     * Utilisé quand API-Football a épuisé son quota journalier.
+     * Quota séparé d'API-Football, cache court (60s).
+     *
+     * Retourne le format normalisé attendu par MatchController::live.
+     *
+     * @return array<int, array>
+     */
+    public function getLiveMatchesBackup(): array
+    {
+        return Cache::remember('rapidapi_live_backup', 60, function () {
+            try {
+                $response = Http::withHeaders([
+                    'x-rapidapi-host' => 'free-api-live-football-data.p.rapidapi.com',
+                    'x-rapidapi-key'  => $this->footballDataKey,
+                ])->timeout(12)->get('https://free-api-live-football-data.p.rapidapi.com/football-current-live');
+
+                if (!$response->successful()) {
+                    return [];
+                }
+
+                $live = $response->json('response.live', []) ?? [];
+                $out  = [];
+
+                foreach ($live as $m) {
+                    $st       = $m['status'] ?? [];
+                    $finished = (bool) ($st['finished'] ?? false);
+                    $ongoing  = (bool) ($st['ongoing'] ?? false);
+                    $minuteStr = $st['liveTime']['long'] ?? null; // "33:26"
+                    $minute    = $minuteStr ? (int) explode(':', $minuteStr)[0] : null;
+
+                    $out[] = [
+                        'id'               => (string) ($m['id'] ?? ''),
+                        'start_time'       => $st['utcTime'] ?? null,
+                        'home_team'        => $m['home']['name'] ?? 'N/A',
+                        'away_team'        => $m['away']['name'] ?? 'N/A',
+                        'home_team_logo'   => null,
+                        'away_team_logo'   => null,
+                        'home_score'       => $m['home']['score'] ?? null,
+                        'away_score'       => $m['away']['score'] ?? null,
+                        'competition'      => $m['leagueName'] ?? $m['tournamentStage'] ?? 'N/A',
+                        'competition_id'   => (string) ($m['leagueId'] ?? ''),
+                        'competition_logo' => null,
+                        'country'          => null,
+                        'status'           => $finished ? 'finished' : ($ongoing ? 'live' : 'scheduled'),
+                        'match_status'     => $st['liveTime']['short'] ?? null,
+                        'elapsed_time'     => $minute,
+                        'venue'            => null,
+                    ];
+                }
+
+                Log::info('[RapidApi] live backup', ['count' => count($out)]);
+                return $out;
+            } catch (\Throwable $e) {
+                Log::warning('[RapidApi] getLiveMatchesBackup: ' . $e->getMessage());
+                return [];
+            }
+        });
+    }
+
+    /**
      * Récupérer les ligues disponibles (backup).
      * Cache 24h.
      */

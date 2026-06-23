@@ -1122,6 +1122,8 @@ class PredictionController extends Controller
 
             // Pool élargi pour les coupons par compétition majeure (Coupe du monde…) :
             // une grande compétition s'étale sur plusieurs jours, on prend J→J+1 à venir.
+            // Fenêtre élargie (7 jours) : une grande compétition s'étale sur
+            // plusieurs jours → on veut un coupon par journée à venir.
             $majorComps = ['World Cup', 'UEFA Champions League', 'Champions League'];
             $majorRows = DB::table('predictions')
                 ->where('is_published', true)
@@ -1130,9 +1132,9 @@ class PredictionController extends Controller
                       ->orWhereIn('competition', $majorComps);
                 })
                 ->where('match_date', '>=', Carbon::now())
-                ->where('match_date', '<=', Carbon::now()->addDay()->endOfDay())
+                ->where('match_date', '<=', Carbon::now()->addDays(7)->endOfDay())
                 ->orderByDesc('total_score')
-                ->limit(100)
+                ->limit(200)
                 ->get();
 
             $variants = $this->couponBuilder->buildAll($rows, $floorApplied, $majorRows);
