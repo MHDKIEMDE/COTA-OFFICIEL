@@ -1091,6 +1091,16 @@ class PredictionController extends Controller
             $rows = DB::table('predictions')
                 ->where('is_published', true)
                 ->whereDate('match_date', $date)
+                ->where(function ($q) use ($date) {
+                    // Exclure les matchs déjà commencés (uniquement pour aujourd'hui) :
+                    // un coupon ne doit contenir que des matchs à venir. Les matchs passés
+                    // restent en base pour l'historique mais ne sont plus jouables.
+                    if (Carbon::parse($date)->isToday()) {
+                        $now = Carbon::now()->format('H:i:s');
+                        $q->whereNull('match_time')
+                          ->orWhere('match_time', '>', $now);
+                    }
+                })
                 ->orderByDesc('total_score')
                 ->limit(100)
                 ->get();
@@ -1110,7 +1120,22 @@ class PredictionController extends Controller
             $pools        = $this->selection->buildPools($rows->map(fn($r) => (array) $r)->toArray());
             $floorApplied = $pools['floor_applied'];
 
-            $variants = $this->couponBuilder->buildAll($rows, $floorApplied);
+            // Pool élargi pour les coupons par compétition majeure (Coupe du monde…) :
+            // une grande compétition s'étale sur plusieurs jours, on prend J→J+1 à venir.
+            $majorComps = ['World Cup', 'UEFA Champions League', 'Champions League'];
+            $majorRows = DB::table('predictions')
+                ->where('is_published', true)
+                ->where(function ($q) use ($majorComps) {
+                    $q->where('league_tier', '<=', 2)
+                      ->orWhereIn('competition', $majorComps);
+                })
+                ->where('match_date', '>=', Carbon::now())
+                ->where('match_date', '<=', Carbon::now()->addDay()->endOfDay())
+                ->orderByDesc('total_score')
+                ->limit(100)
+                ->get();
+
+            $variants = $this->couponBuilder->buildAll($rows, $floorApplied, $majorRows);
 
             return [
                 'success'      => true,
@@ -1120,6 +1145,7 @@ class PredictionController extends Controller
                 'prudent'      => $variants['prudent'],
                 'equilibre'    => $variants['equilibre'],
                 'audacieux'    => $variants['audacieux'],
+                'competitions' => $variants['competitions'] ?? [],
             ];
         });
 
@@ -1205,10 +1231,17 @@ class PredictionController extends Controller
             'prediction' => $isLocked ? null : $prediction->prediction,
             'odds_source' => $this->extractOddsSource($prediction->analysis_details),
             'odds' => $isLocked ? null : (function () use ($prediction) {
-                $odds = (float) ($prediction->odds ?? 0);
+                $odds   = (float) ($prediction->odds ?? 0);
+                $source = $this->extractOddsSource($prediction->analysis_details);
+
+                // Coupe du monde : vitrine — on affiche toute cote RÉELLE, même < 1.50
+                // (exception à C-03). Les cotes estimées restent masquées.
+                if (($prediction->competition ?? '') === 'World Cup') {
+                    return ($odds > 0 && $source !== 'estimated') ? $odds : null;
+                }
+
                 // C-03 : cote < 1.50 → pas de valeur pour l'utilisateur
                 if ($odds > 0 && $odds < 1.50) return null;
-                $source = $this->extractOddsSource($prediction->analysis_details);
                 return $source === 'estimated' ? null : $odds;
             })(),
             'confidence_stars' => $prediction->confidence_stars,

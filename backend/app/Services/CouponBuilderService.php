@@ -21,21 +21,146 @@ class CouponBuilderService
     private const DIVERSITY_MAX_SAME_COMP   = 2;
     private const DIVERSITY_MAX_SAME_MARKET = 2;
 
+    /** Compétition de grande envergure : tier ≤ ce seuil → coupon dédié. */
+    private const MAJOR_COMP_MAX_TIER = 2;
+
+    /** Min de pronos dans une compétition pour générer son coupon dédié. */
+    private const COMP_COUPON_MIN_PICKS = 3;
+
     /**
      * Point d'entrée — retourne les 3 variantes.
      *
      * @param  Collection $rows  Prédictions du jour (stdClass depuis DB::table)
      * @param  bool       $floorApplied  Si plancher actif (< 3 qualifiés gold+std)
      */
-    public function buildAll(Collection $rows, bool $floorApplied = false): array
+    public function buildAll(Collection $rows, bool $floorApplied = false, ?Collection $majorRows = null): array
     {
         $cfg = config('cota.coupon');
 
         return [
-            'prudent'   => $this->buildSafe($rows, $cfg['safe'], $floorApplied),
-            'audacieux' => $this->buildBold($rows, $cfg['bold']),
-            'equilibre' => $this->buildBalanced($rows),
+            'prudent'      => $this->buildSafe($rows, $cfg['safe'], $floorApplied),
+            'audacieux'    => $this->buildBold($rows, $cfg['bold']),
+            'equilibre'    => $this->buildBalanced($rows),
+            'competitions' => $this->buildByCompetition($majorRows ?? $rows),
         ];
+    }
+
+    // ── Coupons par compétition de grande envergure ───────────────────────────
+
+    /**
+     * Génère, pour chaque compétition de grande envergure (tier ≤ MAJOR_COMP_MAX_TIER)
+     * ayant au moins COMP_COUPON_MIN_PICKS pronos, ses 3 variantes de coupon
+     * (Prudent / Équilibré / Audacieux) — comme le coupon global, mais limité
+     * aux matchs de cette seule compétition (J et J+1).
+     *
+     * Objectif produit : l'app est centrée sur les coupons. Dès qu'une compétition
+     * vedette (Coupe du monde, Champions League…) a ≥3 pronos, on en sort un
+     * combiné dédié, en combinant si besoin les matchs de J et J+1.
+     *
+     * @return array<int, array{competition:string, prudent:?array, equilibre:?array, audacieux:?array}>
+     */
+    private function buildByCompetition(Collection $rows): array
+    {
+        $byComp = $rows
+            ->filter(fn ($r) => (int) ($r->league_tier ?? 99) <= self::MAJOR_COMP_MAX_TIER)
+            ->groupBy(fn ($r) => $r->competition ?? 'Unknown');
+
+        $coupons = [];
+        $cfg     = config('cota.coupon');
+
+        foreach ($byComp as $competition => $compRows) {
+            // Au moins 3 pronos dans la compétition (J + J+1 confondus) sinon on passe.
+            if ($compRows->count() < self::COMP_COUPON_MIN_PICKS) {
+                continue;
+            }
+
+            $pool = $compRows->values();
+
+            // Bandes assouplies vs coupon global : une grande compétition compte
+            // souvent beaucoup de favoris (cotes basses). On veut quand même sortir
+            // les 3 variantes dès qu'il y a 3 picks.
+            //   Prudent   : tout (favoris inclus) — combiné sûr
+            //   Équilibré : cote ≥ 1.30 — un peu de rendement
+            //   Audacieux : cote ≥ 1.80 — les paris à plus forte cote de la compétition
+            $prudent   = $this->buildCompetitionVariant($pool, 'Prudent',   1.01, null, false, false);
+            $equilibre = $this->buildCompetitionVariant($pool, 'Équilibré', 1.30, null, true,  false);
+            $audacieux = $this->buildCompetitionVariant($pool, 'Audacieux', 1.80, null, true,  true);
+
+            // Au moins une variante doit aboutir pour publier le bloc compétition.
+            if (!$prudent && !$equilibre && !$audacieux) {
+                continue;
+            }
+
+            $coupons[] = [
+                'competition'           => $competition,
+                'is_competition_coupon' => true,
+                'prudent'               => $prudent,
+                'equilibre'             => $equilibre,
+                'audacieux'             => $audacieux,
+            ];
+        }
+
+        return $coupons;
+    }
+
+    /**
+     * Construit une variante de coupon pour une seule compétition, filtrée par
+     * bande de cote. Retourne null si moins de COMP_COUPON_MIN_PICKS picks.
+     */
+    private function buildCompetitionVariant(
+        Collection $pool,
+        string $label,
+        float $oddsMin,
+        ?float $oddsMax,
+        bool $isPremium,
+        bool $isRisky
+    ): ?array {
+        $filtered = $pool->filter(function ($r) use ($oddsMin, $oddsMax) {
+            $odds = (float) ($r->odds ?? 0);
+            if ($odds < $oddsMin) return false;
+            if ($oddsMax !== null && $odds > $oddsMax) return false;
+            return true;
+        })->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
+
+        $selected = $this->selectForCompetition($filtered, config('cota.coupon.safe.picks', 5));
+
+        if (count($selected) < self::COMP_COUPON_MIN_PICKS) {
+            return null;
+        }
+
+        return $this->formatVariant($selected, $label, $isPremium, $isRisky);
+    }
+
+    /**
+     * Sélection pour un coupon mono-compétition : diversité par marché et par
+     * match uniquement (la contrainte "même compétition" n'a pas de sens ici).
+     */
+    private function selectForCompetition(Collection $pool, int $maxPicks): array
+    {
+        $selected  = [];
+        $mktCount  = [];
+        $usedMatch = [];
+
+        foreach ($pool as $row) {
+            if (count($selected) >= $maxPicks) break;
+
+            $market = $row->bet_type ?? '1X2';
+            $mid    = $row->match_id ?? null;
+
+            if (($mktCount[$market] ?? 0) >= self::DIVERSITY_MAX_SAME_MARKET) continue;
+            if ($mid && in_array($mid, $usedMatch, true))                     continue;
+
+            $analysis = $row->analysis_details
+                ? (json_decode($row->analysis_details, true) ?? [])
+                : [];
+            if (($analysis['third_party']['agreement'] ?? '') === 'contradicts') continue;
+
+            $selected[]        = $row;
+            $mktCount[$market] = ($mktCount[$market] ?? 0) + 1;
+            if ($mid) $usedMatch[] = $mid;
+        }
+
+        return $selected;
     }
 
     // ── Coupon Sûr (Free) ────────────────────────────────────────────────────

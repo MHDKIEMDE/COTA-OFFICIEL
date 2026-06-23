@@ -40,6 +40,26 @@ Schedule::job(new \App\Jobs\FetchMatchesJob)
     ->withoutOverlapping()
     ->onOneServer();
 
+// ── 23:10 UTC — Import pronostics RapidAPI (SOURCE PRINCIPALE)
+// 1 appel API (cache 6h), prono + cotes déjà calculés, filtre matchs commencés.
+// Doit tourner AVANT la génération coupon pour que les picks soient en base.
+Schedule::command('predictions:import-rapidapi')
+    ->dailyAt('23:10')
+    ->timezone('UTC')
+    ->name('import-rapidapi-predictions')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 23:12 UTC — Import pronostics Coupe du monde (API-Football /predictions)
+// RapidAPI ne couvre pas la CDM. Cotes réelles 1xBet via The Odds API.
+// Doit tourner AVANT la génération coupon (coupons par compétition J/J+1).
+Schedule::command('predictions:import-worldcup')
+    ->dailyAt('23:12')
+    ->timezone('UTC')
+    ->name('import-worldcup-predictions')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── 23:15 UTC — Génération prédictions + cotes 1xBet + coupon IA
 // OddsApiService charge les cotes 1xBet pré-match (The Odds API) en début de job
 // Quota dispo  → algo 9 critères complet (données réelles API-Football)
@@ -59,6 +79,23 @@ Schedule::job(new \App\Jobs\RefreshDatabaseWhenQuotaRestoredJob)
     ->dailyAt('00:05')
     ->timezone('UTC')
     ->name('refresh-db-quota-restored')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 08:45 UTC — Rattrapage import RapidAPI pour les matchs ajoutés en journée
+// Cache 6h expiré → nouvel appel ; resync coupon avant le broadcast Telegram de 09h00
+Schedule::command('predictions:import-rapidapi')
+    ->dailyAt('08:45')
+    ->timezone('UTC')
+    ->name('import-rapidapi-predictions-morning')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// ── 08:47 UTC — Rattrapage import Coupe du monde (matchs ajoutés en journée)
+Schedule::command('predictions:import-worldcup')
+    ->dailyAt('08:47')
+    ->timezone('UTC')
+    ->name('import-worldcup-predictions-morning')
     ->withoutOverlapping()
     ->onOneServer();
 

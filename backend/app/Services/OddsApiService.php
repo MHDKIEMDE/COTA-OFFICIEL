@@ -46,6 +46,7 @@ class OddsApiService
         'soccer_africa_cup_of_nations',         // AFCON
         'soccer_spl',                           // Scottish Premiership
         'soccer_efl_champ',                     // Championship
+        'soccer_fifa_world_cup',                // Coupe du monde FIFA
     ];
 
     private string $apiKey;
@@ -307,6 +308,33 @@ class OddsApiService
         if ($bestScore >= 65 && $bestEntry !== null) {
             Log::debug("OddsApiService: fuzzy match [{$homeTeam} vs {$awayTeam}] → [{$bestEntry['home']} vs {$bestEntry['away']}] score={$bestScore}");
             return $this->extractOdds($bestEntry);
+        }
+
+        return null;
+    }
+
+    /**
+     * Recherche STRICTE : exige que les DEUX équipes correspondent fortement
+     * (seuil par équipe, pas la moyenne). Évite les faux positifs quand les
+     * calendriers diffèrent (ex. API-Football "Panama vs Croatia" matché à tort
+     * sur The Odds API "Panama vs England" via la seule équipe commune).
+     *
+     * À utiliser quand une mauvaise cote est pire que pas de cote (crédibilité).
+     */
+    public function findStrict(string $homeTeam, string $awayTeam, int $perTeamMin = 80): ?array
+    {
+        $index = Cache::get(self::CACHE_KEY, []);
+        if (empty($index)) return null;
+
+        foreach ($index as $entry) {
+            if (isset($entry['_inverted'])) continue;
+
+            $homeScore = $this->teamSimilarity($homeTeam, $entry['home'] ?? '');
+            $awayScore = $this->teamSimilarity($awayTeam, $entry['away'] ?? '');
+
+            if ($homeScore >= $perTeamMin && $awayScore >= $perTeamMin) {
+                return $this->extractOdds($entry);
+            }
         }
 
         return null;

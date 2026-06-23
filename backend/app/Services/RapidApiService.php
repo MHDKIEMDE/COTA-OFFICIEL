@@ -114,6 +114,7 @@ class RapidApiService
     private function normalizePrediction(array $item): array
     {
         $probs = $item['probabilities'] ?? [];
+        $odds  = $item['odds'] ?? [];
         return [
             'home_win_pct' => (float) ($probs['home_win'] ?? $probs['1'] ?? 0),
             'draw_pct'     => (float) ($probs['draw']     ?? $probs['X'] ?? 0),
@@ -123,6 +124,19 @@ class RapidApiService
             'prediction'   => $item['prediction'] ?? null,
             'agreement'    => null, // calculé après coup dans enrichPredictionWithThirdParty()
             'source'       => 'football-prediction-api',
+            // Données brutes conservées pour l'import direct (source principale)
+            'odds'             => $odds,
+            'home_team'        => $item['home_team'] ?? null,
+            'away_team'        => $item['away_team'] ?? null,
+            'competition_name' => $item['competition_name'] ?? null,
+            'competition_cluster' => $item['competition_cluster'] ?? null,
+            'start_date'       => $item['start_date'] ?? null,
+            'is_expired'       => (bool) ($item['is_expired'] ?? false),
+            'ext_id'           => $item['id'] ?? null,
+            // Résultat final fourni par l'API une fois le match joué (historique).
+            // result = "1 - 1", status = won|lost (déjà calculé par football-prediction-api).
+            'result'           => $item['result'] ?? null,
+            'result_status'    => $item['status'] ?? null,
         ];
     }
 

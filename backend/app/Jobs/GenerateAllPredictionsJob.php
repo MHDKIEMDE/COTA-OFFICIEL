@@ -51,6 +51,18 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $oddsCount = $this->oddsApi->loadDailyOdds();
         Log::info("GenerateAllPredictionsJob: {$oddsCount} matchs avec cotes 1xBet chargés");
 
+        // ── Algo maison en sommeil (COTA_ALGO_SLEEP) ─────────────────────────
+        // RapidAPI est la source principale des pronos (cmd predictions:import-rapidapi).
+        // On endort l'algo maison 9 critères, MAIS on génère quand même les matchs
+        // Coupe du monde : RapidAPI ne les couvre pas et la règle métier exige
+        // qu'ils soient toujours affichés (J/J+1). Voir mergeWorldCupFixtures().
+        if (env('COTA_ALGO_SLEEP', false)) {
+            Log::info('GenerateAllPredictionsJob: Algo maison en sommeil → Coupe du monde uniquement');
+            $this->generateWorldCupOnly($footballApi, $algorithm, $rapidApi);
+            \Illuminate\Support\Facades\Cache::increment('predictions_cache_version');
+            return;
+        }
+
         // ── Vérifier le quota API-Football ───────────────────────────────────
         $quotaOk = $this->hasApiQuota($footballApi);
 
@@ -166,6 +178,39 @@ class GenerateAllPredictionsJob implements ShouldQueue
         $this->ensurePremiumPicks(Carbon::today());
         $this->selectCombinedDaily($predictions, Carbon::today());
         $this->cleanOldPredictions();
+    }
+
+    // ── ALGO EN SOMMEIL — Coupe du monde uniquement ──────────────────────────
+
+    /**
+     * Génère uniquement les pronos Coupe du monde (J/J+1) via l'algo maison.
+     * Utilisé quand COTA_ALGO_SLEEP est actif : RapidAPI couvre tout le reste,
+     * mais pas la CDM, qui doit rester affichée (règle métier).
+     */
+    private function generateWorldCupOnly(FootballApiService $footballApi, PredictionAlgorithmService $algorithm, RapidApiService $rapidApi): void
+    {
+        $fixtures = $this->mergeWorldCupFixtures($footballApi, []);
+
+        if (empty($fixtures)) {
+            Log::info('GenerateAllPredictionsJob: Aucune fixture Coupe du monde à générer');
+            return;
+        }
+
+        $processed = 0;
+        foreach ($fixtures as $fixture) {
+            try {
+                if ($this->generatePredictionForFixture($fixture, $algorithm, $rapidApi, [])) {
+                    $processed++;
+                }
+            } catch (\Throwable $e) {
+                Log::error('GenerateAllPredictionsJob: Erreur fixture CDM', [
+                    'fixture_id' => $fixture['fixture']['id'] ?? 'unknown',
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::info('GenerateAllPredictionsJob: Coupe du monde générée', ['processed' => $processed]);
     }
 
     // ── MODE FALLBACK — prédictions tierces RapidAPI ─────────────────────────
