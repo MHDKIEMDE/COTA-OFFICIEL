@@ -300,6 +300,20 @@ class MatchController extends Controller
                 ];
             }
 
+            // Fallback RapidAPI (matchs du relais live : id ≠ API-Football, ou
+            // quota épuisé) → stats live au format {label, home, away}.
+            if (empty($stats)) {
+                $live = $this->rapidApi->getLiveMatchStats($id);
+                if (!empty($live)) {
+                    return response()->json([
+                        'success'    => true,
+                        'data'       => [],
+                        'live_stats' => $live,
+                        'meta'       => ['fixture_id' => (int) $id, 'source' => 'rapidapi-live'],
+                    ]);
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'data'    => $stats,
@@ -307,7 +321,14 @@ class MatchController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error("MatchController::stats({$id}) — " . $e->getMessage());
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+            // Dernier recours : stats live RapidAPI.
+            $live = $this->rapidApi->getLiveMatchStats($id);
+            return response()->json([
+                'success'    => true,
+                'data'       => [],
+                'live_stats' => $live,
+                'meta'       => ['fixture_id' => (int) $id, 'source' => 'rapidapi-fallback'],
+            ]);
         }
     }
 

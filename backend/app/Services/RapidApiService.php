@@ -410,6 +410,52 @@ class RapidApiService
     }
 
     /**
+     * Statistiques live d'un match (free-api-live-football-data).
+     * Pour les matchs du relais live (id RapidAPI), API-Football ne les a pas.
+     * Cache court (60s).
+     *
+     * @return array<int, array{label:string, home:string, away:string, type:string}>
+     */
+    public function getLiveMatchStats(string $eventId): array
+    {
+        return Cache::remember('rapidapi_live_stats_' . $eventId, 60, function () use ($eventId) {
+            try {
+                $response = Http::withHeaders([
+                    'x-rapidapi-host' => 'free-api-live-football-data.p.rapidapi.com',
+                    'x-rapidapi-key'  => $this->footballDataKey,
+                ])->timeout(12)->get('https://free-api-live-football-data.p.rapidapi.com/football-get-match-all-stats', [
+                    'eventid' => $eventId,
+                ]);
+
+                if (!$response->successful()) {
+                    return [];
+                }
+
+                $groups = $response->json('response.stats', []) ?? [];
+                $out    = [];
+
+                foreach ($groups as $group) {
+                    foreach ($group['stats'] ?? [] as $s) {
+                        $vals = $s['stats'] ?? [];
+                        if (count($vals) < 2) continue;
+                        $out[] = [
+                            'label' => $s['title'] ?? ($s['key'] ?? ''),
+                            'home'  => (string) $vals[0],
+                            'away'  => (string) $vals[1],
+                            'type'  => $s['type'] ?? 'text', // graph | text
+                        ];
+                    }
+                }
+
+                return $out;
+            } catch (\Throwable $e) {
+                Log::warning('[RapidApi] getLiveMatchStats: ' . $e->getMessage());
+                return [];
+            }
+        });
+    }
+
+    /**
      * Récupérer les ligues disponibles (backup).
      * Cache 24h.
      */
