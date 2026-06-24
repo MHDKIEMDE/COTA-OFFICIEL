@@ -254,16 +254,35 @@ php artisan test
 ## Auteur
 
 **massakambp12** — [COTA-OFFICIEL](https://github.com/MHDKIEMDE/COTA-OFFICIEL)
-  
 
-  
-  # Terminal 1 — backend
-  cd backend
-  php artisan serve --host=0.0.0.0
+## Sources RapidAPI
 
-  # Terminal 2 — vérif + données
-  cd backend
-  php artisan cota:dev-start
+Les intégrations RapidAPI utilisent des clés stockées dans `backend/.env` (jamais commitées). Référence des clés : voir `.env.example`.
 
-  # Puis dans mobile/
-  flutter run -d 21
+```env
+RAPIDAPI_KEY=                  # clé commune par défaut
+RAPIDAPI_FOOTBALL_DATA_KEY=    # free-api-live-football-data
+RAPIDAPI_LIVESTREAM_KEY=       # streams vidéo live
+RAPIDAPI_1XBET_ODDS_KEY=       # cotes live 1xBet
+RAPIDAPI_VIDEOS_KEY=           # highlights / vidéos
+```
+
+| API RapidAPI                          | Usage                                   |
+|---------------------------------------|-----------------------------------------|
+| `free-api-live-football-data`         | Live, détail match, all-stats, lineups  |
+| `world-cup-2026-live-api`             | Détail match Coupe du Monde 2026        |
+| `world-cup-2026` / `wc26-live-football-api` | Équipes & joueurs Mondial 2026    |
+| `sports-odds-intelligence-api`        | Cotes intelligentes                     |
+| `football-live-stream-api`            | Streams de matchs                       |
+
+Exemple d'appel (la clé est injectée depuis `.env`, jamais en dur) :
+
+```php
+$response = $client->request('GET',
+    'https://free-api-live-football-data.p.rapidapi.com/football-current-live', [
+    'headers' => [
+        'x-rapidapi-host' => 'free-api-live-football-data.p.rapidapi.com',
+        'x-rapidapi-key'  => config('services.rapidapi.football_data_key'),
+    ],
+]);
+```
