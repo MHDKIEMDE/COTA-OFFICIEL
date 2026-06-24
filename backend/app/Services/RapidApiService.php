@@ -24,6 +24,8 @@ class RapidApiService
     private string $livestreamKey;
     private string $oddsKey;
     private string $footballDataKey;
+    private string $matchStreamKey;
+    private string $wc2026LiveKey;
 
     public function __construct()
     {
@@ -33,6 +35,8 @@ class RapidApiService
         $this->livestreamKey   = env('RAPIDAPI_LIVESTREAM_KEY',    $this->defaultKey);
         $this->oddsKey         = env('RAPIDAPI_1XBET_ODDS_KEY',    $this->defaultKey);
         $this->footballDataKey = env('RAPIDAPI_FOOTBALL_DATA_KEY', $this->defaultKey);
+        $this->matchStreamKey  = env('RAPIDAPI_MATCH_STREAM_KEY',  $this->defaultKey);
+        $this->wc2026LiveKey   = env('RAPIDAPI_WC2026_LIVE_KEY',   $this->defaultKey);
     }
 
     // =========================================================================
@@ -407,6 +411,208 @@ class RapidApiService
                 return [];
             }
         });
+    }
+
+    /**
+     * Scores live de 3ᵉ relais — football-live-stream-api (RapidAPI).
+     * Dernier maillon de la cascade live quand API-Football ET
+     * free-api-live-football-data n'ont rien renvoyé. Quota séparé, cache 60s.
+     *
+     * Retourne le format normalisé attendu par MatchController::live.
+     *
+     * @return array<int, array>
+     */
+    public function getLiveMatchesStream(): array
+    {
+        return Cache::remember('rapidapi_live_stream', 60, function () {
+            try {
+                $response = Http::withHeaders([
+                    'x-rapidapi-host' => 'football-live-stream-api.p.rapidapi.com',
+                    'x-rapidapi-key'  => $this->matchStreamKey,
+                ])->timeout(12)->get('https://football-live-stream-api.p.rapidapi.com/all-match');
+
+                if (!$response->successful()) {
+                    return [];
+                }
+
+                $out = [];
+                foreach ($response->json('result', []) ?? [] as $m) {
+                    $rawStatus = strtolower((string) ($m['status'] ?? ''));
+                    // Ne garder que les matchs réellement en cours.
+                    if (!str_contains($rawStatus, 'live')) {
+                        continue;
+                    }
+
+                    // Score "0 - 1" → [home, away].
+                    $home = $away = null;
+                    if (preg_match('/(\d+)\s*-\s*(\d+)/', (string) ($m['score'] ?? ''), $sc)) {
+                        $home = (int) $sc[1];
+                        $away = (int) $sc[2];
+                    }
+
+                    $minute = isset($m['currentMinutes']) && is_numeric($m['currentMinutes'])
+                        ? (int) $m['currentMinutes']
+                        : null;
+
+                    $out[] = [
+                        'id'               => (string) ($m['id'] ?? $m['kickoff'] ?? ''),
+                        'start_time'       => $m['kickoff'] ?? null,
+                        'home_team'        => $m['home_name'] ?? 'N/A',
+                        'away_team'        => $m['away_name'] ?? 'N/A',
+                        'home_team_logo'   => $m['home_flag'] ?? null,
+                        'away_team_logo'   => $m['away_flag'] ?? null,
+                        'home_score'       => $home,
+                        'away_score'       => $away,
+                        'competition'      => $m['league'] ?? 'N/A',
+                        'competition_id'   => '',
+                        'competition_logo' => null,
+                        'country'          => null,
+                        'status'           => 'live',
+                        'match_status'     => $minute !== null ? "{$minute}'" : null,
+                        'elapsed_time'     => $minute,
+                        'venue'            => null,
+                    ];
+                }
+
+                Log::info('[RapidApi] live stream', ['count' => count($out)]);
+                return $out;
+            } catch (\Throwable $e) {
+                Log::warning('[RapidApi] getLiveMatchesStream: ' . $e->getMessage());
+                return [];
+            }
+        });
+    }
+
+    /**
+     * En-tête d'un match (free-api-live-football-data) — fallback de show()
+     * pour les matchs du relais live dont l'id n'est pas connu d'API-Football.
+     * Ne fournit que l'en-tête (équipes, ligue, statut), pas d'events/compos.
+     * Cache court (60s). Retourne le format normalisé de MatchController.
+     *
+     * @return array|null
+     */
+    public function getMatchDetailBackup(string $eventId): ?array
+    {
+        return Cache::remember("rapidapi_match_detail_{$eventId}", 60, function () use ($eventId) {
+            try {
+                $response = Http::withHeaders([
+                    'x-rapidapi-host' => 'free-api-live-football-data.p.rapidapi.com',
+                    'x-rapidapi-key'  => $this->footballDataKey,
+                ])->timeout(12)->get(
+                    'https://free-api-live-football-data.p.rapidapi.com/football-get-match-detail',
+                    ['eventid' => $eventId]
+                );
+
+                if (!$response->successful()) {
+                    return null;
+                }
+
+                $d = $response->json('response.detail');
+                if (empty($d) || !is_array($d)) {
+                    return null;
+                }
+
+                $started  = (bool) ($d['started'] ?? false);
+                $finished = (bool) ($d['finished'] ?? false);
+                $status   = match (true) {
+                    $finished => 'finished',
+                    $started  => 'live',
+                    default   => 'scheduled',
+                };
+
+                return [
+                    'id'               => (string) ($d['matchId'] ?? $eventId),
+                    'start_time'       => $d['matchTimeUTCDate'] ?? $d['matchTimeUTC'] ?? null,
+                    'home_team'        => $d['homeTeam']['name'] ?? 'N/A',
+                    'away_team'        => $d['awayTeam']['name'] ?? 'N/A',
+                    'home_team_logo'   => null,
+                    'away_team_logo'   => null,
+                    'home_score'       => $d['homeTeam']['score'] ?? null,
+                    'away_score'       => $d['awayTeam']['score'] ?? null,
+                    'competition'      => $d['leagueName'] ?? 'N/A',
+                    'competition_id'   => (string) ($d['leagueId'] ?? ''),
+                    'competition_logo' => null,
+                    'country'          => $d['countryCode'] ?? null,
+                    'status'           => $status,
+                    'match_status'     => $d['leagueRoundName'] ?? null,
+                    'elapsed_time'     => null,
+                    'venue'            => null,
+                ];
+            } catch (\Throwable $e) {
+                Log::warning('[RapidApi] getMatchDetailBackup: ' . $e->getMessage());
+                return null;
+            }
+        });
+    }
+
+    // =========================================================================
+    // COUPE DU MONDE 2026 — world-cup-2026-live-api.p.rapidapi.com
+    // =========================================================================
+
+    /**
+     * Classements de la Coupe du Monde 2026, groupés par groupe.
+     * Endpoint /wc/standings (validé). Cache 1h (les classements bougent peu).
+     *
+     * @return array{groups: array<int, array>, third_placed: array|null}
+     */
+    public function getWorldCupStandings(): array
+    {
+        return Cache::remember('rapidapi_wc2026_standings', 3600, function () {
+            try {
+                $response = Http::withHeaders([
+                    'x-rapidapi-host' => 'world-cup-2026-live-api.p.rapidapi.com',
+                    'x-rapidapi-key'  => $this->wc2026LiveKey,
+                ])->timeout(12)->get('https://world-cup-2026-live-api.p.rapidapi.com/wc/standings');
+
+                if (!$response->successful() || !$response->json('success', false)) {
+                    return ['groups' => [], 'third_placed' => null];
+                }
+
+                $groups = array_map(
+                    fn(array $g) => $this->normalizeWcGroup($g),
+                    $response->json('data', []) ?? []
+                );
+
+                $third = $response->json('thirdPlacedRanking');
+                $thirdPlaced = is_array($third) ? $this->normalizeWcGroup($third) : null;
+
+                Log::info('[RapidApi] WC standings', ['groups' => count($groups)]);
+                return ['groups' => $groups, 'third_placed' => $thirdPlaced];
+            } catch (\Throwable $e) {
+                Log::warning('[RapidApi] getWorldCupStandings: ' . $e->getMessage());
+                return ['groups' => [], 'third_placed' => null];
+            }
+        });
+    }
+
+    /**
+     * Normalise un groupe WC : parse "goals" ("6:6" → for/against).
+     */
+    private function normalizeWcGroup(array $g): array
+    {
+        $teams = array_map(function (array $t): array {
+            [$gf, $ga] = array_pad(explode(':', (string) ($t['goals'] ?? '0:0')), 2, '0');
+            return [
+                'position'      => $t['position'] ?? null,
+                'name'          => $t['name'] ?? '?',
+                'team_id'       => $t['teamId'] ?? null,
+                'played'        => $t['played'] ?? 0,
+                'won'           => $t['won'] ?? 0,
+                'drawn'         => $t['drawn'] ?? 0,
+                'lost'          => $t['lost'] ?? 0,
+                'goals_for'     => (int) $gf,
+                'goals_against' => (int) $ga,
+                'goal_diff'     => (int) $gf - (int) $ga,
+                'points'        => $t['points'] ?? 0,
+                'status'        => $t['status'] ?? null,
+            ];
+        }, $g['teams'] ?? []);
+
+        return [
+            'group'    => $g['group'] ?? '',
+            'group_id' => $g['groupId'] ?? null,
+            'teams'    => $teams,
+        ];
     }
 
     /**

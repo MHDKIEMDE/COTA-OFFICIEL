@@ -42,8 +42,10 @@ class CouponBuilderService
 
         return [
             'prudent'      => $this->buildSafe($rows, $cfg['safe'], $floorApplied),
-            'audacieux'    => $this->buildBold($rows, $cfg['bold']),
             'equilibre'    => $this->buildBalanced($rows),
+            'kamikaze'     => $this->buildKamikaze($rows, $cfg['kamikaze'] ?? []),
+            // 'audacieux' remplacé par 'kamikaze' (même créneau haut risque).
+            'audacieux'    => null,
             'competitions' => $this->buildByCompetition($majorRows ?? $rows),
         ];
     }
@@ -242,6 +244,46 @@ class CouponBuilderService
         if (count($selected) < 3) return null;
 
         return $this->formatVariant($selected, 'Audacieux', true, true);
+    }
+
+    // ── Coupon Kamikaze (Premium) ─────────────────────────────────────────────
+
+    /**
+     * Combiné très haut risque : on empile le MAXIMUM de picks à cote élevée
+     * pour viser une cote totale énorme (gain potentiel maximal, proba faible).
+     * Diversité assouplie (on cherche le volume) ; toujours is_risky = true.
+     */
+    private function buildKamikaze(Collection $rows, array $cfg): ?array
+    {
+        $oddsMin  = (float) ($cfg['odds_min'] ?? 1.80);
+        $maxPicks = (int) ($cfg['picks'] ?? 8);
+        $totalMin = (float) ($cfg['total_min'] ?? 30.0);
+
+        $pool = $rows->filter(fn($r) =>
+            (float) ($r->odds ?? 0) >= $oddsMin
+            && (float) ($r->total_score ?? 0) >= config('cota.tiers.bronze', 35.0)
+        )->sortByDesc(fn($r) => (float) ($r->odds ?? 0)) // priorité à la cote (volume)
+         ->values();
+
+        // Sélection volume : 1 pick max par match, marché/compétition libres.
+        $selected  = [];
+        $usedMatch = [];
+        foreach ($pool as $row) {
+            if (count($selected) >= $maxPicks) break;
+            $mid = $row->match_id ?? null;
+            if ($mid && in_array($mid, $usedMatch, true)) continue;
+            $selected[] = $row;
+            if ($mid) $usedMatch[] = $mid;
+        }
+
+        if (count($selected) < 4) return null; // kamikaze = combiné, min 4 picks
+
+        $coupon = $this->formatVariant($selected, 'Kamikaze', true, true);
+
+        // Garde-fou : ne sortir le kamikaze que s'il atteint une vraie grosse cote.
+        if (($coupon['total_odds'] ?? 0) < $totalMin) return null;
+
+        return $coupon;
     }
 
     // ── Coupon Équilibré (Premium) ───────────────────────────────────────────

@@ -69,6 +69,16 @@ return [
             'picks'      => (int) env('COTA_BOLD_PICKS', 5),
             'odds_min'   => (float) env('COTA_BOLD_ODDS_MIN', 2.50),
         ],
+        // Coupon Kamikaze (Premium) : combiné très haut risque / très haute cote.
+        // Beaucoup de picks, cotes élevées → gain potentiel énorme, proba faible.
+        'kamikaze' => [
+            // Volume : on empile beaucoup de picks (même cote unitaire modeste)
+            // pour viser une grosse cote TOTALE. Le caractère "kamikaze" vient du
+            // nombre de matchs combinés, pas de la cote unitaire.
+            'picks'      => (int) env('COTA_KAMIKAZE_PICKS', 10),
+            'odds_min'   => (float) env('COTA_KAMIKAZE_ODDS_MIN', 1.10),
+            'total_min'  => (float) env('COTA_KAMIKAZE_TOTAL_MIN', 12.0),
+        ],
         'free' => [
             'picks'      => (int) env('COTA_FREE_PICKS', 5),
             'total_min'  => (float) env('COTA_FREE_TOTAL_MIN', 6.0),

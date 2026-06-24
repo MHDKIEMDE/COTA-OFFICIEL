@@ -176,8 +176,8 @@ class ImportWorldCupPredictions extends Command
                 'prediction'       => $outcome,
                 'odds'             => $odds,
                 'confidence_stars' => $stars,
-                'total_score'      => $this->scoreFromStars($stars),
-                'score_algo'       => $this->scoreFromStars($stars),
+                'total_score'      => $this->scoreFromOdds($odds, $stars),
+                'score_algo'       => $this->scoreFromOdds($odds, $stars),
                 'engine_used'      => 'api-football',
                 'analysis_source'  => 'api-football',
                 'analysis_details' => json_encode([
@@ -326,6 +326,20 @@ class ImportWorldCupPredictions extends Command
             2 => 64.0,
             default => 55.0,
         };
+    }
+
+    /**
+     * Score continu (50–95) dérivé de la cote réelle, pour éviter les paliers
+     * fixes (tous à 88). Proba implicite (1/cote) mappée sur 50–95.
+     */
+    private function scoreFromOdds(?float $odds, int $stars): float
+    {
+        if ($odds === null || $odds <= 1.0) {
+            return $this->scoreFromStars($stars);
+        }
+        $prob  = 1.0 / $odds;
+        $score = max(50.0, min(95.0, 50.0 + ($prob * 50.0)));
+        return round($score, 1);
     }
 
     private function buildAnalysis(array $block, string $betType, string $outcome): string

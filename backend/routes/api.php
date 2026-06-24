@@ -103,6 +103,11 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/matches/{id}/h2h',       [MatchController::class, 'h2h']);
     Route::get('/standings/{competition}',             [MatchController::class, 'standings']);
     Route::get('/standings/{competition}/top-scorers', [MatchController::class, 'topScorers']);
+    Route::get('/world-cup/standings',   [MatchController::class, 'worldCupStandings']);
+    Route::get('/world-cup/tournament',  [App\Http\Controllers\Api\WorldCupController::class, 'tournament']);
+    Route::get('/world-cup/teams',       [App\Http\Controllers\Api\WorldCupController::class, 'teams']);
+    Route::get('/world-cup/matches',           [App\Http\Controllers\Api\WorldCupController::class, 'matches']);
+    Route::get('/world-cup/matches/{matchId}', [App\Http\Controllers\Api\WorldCupController::class, 'match']);
 
     // Highlights vidéo & streams live — throttle 30 req/min (cache agressif côté service)
     Route::middleware('throttle:30,1')->group(function () {

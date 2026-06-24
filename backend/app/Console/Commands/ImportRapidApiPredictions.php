@@ -117,8 +117,8 @@ class ImportRapidApiPredictions extends Command
                 'prediction'       => $outcome,
                 'odds'             => $odds ?? 0,
                 'confidence_stars' => $stars,
-                'total_score'      => $this->scoreFromStars($stars),
-                'score_algo'       => $this->scoreFromStars($stars),
+                'total_score'      => $this->scoreFromOdds($odds, $stars),
+                'score_algo'       => $this->scoreFromOdds($odds, $stars),
                 'engine_used'      => 'rapidapi',
                 'analysis_source'  => 'rapidapi',
                 'analysis_details' => json_encode([
@@ -217,6 +217,28 @@ class ImportRapidApiPredictions extends Command
             2 => 64.0,
             default => 55.0,
         };
+    }
+
+    /**
+     * Score continu (50–95) dérivé de la cote réelle du marché.
+     *
+     * La cote implique une probabilité (1/cote) : plus elle est basse, plus le
+     * pronostic est sûr → score élevé. On mappe cette probabilité sur une échelle
+     * réaliste pour éviter les paliers fixes (tous à 88) et obtenir des scores
+     * variés et cohérents entre matchs. Borné par le palier d'étoiles.
+     */
+    private function scoreFromOdds(?float $odds, int $stars): float
+    {
+        if ($odds === null || $odds <= 1.0) {
+            return $this->scoreFromStars($stars);
+        }
+
+        // Probabilité implicite (0–1) → score 50–95.
+        $prob  = 1.0 / $odds;                       // ex: 1.07 → 0.93 ; 2.20 → 0.45
+        $score = 50.0 + ($prob * 50.0);             // 50 (proba 0) … ~95 (proba ~0.93)
+        $score = max(50.0, min(95.0, $score));
+
+        return round($score, 1);
     }
 
     private function buildAnalysis(array $item, string $betType, string $outcome, ?float $odds): string

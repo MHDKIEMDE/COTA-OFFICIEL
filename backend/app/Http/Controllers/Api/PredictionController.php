@@ -1088,16 +1088,24 @@ class PredictionController extends Controller
 
         $result = Cache::remember($cacheKey, $ttl, function () use ($date, $isPremium) {
 
+            // Fenêtre élargie J→J+3 : plus de matchs disponibles → coupons plus
+            // gros et cote totale plus élevée (kamikaze atteignable). On exclut
+            // les matchs déjà commencés aujourd'hui (jouables uniquement à venir).
+            $windowStart = Carbon::parse($date);
+            $windowEnd   = $windowStart->copy()->addDays(3)->endOfDay();
+
             $rows = DB::table('predictions')
                 ->where('is_published', true)
-                ->whereDate('match_date', $date)
-                ->where(function ($q) use ($date) {
-                    // Exclure les matchs déjà commencés (uniquement pour aujourd'hui) :
-                    // un coupon ne doit contenir que des matchs à venir. Les matchs passés
-                    // restent en base pour l'historique mais ne sont plus jouables.
-                    if (Carbon::parse($date)->isToday()) {
-                        $now = Carbon::now()->format('H:i:s');
-                        $q->whereNull('match_time')
+                ->whereDate('match_date', '>=', $windowStart->toDateString())
+                ->whereDate('match_date', '<=', $windowEnd->toDateString())
+                ->where(function ($q) use ($windowStart) {
+                    // Matchs d'aujourd'hui : uniquement ceux pas encore commencés.
+                    // Matchs des jours suivants : tous conservés.
+                    if ($windowStart->isToday()) {
+                        $now   = Carbon::now()->format('H:i:s');
+                        $today = $windowStart->toDateString();
+                        $q->whereDate('match_date', '>', $today)
+                          ->orWhereNull('match_time')
                           ->orWhere('match_time', '>', $now);
                     }
                 })
@@ -1147,13 +1155,14 @@ class PredictionController extends Controller
                 'prudent'      => $variants['prudent'],
                 'equilibre'    => $variants['equilibre'],
                 'audacieux'    => $variants['audacieux'],
+                'kamikaze'     => $variants['kamikaze'] ?? null,
                 'competitions' => $variants['competitions'] ?? [],
             ];
         });
 
-        // Gate premium : équilibré/audacieux verrouillés pour les non-premium
+        // Gate premium : équilibré/audacieux/kamikaze verrouillés pour les non-premium
         if (!$isPremium && ($result['success'] ?? false)) {
-            foreach (['equilibre', 'audacieux'] as $variant) {
+            foreach (['equilibre', 'audacieux', 'kamikaze'] as $variant) {
                 if (!empty($result[$variant])) {
                     $result[$variant]['picks']        = [];
                     $result[$variant]['is_locked']    = true;

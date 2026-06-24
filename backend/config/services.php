@@ -84,6 +84,18 @@ return [
         'prediction_key'  => env('RAPIDAPI_PREDICTION_KEY', ''),
         'odds_1xbet_key'  => env('RAPIDAPI_1XBET_ODDS_KEY', ''),
         'videos_key'      => env('RAPIDAPI_VIDEOS_KEY', ''),
+        // Coupe du Monde 2026 — nouvelles sources
+        'wc2026_live_key'    => env('RAPIDAPI_WC2026_LIVE_KEY', ''),
+        'wc2026_teams_key'   => env('RAPIDAPI_WC2026_TEAMS_KEY', ''),
+        'wc2026_squad_key'   => env('RAPIDAPI_WC2026_SQUAD_KEY', ''),
+        'odds_intel_key'     => env('RAPIDAPI_ODDS_INTEL_KEY', ''),
+        'match_stream_key'   => env('RAPIDAPI_MATCH_STREAM_KEY', ''),
+    ],
+
+    // Zafronix — données FIFA World Cup (API directe, header X-API-Key)
+    'zafronix' => [
+        'key'      => env('ZAFRONIX_API_KEY', ''),
+        'base_url' => env('ZAFRONIX_BASE_URL', 'https://api.zafronix.com/fifa/worldcup/v1'),
     ],
 
     'gnews' => [

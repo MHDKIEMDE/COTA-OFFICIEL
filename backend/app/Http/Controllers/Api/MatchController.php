@@ -49,6 +49,17 @@ class MatchController extends Controller
                         'meta'    => ['count' => count($fallback), 'source' => 'rapidapi-live'],
                     ]);
                 }
+
+                // 3ᵉ relais en cascade : football-live-stream-api.
+                $stream = $this->rapidApi->getLiveMatchesStream();
+                if (!empty($stream)) {
+                    Log::info('MatchController::live — relais stream', ['count' => count($stream)]);
+                    return response()->json([
+                        'success' => true,
+                        'data'    => $stream,
+                        'meta'    => ['count' => count($stream), 'source' => 'rapidapi-stream'],
+                    ]);
+                }
             }
 
             return response()->json([
@@ -58,8 +69,11 @@ class MatchController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('MatchController::live — ' . $e->getMessage());
-            // Dernier recours : tenter le relais RapidAPI même en cas d'exception.
+            // Dernier recours : cascade RapidAPI même en cas d'exception.
             $fallback = $this->rapidApi->getLiveMatchesBackup();
+            if (empty($fallback)) {
+                $fallback = $this->rapidApi->getLiveMatchesStream();
+            }
             return response()->json([
                 'success' => true,
                 'data'    => $fallback,
@@ -132,8 +146,18 @@ class MatchController extends Controller
      */
     public function show(Request $request, string $id): JsonResponse
     {
+        // ID non numérique = match du relais live (RapidAPI). API-Football ne le
+        // connaît pas → on sert directement l'en-tête depuis le relais.
         if (!is_numeric($id)) {
-            return response()->json(['success' => false, 'message' => 'ID numérique requis'], 422);
+            $backup = $this->rapidApi->getMatchDetailBackup($id);
+            if ($backup) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => ['match' => $backup],
+                    'meta'    => ['source' => 'rapidapi-detail'],
+                ]);
+            }
+            return response()->json(['success' => false, 'message' => 'Match introuvable'], 404);
         }
 
         try {
@@ -141,12 +165,30 @@ class MatchController extends Controller
             $fixture  = $response['response'][0] ?? null;
 
             if (!$fixture) {
+                // ID numérique inconnu d'API-Football (id RapidAPI ou quota) → relais.
+                $backup = $this->rapidApi->getMatchDetailBackup($id);
+                if ($backup) {
+                    return response()->json([
+                        'success' => true,
+                        'data'    => ['match' => $backup],
+                        'meta'    => ['source' => 'rapidapi-detail'],
+                    ]);
+                }
                 return response()->json(['success' => false, 'message' => 'Match introuvable'], 404);
             }
 
             return response()->json(['success' => true, 'data' => ['match' => $this->normalize($fixture)]]);
         } catch (\Exception $e) {
             Log::error("MatchController::show({$id}) — " . $e->getMessage());
+            // Dernier recours : relais RapidAPI.
+            $backup = $this->rapidApi->getMatchDetailBackup($id);
+            if ($backup) {
+                return response()->json([
+                    'success' => true,
+                    'data'    => ['match' => $backup],
+                    'meta'    => ['source' => 'rapidapi-fallback'],
+                ]);
+            }
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -263,6 +305,21 @@ class MatchController extends Controller
             Log::error("MatchController::topScorers({$competition}) — " . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * GET /api/world-cup/standings
+     * Classements de la Coupe du Monde 2026 groupés par groupe (relais RapidAPI).
+     */
+    public function worldCupStandings(Request $request): JsonResponse
+    {
+        $data = $this->rapidApi->getWorldCupStandings();
+
+        return response()->json([
+            'success' => !empty($data['groups']),
+            'data'    => $data,
+            'meta'    => ['groups' => count($data['groups']), 'source' => 'rapidapi-wc2026'],
+        ]);
     }
 
     /**
