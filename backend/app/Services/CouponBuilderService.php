@@ -517,6 +517,8 @@ class CouponBuilderService
             'id' => $r->id,
             'match_id' => $r->match_id,
             'match' => trim(($r->home_team ?? '?').' vs '.($r->away_team ?? '?')),
+            'home_team' => $r->home_team ?? '',
+            'away_team' => $r->away_team ?? '',
             'league' => $r->competition ?? '',
             'league_logo' => $r->competition_logo ?? null,
             'home_team_logo' => $r->home_team_logo ?? null,
