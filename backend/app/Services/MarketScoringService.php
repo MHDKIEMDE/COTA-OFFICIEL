@@ -15,21 +15,37 @@ namespace App\Services;
 class MarketScoringService
 {
     // Seuils tier A2 CDC v3.1
-    const TIER_GOLD     = 65.0;
+    const TIER_GOLD = 65.0;
+
     const TIER_STANDARD = 50.0;
-    const TIER_BRONZE   = 35.0;
+
+    const TIER_BRONZE = 35.0;
+
+    // Mapping bet_type → famille de marché (pour le switch UI mobile)
+    const CATEGORY_MAP = [
+        '1X2' => 'resultat',
+        'Double Chance' => 'resultat',
+        'Handicap' => 'resultat',
+        'Over/Under' => 'buts',
+        'BTTS' => 'buts',
+        'Team Goals' => 'equipe',
+        'Score Exact' => 'score',
+        'Corners' => 'corners',
+        'Cards' => 'cartons',
+        'Shots' => 'tirs',
+    ];
 
     // Mapping market_selection → active_side
     const ACTIVE_SIDE_MAP = [
-        '1'  => 'home',
-        '2'  => 'away',
-        'X'  => 'none',
+        '1' => 'home',
+        '2' => 'away',
+        'X' => 'none',
         '1X' => 'home',
         'X2' => 'away',
         '12' => 'both',
         // Marchés buts / stats → pas d'équipe illuminée
-        'Oui'  => 'both',  // BTTS oui
-        'Non'  => 'none',  // BTTS non
+        'Oui' => 'both',  // BTTS oui
+        'Non' => 'none',  // BTTS non
     ];
 
     /**
@@ -48,9 +64,16 @@ class MarketScoringService
      */
     public function scoreTier(float $marketScore): ?string
     {
-        if ($marketScore >= self::TIER_GOLD)     return 'gold';
-        if ($marketScore >= self::TIER_STANDARD) return 'standard';
-        if ($marketScore >= self::TIER_BRONZE)   return 'bronze';
+        if ($marketScore >= self::TIER_GOLD) {
+            return 'gold';
+        }
+        if ($marketScore >= self::TIER_STANDARD) {
+            return 'standard';
+        }
+        if ($marketScore >= self::TIER_BRONZE) {
+            return 'bronze';
+        }
+
         return null; // jeté — ne pas publier
     }
 
@@ -78,8 +101,13 @@ class MarketScoringService
 
         // Team Goals — dériver de l'outcome
         if ($betType === 'Team Goals') {
-            if ($homeName !== '' && str_starts_with($outcome, $homeName)) return 'home';
-            if ($awayName !== '' && str_starts_with($outcome, $awayName)) return 'away';
+            if ($homeName !== '' && str_starts_with($outcome, $homeName)) {
+                return 'home';
+            }
+            if ($awayName !== '' && str_starts_with($outcome, $awayName)) {
+                return 'away';
+            }
+
             return 'none';
         }
 
@@ -91,18 +119,16 @@ class MarketScoringService
      * Sélectionne le meilleur candidat depuis la liste, en appliquant éventuellement
      * le mode tournoi, et retourne les champs A1/A2 enrichis.
      *
-     * @param array  $candidates    Liste de candidats issus des moteurs (format makeCandidate)
-     * @param float  $totalScore    Score total de l'algorithme 9 critères (0–100)
-     * @param bool   $isTournament  true si competition.type == "international"
-     * @param float  $fifaGap       Différentiel de ranking FIFA (home - away, normalisé 0–1)
-     * @param string $homeName
-     * @param string $awayName
+     * @param  array  $candidates  Liste de candidats issus des moteurs (format makeCandidate)
+     * @param  float  $totalScore  Score total de l'algorithme 9 critères (0–100)
+     * @param  bool  $isTournament  true si competition.type == "international"
+     * @param  float  $fifaGap  Différentiel de ranking FIFA (home - away, normalisé 0–1)
      */
     public function bestMarketFor(
-        array  $candidates,
-        float  $totalScore,
-        bool   $isTournament = false,
-        float  $fifaGap = 0.0,
+        array $candidates,
+        float $totalScore,
+        bool $isTournament = false,
+        float $fifaGap = 0.0,
         string $homeName = '',
         string $awayName = ''
     ): array {
@@ -116,9 +142,14 @@ class MarketScoringService
             $candidates = $this->applyTournamentWeighting($candidates, $fifaGap);
         }
 
-        // Choisir le candidat au market_value le plus élevé (déjà calculé)
-        usort($candidates, fn($a, $b) => $b['market_value'] <=> $a['market_value']);
-        $best = reset($candidates);
+        // Choisir le candidat au market_value le plus élevé (déjà calculé),
+        // mais jamais un pari haute-variance (Score Exact) comme marché principal.
+        usort($candidates, fn ($a, $b) => $b['market_value'] <=> $a['market_value']);
+        $safe = array_values(array_filter(
+            $candidates,
+            fn ($c) => ($c['engine'] ?? '') !== 'high_variance' && ! ($c['is_risky'] ?? false)
+        ));
+        $best = ! empty($safe) ? reset($safe) : reset($candidates);
 
         $marketScore = $this->normalizeScore($best['market_value'] * 100);
 
@@ -127,22 +158,100 @@ class MarketScoringService
             $marketScore = min($marketScore * 1.10, 100.0);
         }
 
-        $tier       = $this->scoreTier($marketScore);
+        $tier = $this->scoreTier($marketScore);
         $activeSide = $this->activeSide($best['type'], $best['outcome'], $homeName, $awayName);
 
         return [
-            'type'             => $best['type'],
-            'outcome'          => $best['outcome'],
-            'odds'             => $best['odds'],
-            'engine'           => $best['engine'],
-            'market_value'     => $best['market_value'],
+            'type' => $best['type'],
+            'outcome' => $best['outcome'],
+            'odds' => $best['odds'],
+            'engine' => $best['engine'],
+            'market_value' => $best['market_value'],
             // Champs A1
-            'market_score'     => round($marketScore, 2),
-            'score_tier'       => $tier,
-            'active_side'      => $activeSide,
+            'market_score' => round($marketScore, 2),
+            'score_tier' => $tier,
+            'active_side' => $activeSide,
             // market_selection = outcome normalisé en code universel
             'market_selection' => $this->toUniversalCode($best['type'], $best['outcome']),
         ];
+    }
+
+    /**
+     * Score TOUS les candidats et retourne la liste complète des marchés à persister.
+     *
+     * Contrairement à bestMarketFor() qui ne garde que le meilleur, ici on conserve
+     * chaque candidat publiable (tier non null) pour alimenter le switch multi-marchés.
+     *
+     * - Déduplique par (type + outcome) en gardant le meilleur score
+     * - Marque is_primary sur le candidat au market_value le plus élevé
+     * - Reporte is_risky depuis le moteur underdog
+     * - Catégorise via CATEGORY_MAP pour le filtre UI
+     *
+     * @param  array  $candidates  Candidats issus de buildAllCandidates()
+     * @return array<int,array> Liste prête à insérer dans prediction_markets
+     */
+    public function allMarketsFor(
+        array $candidates,
+        bool $isTournament = false,
+        float $fifaGap = 0.0,
+        string $homeName = '',
+        string $awayName = ''
+    ): array {
+        if (empty($candidates)) {
+            return [];
+        }
+
+        if ($isTournament) {
+            $candidates = $this->applyTournamentWeighting($candidates, $fifaGap);
+        }
+
+        // Déduplication : garder le meilleur score par (type|outcome)
+        $unique = [];
+        foreach ($candidates as $c) {
+            $key = $c['type'].'|'.$c['outcome'];
+            if (! isset($unique[$key]) || ($c['confidence'] ?? 0) > ($unique[$key]['confidence'] ?? 0)) {
+                $unique[$key] = $c;
+            }
+        }
+        $candidates = array_values($unique);
+
+        // Construire les marchés publiables (tier non null)
+        $markets = [];
+        foreach ($candidates as $c) {
+            $marketScore = $this->normalizeScore(($c['confidence'] ?? ($c['market_value'] * 100)));
+            $tier = $this->scoreTier($marketScore);
+
+            if ($tier === null) {
+                continue; // non publiable — on ne stocke pas le bruit
+            }
+
+            $markets[] = [
+                'category' => self::CATEGORY_MAP[$c['type']] ?? 'autre',
+                'bet_type' => $c['type'],
+                'outcome' => $c['outcome'],
+                'market_selection' => $this->toUniversalCode($c['type'], $c['outcome']),
+                'odds' => $c['odds'],
+                'market_score' => $marketScore,
+                'score_tier' => $tier,
+                'active_side' => $this->activeSide($c['type'], $c['outcome'], $homeName, $awayName),
+                'engine' => $c['engine'],
+                'is_primary' => false,
+                'is_risky' => $c['is_risky'] ?? false,
+            ];
+        }
+
+        // Marché principal = le plus fiable, hors paris risqués / haute-variance.
+        // Tri d'affichage : score décroissant.
+        usort($markets, fn ($a, $b) => $b['market_score'] <=> $a['market_score']);
+
+        foreach ($markets as $i => $m) {
+            if (! $m['is_risky'] && $m['engine'] !== 'high_variance') {
+                $markets[$i]['is_primary'] = true;
+                break;
+            }
+        }
+
+        return $markets;
     }
 
     /**
@@ -169,6 +278,7 @@ class MarketScoringService
 
             // Les marchés buts restent neutres
             $c['market_value'] = round($mv, 4);
+
             return $c;
         }, $candidates);
     }
@@ -185,8 +295,12 @@ class MarketScoringService
 
         // Over/Under buts
         if ($betType === 'Over/Under') {
-            if (str_starts_with($outcome, 'Over'))  return 'O' . str_replace('Over ', ' ', $outcome);
-            if (str_starts_with($outcome, 'Under')) return 'U' . str_replace('Under ', ' ', $outcome);
+            if (str_starts_with($outcome, 'Over')) {
+                return 'O'.str_replace('Over ', ' ', $outcome);
+            }
+            if (str_starts_with($outcome, 'Under')) {
+                return 'U'.str_replace('Under ', ' ', $outcome);
+            }
         }
 
         // BTTS
@@ -239,6 +353,7 @@ class MarketScoringService
 
         // Fallback sur le type de compétition si disponible
         $countryName = strtolower($fixture['league']['country'] ?? '');
+
         return in_array($countryName, ['world', 'africa', 'europe', 'asia', 'south america', 'north america']);
     }
 
@@ -248,14 +363,14 @@ class MarketScoringService
     private function fallback(float $totalScore, string $homeName): array
     {
         return [
-            'type'             => 'Double Chance',
-            'outcome'          => '1X',
-            'odds'             => 1.55,
-            'engine'           => 'force',
-            'market_value'     => 0.0,
-            'market_score'     => round(min($totalScore, 100.0), 2),
-            'score_tier'       => $this->scoreTier(min($totalScore, 100.0)),
-            'active_side'      => 'home',
+            'type' => 'Double Chance',
+            'outcome' => '1X',
+            'odds' => 1.55,
+            'engine' => 'force',
+            'market_value' => 0.0,
+            'market_score' => round(min($totalScore, 100.0), 2),
+            'score_tier' => $this->scoreTier(min($totalScore, 100.0)),
+            'active_side' => 'home',
             'market_selection' => '1X',
         ];
     }

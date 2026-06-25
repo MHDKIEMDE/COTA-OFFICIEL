@@ -19,7 +19,8 @@ use Illuminate\Support\Collection;
  */
 class CouponBuilderService
 {
-    private const DIVERSITY_MAX_SAME_COMP   = 2;
+    private const DIVERSITY_MAX_SAME_COMP = 2;
+
     // 1X2 est le marché dominant et légitime en combiné : on tolère jusqu'à 4 picks
     // du même marché, sinon les coupons ne sortent pas les jours où le 1X2 domine.
     private const DIVERSITY_MAX_SAME_MARKET = 4;
@@ -33,19 +34,19 @@ class CouponBuilderService
     /**
      * Point d'entrée — retourne les 3 variantes.
      *
-     * @param  Collection $rows  Prédictions du jour (stdClass depuis DB::table)
-     * @param  bool       $floorApplied  Si plancher actif (< 3 qualifiés gold+std)
+     * @param  Collection  $rows  Prédictions du jour (stdClass depuis DB::table)
+     * @param  bool  $floorApplied  Si plancher actif (< 3 qualifiés gold+std)
      */
     public function buildAll(Collection $rows, bool $floorApplied = false, ?Collection $majorRows = null): array
     {
         $cfg = config('cota.coupon');
 
         return [
-            'prudent'      => $this->buildSafe($rows, $cfg['safe'], $floorApplied),
-            'equilibre'    => $this->buildBalanced($rows),
-            'kamikaze'     => $this->buildKamikaze($rows, $cfg['kamikaze'] ?? []),
+            'prudent' => $this->buildSafe($rows, $cfg['safe'], $floorApplied),
+            'equilibre' => $this->buildBalanced($rows),
+            'kamikaze' => $this->buildKamikaze($rows, $cfg['kamikaze'] ?? []),
             // 'audacieux' remplacé par 'kamikaze' (même créneau haut risque).
-            'audacieux'    => null,
+            'audacieux' => null,
             'competitions' => $this->buildByCompetition($majorRows ?? $rows),
         ];
     }
@@ -71,7 +72,7 @@ class CouponBuilderService
             ->groupBy(fn ($r) => $r->competition ?? 'Unknown');
 
         $coupons = [];
-        $cfg     = config('cota.coupon');
+        $cfg = config('cota.coupon');
 
         foreach ($byComp as $competition => $compRows) {
             // Au moins 3 pronos dans la compétition (J + J+1 confondus) sinon on passe.
@@ -89,9 +90,9 @@ class CouponBuilderService
             }
 
             $coupons[] = [
-                'competition'           => $competition,
+                'competition' => $competition,
                 'is_competition_coupon' => true,
-                'days'                  => $days,
+                'days' => $days,
             ];
         }
 
@@ -113,7 +114,9 @@ class CouponBuilderService
         }
 
         $name = strtolower((string) ($r->competition ?? ''));
-        if ($name === '') return false;
+        if ($name === '') {
+            return false;
+        }
 
         foreach (config('cota.coupon.featured_competitions', []) as $pattern) {
             if (str_contains($name, strtolower($pattern))) {
@@ -140,7 +143,7 @@ class CouponBuilderService
             ->sortKeys();
 
         $dayKeys = $byDay->keys()->all();
-        $days    = [];
+        $days = [];
 
         foreach ($dayKeys as $i => $day) {
             $own = $byDay[$day];
@@ -155,10 +158,14 @@ class CouponBuilderService
                 $usedIds = array_map(fn ($r) => $r->match_id ?? null, $selected);
                 for ($j = $i + 1; $j < count($dayKeys) && count($selected) < self::COMP_COUPON_MIN_PICKS; $j++) {
                     foreach ($byDay[$dayKeys[$j]] as $row) {
-                        if (count($selected) >= self::COMP_COUPON_MIN_PICKS) break;
-                        if (in_array($row->match_id ?? null, $usedIds, true)) continue;
+                        if (count($selected) >= self::COMP_COUPON_MIN_PICKS) {
+                            break;
+                        }
+                        if (in_array($row->match_id ?? null, $usedIds, true)) {
+                            continue;
+                        }
                         $selected[] = $row;
-                        $usedIds[]  = $row->match_id ?? null;
+                        $usedIds[] = $row->match_id ?? null;
                     }
                 }
             }
@@ -167,9 +174,9 @@ class CouponBuilderService
                 continue; // même avec report, pas assez de matchs au total
             }
 
-            $date    = Carbon::parse($day);
-            $variant = $this->formatVariant($selected, 'Coupon ' . $this->frenchDayLabel($date), false, false);
-            $variant['day']       = $day;
+            $date = Carbon::parse($day);
+            $variant = $this->formatVariant($selected, 'Coupon '.$this->frenchDayLabel($date), false, false);
+            $variant['day'] = $day;
             $variant['day_label'] = $this->frenchDayLabel($date);
             $days[] = $variant;
         }
@@ -180,9 +187,10 @@ class CouponBuilderService
     /** Libellé jour FR court (ex. "23 juin"). */
     private function frenchDayLabel(Carbon $date): string
     {
-        $mois = [1=>'janv.',2=>'févr.',3=>'mars',4=>'avr.',5=>'mai',6=>'juin',
-                 7=>'juil.',8=>'août',9=>'sept.',10=>'oct.',11=>'nov.',12=>'déc.'];
-        return $date->day . ' ' . ($mois[$date->month] ?? '');
+        $mois = [1 => 'janv.', 2 => 'févr.', 3 => 'mars', 4 => 'avr.', 5 => 'mai', 6 => 'juin',
+            7 => 'juil.', 8 => 'août', 9 => 'sept.', 10 => 'oct.', 11 => 'nov.', 12 => 'déc.'];
+
+        return $date->day.' '.($mois[$date->month] ?? '');
     }
 
     /**
@@ -191,27 +199,37 @@ class CouponBuilderService
      */
     private function selectForCompetition(Collection $pool, int $maxPicks): array
     {
-        $selected  = [];
-        $mktCount  = [];
+        $selected = [];
+        $mktCount = [];
         $usedMatch = [];
 
         foreach ($pool as $row) {
-            if (count($selected) >= $maxPicks) break;
+            if (count($selected) >= $maxPicks) {
+                break;
+            }
 
             $market = $row->bet_type ?? '1X2';
-            $mid    = $row->match_id ?? null;
+            $mid = $row->match_id ?? null;
 
-            if (($mktCount[$market] ?? 0) >= self::DIVERSITY_MAX_SAME_MARKET) continue;
-            if ($mid && in_array($mid, $usedMatch, true))                     continue;
+            if (($mktCount[$market] ?? 0) >= self::DIVERSITY_MAX_SAME_MARKET) {
+                continue;
+            }
+            if ($mid && in_array($mid, $usedMatch, true)) {
+                continue;
+            }
 
             $analysis = $row->analysis_details
                 ? (json_decode($row->analysis_details, true) ?? [])
                 : [];
-            if (($analysis['third_party']['agreement'] ?? '') === 'contradicts') continue;
+            if (($analysis['third_party']['agreement'] ?? '') === 'contradicts') {
+                continue;
+            }
 
-            $selected[]        = $row;
+            $selected[] = $row;
             $mktCount[$market] = ($mktCount[$market] ?? 0) + 1;
-            if ($mid) $usedMatch[] = $mid;
+            if ($mid) {
+                $usedMatch[] = $mid;
+            }
         }
 
         return $selected;
@@ -232,22 +250,22 @@ class CouponBuilderService
         $minScore = config('cota.tiers.standard', 50.0);
 
         // Pool : gold + standard uniquement, dans la bande de cote sûre
-        $pool = $rows->filter(fn($r) =>
-            (float) ($r->total_score ?? 0) >= $minScore
+        $pool = $rows->filter(fn ($r) => (float) ($r->total_score ?? 0) >= $minScore
             && (float) ($r->odds ?? 0) >= $cfg['odds_min']
             && (float) ($r->odds ?? 0) <= $cfg['odds_max']
-        )->sortByDesc(fn($r) => (float) ($r->total_score ?? 0))->values();
+        )->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
 
         // Fallback : accepter toutes les cotes si pas assez dans la bande
         if ($pool->count() < 3) {
-            $pool = $rows->filter(fn($r) =>
-                (float) ($r->total_score ?? 0) >= $minScore
-            )->sortByDesc(fn($r) => (float) ($r->total_score ?? 0))->values();
+            $pool = $rows->filter(fn ($r) => (float) ($r->total_score ?? 0) >= $minScore
+            )->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
         }
 
         $selected = $this->selectWithDiversity($pool, $maxPicks);
 
-        if (count($selected) < 3) return null;
+        if (count($selected) < 3) {
+            return null;
+        }
 
         return $this->formatVariant($selected, 'Prudent', false, false);
     }
@@ -260,14 +278,15 @@ class CouponBuilderService
      */
     private function buildBold(Collection $rows, array $cfg): ?array
     {
-        $pool = $rows->filter(fn($r) =>
-            (float) ($r->odds ?? 0) >= $cfg['odds_min']
+        $pool = $rows->filter(fn ($r) => (float) ($r->odds ?? 0) >= $cfg['odds_min']
             && (float) ($r->total_score ?? 0) >= config('cota.tiers.bronze', 35.0)
-        )->sortByDesc(fn($r) => (float) ($r->total_score ?? 0))->values();
+        )->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
 
         $selected = $this->selectWithDiversity($pool, $cfg['picks']);
 
-        if (count($selected) < 3) return null;
+        if (count($selected) < 3) {
+            return null;
+        }
 
         return $this->formatVariant($selected, 'Audacieux', true, true);
     }
@@ -281,28 +300,35 @@ class CouponBuilderService
      */
     private function buildKamikaze(Collection $rows, array $cfg): ?array
     {
-        $oddsMin  = (float) ($cfg['odds_min'] ?? 1.80);
+        $oddsMin = (float) ($cfg['odds_min'] ?? 1.80);
         $maxPicks = (int) ($cfg['picks'] ?? 8);
         $totalMin = (float) ($cfg['total_min'] ?? 30.0);
 
-        $pool = $rows->filter(fn($r) =>
-            (float) ($r->odds ?? 0) >= $oddsMin
+        $pool = $rows->filter(fn ($r) => (float) ($r->odds ?? 0) >= $oddsMin
             && (float) ($r->total_score ?? 0) >= config('cota.tiers.bronze', 35.0)
-        )->sortByDesc(fn($r) => (float) ($r->odds ?? 0)) // priorité à la cote (volume)
-         ->values();
+        )->sortByDesc(fn ($r) => (float) ($r->odds ?? 0)) // priorité à la cote (volume)
+            ->values();
 
         // Sélection volume : 1 pick max par match, marché/compétition libres.
-        $selected  = [];
+        $selected = [];
         $usedMatch = [];
         foreach ($pool as $row) {
-            if (count($selected) >= $maxPicks) break;
+            if (count($selected) >= $maxPicks) {
+                break;
+            }
             $mid = $row->match_id ?? null;
-            if ($mid && in_array($mid, $usedMatch, true)) continue;
+            if ($mid && in_array($mid, $usedMatch, true)) {
+                continue;
+            }
             $selected[] = $row;
-            if ($mid) $usedMatch[] = $mid;
+            if ($mid) {
+                $usedMatch[] = $mid;
+            }
         }
 
-        if (count($selected) < 4) return null; // kamikaze = combiné, min 4 picks
+        if (count($selected) < 4) {
+            return null;
+        } // kamikaze = combiné, min 4 picks
 
         $coupon = $this->formatVariant($selected, 'Kamikaze', true, true);
 
@@ -310,7 +336,7 @@ class CouponBuilderService
         // cote, on sort quand même le meilleur combiné du jour, marqué below_target
         // pour que le mobile l'affiche comme « cote du jour » plutôt qu'un vrai kamikaze.
         $coupon['below_target'] = ($coupon['total_odds'] ?? 0) < $totalMin;
-        $coupon['target_odds']  = $totalMin;
+        $coupon['target_odds'] = $totalMin;
 
         return $coupon;
     }
@@ -325,23 +351,22 @@ class CouponBuilderService
     {
         $minScore = config('cota.tiers.standard', 50.0);
 
-        $pool = $rows->filter(fn($r) =>
-            (float) ($r->total_score ?? 0) >= $minScore
+        $pool = $rows->filter(fn ($r) => (float) ($r->total_score ?? 0) >= $minScore
             && (float) ($r->odds ?? 0) >= 1.40
-        )->sortByDesc(fn($r) =>
-            (float) ($r->market_score ?? $r->total_score ?? 0)
+        )->sortByDesc(fn ($r) => (float) ($r->market_score ?? $r->total_score ?? 0)
         )->values();
 
         // Fallback léger
         if ($pool->count() < 3) {
-            $pool = $rows->filter(fn($r) =>
-                (float) ($r->total_score ?? 0) >= config('cota.tiers.bronze', 35.0)
-            )->sortByDesc(fn($r) => (float) ($r->total_score ?? 0))->values();
+            $pool = $rows->filter(fn ($r) => (float) ($r->total_score ?? 0) >= config('cota.tiers.bronze', 35.0)
+            )->sortByDesc(fn ($r) => (float) ($r->total_score ?? 0))->values();
         }
 
         $selected = $this->selectWithDiversity($pool, config('cota.coupon.safe.picks', 5));
 
-        if (count($selected) < 3) return null;
+        if (count($selected) < 3) {
+            return null;
+        }
 
         return $this->formatVariant($selected, 'Équilibré', true, false);
     }
@@ -350,77 +375,177 @@ class CouponBuilderService
 
     private function selectWithDiversity(Collection $pool, int $maxPicks): array
     {
-        $selected  = [];
+        $selected = [];
         $compCount = [];
-        $mktCount  = [];
+        $mktCount = [];
         $usedMatch = [];
 
         foreach ($pool as $row) {
-            if (count($selected) >= $maxPicks) break;
+            if (count($selected) >= $maxPicks) {
+                break;
+            }
 
-            $comp   = $row->competition ?? 'unknown';
-            $market = $row->bet_type    ?? '1X2';
-            $mid    = $row->match_id    ?? null;
+            $comp = $row->competition ?? 'unknown';
+            $market = $row->bet_type ?? '1X2';
+            $mid = $row->match_id ?? null;
 
-            if (($compCount[$comp]   ?? 0) >= self::DIVERSITY_MAX_SAME_COMP)   continue;
-            if (($mktCount[$market]  ?? 0) >= self::DIVERSITY_MAX_SAME_MARKET) continue;
-            if ($mid && in_array($mid, $usedMatch, true))                       continue;
+            if (($compCount[$comp] ?? 0) >= self::DIVERSITY_MAX_SAME_COMP) {
+                continue;
+            }
+            if (($mktCount[$market] ?? 0) >= self::DIVERSITY_MAX_SAME_MARKET) {
+                continue;
+            }
+            if ($mid && in_array($mid, $usedMatch, true)) {
+                continue;
+            }
             // Exclure les picks contradicts si l'info est disponible
             $analysis = $row->analysis_details
                 ? (json_decode($row->analysis_details, true) ?? [])
                 : [];
-            if (($analysis['third_party']['agreement'] ?? '') === 'contradicts') continue;
+            if (($analysis['third_party']['agreement'] ?? '') === 'contradicts') {
+                continue;
+            }
 
-            $selected[]           = $row;
-            $compCount[$comp]     = ($compCount[$comp]   ?? 0) + 1;
-            $mktCount[$market]    = ($mktCount[$market]  ?? 0) + 1;
-            if ($mid) $usedMatch[] = $mid;
+            $selected[] = $row;
+            $compCount[$comp] = ($compCount[$comp] ?? 0) + 1;
+            $mktCount[$market] = ($mktCount[$market] ?? 0) + 1;
+            if ($mid) {
+                $usedMatch[] = $mid;
+            }
         }
 
         return $selected;
+    }
+
+    // ── Diversité des marchés ────────────────────────────────────────────────
+
+    /**
+     * Substitue le marché de certains picks par un marché alternatif issu de
+     * prediction_markets, pour éviter un coupon "100% victoires".
+     *
+     * - Charge tous les marchés des picks en une seule requête (pas de N+1)
+     * - Variante audacieuse : privilégie les marchés risqués (cotes élevées)
+     * - Variantes sûre/équilibrée : diversifie vers d'autres catégories fiables
+     *   quand un même marché revient trop souvent
+     *
+     * Ne modifie jamais l'objet pick d'origine (clone) pour rester sans effet de bord.
+     */
+    private function applyMarketVariety(array $selected, bool $isRisky): array
+    {
+        $ids = array_filter(array_map(fn ($r) => $r->id ?? null, $selected));
+        if (empty($ids)) {
+            return $selected;
+        }
+
+        $byPrediction = \App\Models\PredictionMarket::whereIn('prediction_id', $ids)
+            ->get()
+            ->groupBy('prediction_id');
+
+        $seenCategory = [];
+
+        foreach ($selected as $i => $pick) {
+            $markets = $byPrediction->get($pick->id ?? 0);
+            if (! $markets || $markets->count() <= 1) {
+                continue;
+            }
+
+            // Pool de substitution selon la variante.
+            // Coupons sûr/équilibré : jamais de marché risqué ni haute-variance (Score Exact).
+            $pool = $isRisky
+                ? $markets->where('is_risky', true)
+                : $markets->whereIn('score_tier', ['gold', 'standard'])
+                    ->where('is_risky', false)
+                    ->where('engine', '!=', 'high_variance');
+
+            if ($pool->isEmpty()) {
+                $pool = $markets->where('is_risky', false)->where('engine', '!=', 'high_variance');
+            }
+
+            // Catégorie du marché principal actuel
+            $currentCat = \App\Services\MarketScoringService::CATEGORY_MAP[$pick->bet_type ?? '1X2'] ?? 'resultat';
+
+            // Si cette catégorie est déjà présente dans le coupon, on tente une autre catégorie
+            $needsSwitch = $isRisky || in_array($currentCat, $seenCategory, true);
+
+            if ($needsSwitch) {
+                $alt = $pool->whereNotIn('category', $seenCategory)->sortByDesc('market_score')->first()
+                    ?? $pool->sortByDesc('market_score')->first();
+
+                if ($alt) {
+                    $selected[$i] = $this->overrideMarket($pick, $alt);
+                    $seenCategory[] = $alt->category;
+
+                    continue;
+                }
+            }
+
+            $seenCategory[] = $currentCat;
+        }
+
+        return $selected;
+    }
+
+    /**
+     * Clone un pick et y applique les champs d'un marché alternatif.
+     */
+    private function overrideMarket(object $pick, \App\Models\PredictionMarket $market): object
+    {
+        $clone = clone $pick;
+        $clone->prediction = $market->outcome;
+        $clone->market_selection = $market->market_selection ?? $market->outcome;
+        $clone->bet_type = $market->bet_type;
+        $clone->active_side = $market->active_side;
+        $clone->odds = (float) $market->odds;
+        $clone->score_tier = $market->score_tier;
+
+        return $clone;
     }
 
     // ── Formatage ────────────────────────────────────────────────────────────
 
     private function formatVariant(array $selected, string $label, bool $isPremium, bool $isRisky): array
     {
-        $totalOdds     = array_reduce($selected, fn($c, $r) => $c * max((float)($r->odds ?? 1.0), 1.0), 1.0);
-        $avgConfidence = array_sum(array_map(fn($r) => (float)($r->total_score ?? 0), $selected)) / count($selected);
+        // Diversifier les marchés : casser la monotonie "que des victoires"
+        // en substituant certains picks par un marché alternatif fiable.
+        $selected = $this->applyMarketVariety($selected, $isRisky);
+
+        $totalOdds = array_reduce($selected, fn ($c, $r) => $c * max((float) ($r->odds ?? 1.0), 1.0), 1.0);
+        $avgConfidence = array_sum(array_map(fn ($r) => (float) ($r->total_score ?? 0), $selected)) / count($selected);
         $potentialGain = (int) round($totalOdds * 1000);
 
-        $picks = array_map(fn($r) => [
-            'id'              => $r->id,
-            'match_id'        => $r->match_id,
-            'match'           => trim(($r->home_team ?? '?') . ' vs ' . ($r->away_team ?? '?')),
-            'league'          => $r->competition ?? '',
-            'league_logo'     => $r->competition_logo ?? null,
-            'home_team_logo'  => $r->home_team_logo ?? null,
-            'away_team_logo'  => $r->away_team_logo ?? null,
-            'date'            => $r->match_date ?? null,
-            'time'            => $r->match_time ?? null,
-            'prediction'      => $r->prediction ?? '',
-            'market_selection'=> $r->market_selection ?? $r->prediction ?? '',
-            'type'            => $r->bet_type ?? '1X2',
-            'active_side'     => $r->active_side ?? 'none',
-            'odds'            => (float) ($r->odds ?? 1.0),
-            'confidence'      => round((float)($r->total_score ?? 0), 1),
-            'stars'           => (int) ($r->confidence_stars ?? 1),
-            'score_tier'      => $r->score_tier ?? null,
-            'is_premium'      => (bool) ($r->is_premium ?? false),
-            'odds_source'     => $this->extractOddsSource($r),
+        $picks = array_map(fn ($r) => [
+            'id' => $r->id,
+            'match_id' => $r->match_id,
+            'match' => trim(($r->home_team ?? '?').' vs '.($r->away_team ?? '?')),
+            'league' => $r->competition ?? '',
+            'league_logo' => $r->competition_logo ?? null,
+            'home_team_logo' => $r->home_team_logo ?? null,
+            'away_team_logo' => $r->away_team_logo ?? null,
+            'date' => $r->match_date ?? null,
+            'time' => $r->match_time ?? null,
+            'prediction' => $r->prediction ?? '',
+            'market_selection' => $r->market_selection ?? $r->prediction ?? '',
+            'type' => $r->bet_type ?? '1X2',
+            'active_side' => $r->active_side ?? 'none',
+            'odds' => (float) ($r->odds ?? 1.0),
+            'confidence' => round((float) ($r->total_score ?? 0), 1),
+            'stars' => (int) ($r->confidence_stars ?? 1),
+            'score_tier' => $r->score_tier ?? null,
+            'is_premium' => (bool) ($r->is_premium ?? false),
+            'odds_source' => $this->extractOddsSource($r),
             'is_confirmed_ia' => $this->isConfirmedByIa($r),
         ], $selected);
 
         return [
-            'label'            => $label,
-            'is_premium'       => $isPremium,
-            'is_risky'         => $isRisky,
-            'picks_count'      => count($selected),
-            'picks'            => $picks,
-            'total_odds'       => round($totalOdds, 2),
-            'avg_confidence'   => round($avgConfidence, 1),
+            'label' => $label,
+            'is_premium' => $isPremium,
+            'is_risky' => $isRisky,
+            'picks_count' => count($selected),
+            'picks' => $picks,
+            'total_odds' => round($totalOdds, 2),
+            'avg_confidence' => round($avgConfidence, 1),
             'potential_gain_1000' => $potentialGain,
-            'floor_applied'    => false,
+            'floor_applied' => false,
         ];
     }
 
@@ -429,6 +554,7 @@ class CouponBuilderService
         $details = $r->analysis_details
             ? (json_decode($r->analysis_details, true) ?? [])
             : [];
+
         return $details['odds_source'] ?? 'estimated';
     }
 
@@ -438,6 +564,7 @@ class CouponBuilderService
             ? (json_decode($r->analysis_details, true) ?? [])
             : [];
         $agreement = $details['third_party']['agreement'] ?? '';
+
         return in_array($agreement, ['confirms', 'partial'], true);
     }
 }

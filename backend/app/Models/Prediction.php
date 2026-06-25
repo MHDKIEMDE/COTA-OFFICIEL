@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Prediction extends Model
 {
@@ -82,13 +83,13 @@ class Prediction extends Model
         'odds' => 'decimal:2',
         'total_score' => 'decimal:2',
         'value_score' => 'decimal:3',
-        'kelly_fraction'      => 'decimal:4',
-        'market_value_score'  => 'decimal:3',
-        'market_score'        => 'decimal:2',
-        'score_algo'          => 'decimal:2',
-        'score_externe'       => 'decimal:2',
-        'score_publie'        => 'decimal:2',
-        'w_ext'               => 'decimal:2',
+        'kelly_fraction' => 'decimal:4',
+        'market_value_score' => 'decimal:3',
+        'market_score' => 'decimal:2',
+        'score_algo' => 'decimal:2',
+        'score_externe' => 'decimal:2',
+        'score_publie' => 'decimal:2',
+        'w_ext' => 'decimal:2',
         'score_form' => 'decimal:2',
         'score_h2h' => 'decimal:2',
         'score_home_away' => 'decimal:2',
@@ -106,6 +107,14 @@ class Prediction extends Model
     public function match(): BelongsTo
     {
         return $this->belongsTo(FootballMatch::class, 'match_id', 'match_id');
+    }
+
+    /**
+     * Marchés alternatifs (cascade multi-marchés) — le switch côté mobile.
+     */
+    public function markets(): HasMany
+    {
+        return $this->hasMany(PredictionMarket::class)->orderByDesc('is_primary')->orderByDesc('market_score');
     }
 
     /**
@@ -161,8 +170,8 @@ class Prediction extends Model
     {
         return $query->where(function ($q) use ($term) {
             $q->where('home_team', 'like', "%{$term}%")
-              ->orWhere('away_team', 'like', "%{$term}%")
-              ->orWhere('competition', 'like', "%{$term}%");
+                ->orWhere('away_team', 'like', "%{$term}%")
+                ->orWhere('competition', 'like', "%{$term}%");
         });
     }
 
@@ -203,7 +212,7 @@ class Prediction extends Model
      */
     public function getAnalysisAttribute(): ?array
     {
-        if (!$this->analysis_details) {
+        if (! $this->analysis_details) {
             return null;
         }
 
@@ -253,7 +262,7 @@ class Prediction extends Model
 
             case 'BTTS':
                 $btts = $this->home_score > 0 && $this->away_score > 0;
-                $isCorrect = ($this->prediction === 'Yes' && $btts) || ($this->prediction === 'No' && !$btts);
+                $isCorrect = ($this->prediction === 'Yes' && $btts) || ($this->prediction === 'No' && ! $btts);
                 break;
 
             case 'Over/Under':

@@ -3,16 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
 use App\Services\CouponBuilderService;
 use App\Services\FootballApiService;
 use App\Services\PredictionAlgorithmService;
 use App\Services\PredictionSelectionService;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PredictionController extends Controller
 {
@@ -21,8 +21,7 @@ class PredictionController extends Controller
         private readonly PredictionAlgorithmService $predictionAlgorithm,
         private readonly CouponBuilderService $couponBuilder,
         private readonly PredictionSelectionService $selection,
-    ) {
-    }
+    ) {}
 
     /**
      * Statut premium effectif. COTA_DISABLE_LOCKS=true (dev) → tout le monde premium.
@@ -32,6 +31,7 @@ class PredictionController extends Controller
         if (config('cota.disable_locks', false)) {
             return true;
         }
+
         return (bool) ($user?->is_premium);
     }
 
@@ -60,25 +60,26 @@ class PredictionController extends Controller
         // Clé de cache versionnée : la version est incrémentée par GenerateAllPredictionsJob,
         // ce qui invalide automatiquement le cache à chaque nouvelle génération (08h/20h)
         $cacheVersion = (int) Cache::get('predictions_cache_version', 1);
-        $cacheKey = "predictions_today_{$dateString}_{$competition}_" . ($isPremium ? 'premium' : 'free') . "_v{$cacheVersion}";
+        $cacheKey = "predictions_today_{$dateString}_{$competition}_".($isPremium ? 'premium' : 'free')."_v{$cacheVersion}";
         $cacheTtl = 86400; // 24 heures
 
         // Vérifier le cache
         $cached = Cache::get($cacheKey);
         if ($cached) {
             Log::info("📦 Cache hit pour predictions du {$dateString}");
+
             return response()->json($cached);
         }
 
         // OPTIMISATION: Essayer d'abord la base de données (BEAUCOUP plus rapide)
         Log::info("📊 Vérification des prédictions en base de données pour le {$dateString}");
-        
+
         // Construire un index de priorité par paire (competition, country)
         // Les ligues populaires sont prioritaires, les autres viennent après
         $popularPairs = config('football-api.popular_leagues', []);
         $popularByName = [];
         foreach ($popularPairs as $league) {
-            $key = $league['name'] . '|' . $league['country'];
+            $key = $league['name'].'|'.$league['country'];
             $popularByName[$key] = $league['tier'];
         }
 
@@ -99,8 +100,8 @@ class PredictionController extends Controller
             ->where(function ($q) use ($tierMax) {
                 // F-05 : ne montrer que les ligues tier 1–tierMax (ou tier non renseigné = ancienne donnée)
                 $q->where('league_tier', '<=', $tierMax)
-                  ->orWhereNull('league_tier')
-                  ->orWhere('league_tier', 99);
+                    ->orWhereNull('league_tier')
+                    ->orWhere('league_tier', 99);
             })
             ->where(function ($q) use ($selectedDate) {
                 // Exclure les matchs déjà commencés — uniquement pour la date du jour,
@@ -108,12 +109,12 @@ class PredictionController extends Controller
                 if ($selectedDate->isToday()) {
                     $now = Carbon::now()->format('H:i:s');
                     $q->whereNull('match_time')
-                      ->orWhere('match_time', '>', $now);
+                        ->orWhere('match_time', '>', $now);
                 }
             })
             ->where(function ($q) use ($excludedLigues) {
                 foreach ($excludedLigues as $pattern) {
-                    $q->where('competition', 'not like', '%' . $pattern . '%');
+                    $q->where('competition', 'not like', '%'.$pattern.'%');
                 }
             })
             // F-05 : tri par tier croissant (tier 1 en premier), puis confiance, puis score
@@ -121,33 +122,36 @@ class PredictionController extends Controller
             ->orderBy('confidence_stars', 'desc')
             ->orderBy('total_score', 'desc')
             ->orderBy('match_time', 'asc');
-        
+
         // Filtrer par compétition si fourni
         if ($competition && $competition !== 'all') {
             $query->where('competition', $competition);
         }
-        
+
         // Toutes les prédictions sont accessibles gratuitement
         $dbPredictions = $query->get()->filter(function ($p) {
-            $score    = (float) ($p->total_score ?? 0);
+            $score = (float) ($p->total_score ?? 0);
             $analysis = $p->analysis_details ? json_decode($p->analysis_details, true) : [];
-            $tp       = $analysis['third_party'] ?? null;
+            $tp = $analysis['third_party'] ?? null;
             // Score ≥ 52 : toujours accepté
-            if ($score > 52) return true;
+            if ($score > 52) {
+                return true;
+            }
+
             // Score 40–52 : accepté uniquement si tierce présente et non contradictoire
             return $tp !== null
-                && !empty($tp['prediction'])
+                && ! empty($tp['prediction'])
                 && ($tp['agreement'] ?? '') !== 'contradicts';
         })->values();
 
         // Si on a au moins 1 prédiction dans les ligues populaires, les retourner
         if ($dbPredictions->count() >= 1) {
-            Log::info("✅ " . $dbPredictions->count() . " prédictions trouvées en base de données (source: database) - RÉPONSE RAPIDE");
-            
+            Log::info('✅ '.$dbPredictions->count().' prédictions trouvées en base de données (source: database) - RÉPONSE RAPIDE');
+
             $formattedPredictions = $dbPredictions->map(function ($prediction) use ($isPremium) {
                 return $this->formatPrediction($prediction, $isPremium);
             })->values();
-            
+
             // Mettre en cache et retourner
             $responseData = [
                 'success' => true,
@@ -155,11 +159,12 @@ class PredictionController extends Controller
                 'source' => 'database',
                 'cached_at' => now()->toIso8601String(),
             ];
-            
+
             Cache::put($cacheKey, $responseData, $cacheTtl);
+
             return response()->json($responseData);
         }
-        
+
         // Base vide — distinguer Niveau 2 (matchs analysés) vs Niveau 3 (aucun match)
         $matchesAnalyzedCount = DB::table('matches')
             ->whereDate('match_date', $dateString)
@@ -177,10 +182,10 @@ class PredictionController extends Controller
         if ($emptyState === null) {
             \App\Jobs\CacheEmptyStateDataJob::dispatch();
             $emptyState = [
-                'win_rate_30d'  => 0.0,
-                'wins_30d'      => 0,
-                'total_30d'     => 0,
-                'last_wins'     => [],
+                'win_rate_30d' => 0.0,
+                'wins_30d' => 0,
+                'total_30d' => 0,
+                'last_wins' => [],
                 'next_match_at' => null,
             ];
         }
@@ -197,23 +202,24 @@ class PredictionController extends Controller
             ->first();
 
         $responseData = [
-            'success'             => true,
-            'status'              => $emptyStatus,
-            'matches_analyzed'    => $matchesAnalyzedCount,
+            'success' => true,
+            'status' => $emptyStatus,
+            'matches_analyzed' => $matchesAnalyzedCount,
             'next_predictions_at' => $nextSlot->toIso8601String(),
-            'data'                => [],
-            'source'              => 'database',
-            'empty_state'         => [
-                'win_rate_30d'  => $emptyState['win_rate_30d'],
-                'wins_30d'      => $emptyState['wins_30d'],
-                'total_30d'     => $emptyState['total_30d'],
-                'last_wins'     => $emptyState['last_wins'],
+            'data' => [],
+            'source' => 'database',
+            'empty_state' => [
+                'win_rate_30d' => $emptyState['win_rate_30d'],
+                'wins_30d' => $emptyState['wins_30d'],
+                'total_30d' => $emptyState['total_30d'],
+                'last_wins' => $emptyState['last_wins'],
                 'next_match_at' => $nextSlot->toIso8601String(),
             ],
             'cached_at' => now()->toIso8601String(),
         ];
 
         Cache::put($cacheKey, $responseData, 60);
+
         return response()->json($responseData);
     }
 
@@ -232,11 +238,10 @@ class PredictionController extends Controller
         $query = DB::table('predictions')
             ->where('is_published', true)
             ->whereBetween('match_date', [$startDate, $endDate])
-            ->where(fn($q) =>
-                $q->where('league_tier', '<=', 3)
-                  ->orWhereIn('competition', $popularLeagueNames)
-                  ->orWhereNull('league_tier')
-                  ->orWhere('league_tier', 99)
+            ->where(fn ($q) => $q->where('league_tier', '<=', 3)
+                ->orWhereIn('competition', $popularLeagueNames)
+                ->orWhereNull('league_tier')
+                ->orWhere('league_tier', 99)
             )
             ->orderBy('league_tier', 'asc')
             ->orderBy('confidence_stars', 'desc')
@@ -278,13 +283,13 @@ class PredictionController extends Controller
 
         // Si pas en base, essayer avec l'ID directement (format: api_matchId)
         $matchId = null;
-        if (!$prediction && strpos($id, 'api_') === 0) {
+        if (! $prediction && strpos($id, 'api_') === 0) {
             $matchId = str_replace('api_', '', $id);
         } elseif ($prediction) {
             $matchId = $prediction->match_id;
         }
 
-        if (!$matchId) {
+        if (! $matchId) {
             return response()->json([
                 'success' => false,
                 'message' => 'Pronostic non trouvé',
@@ -299,24 +304,25 @@ class PredictionController extends Controller
                 ? $this->footballApi->getMatchDetails((int) $matchId)
                 : null;
 
-            if (!$fixtureResponse || empty($fixtureResponse['response'])) {
+            if (! $fixtureResponse || empty($fixtureResponse['response'])) {
                 // Fallback sur la base de données
                 if ($prediction) {
                     return response()->json([
                         'success' => true,
-                        'data'    => $this->formatPrediction($prediction, $isPremium),
-                        'source'  => 'database',
+                        'data' => $this->formatPrediction($prediction, $isPremium),
+                        'source' => 'database',
                     ]);
                 }
+
                 return response()->json(['success' => false, 'message' => 'Détails du match non disponibles'], 404);
             }
 
-            $fixture    = $fixtureResponse['response'][0];
-            $homeTeam   = $fixture['teams']['home'] ?? null;
-            $awayTeam   = $fixture['teams']['away'] ?? null;
+            $fixture = $fixtureResponse['response'][0];
+            $homeTeam = $fixture['teams']['home'] ?? null;
+            $awayTeam = $fixture['teams']['away'] ?? null;
 
-            if (!$homeTeam || !$awayTeam) {
-                throw new \Exception("Équipes manquantes dans la réponse API");
+            if (! $homeTeam || ! $awayTeam) {
+                throw new \Exception('Équipes manquantes dans la réponse API');
             }
 
             // Construire les données enrichies
@@ -335,9 +341,9 @@ class PredictionController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error("❌ Erreur lors de la récupération depuis l'API: " . $e->getMessage(), [
+            Log::error("❌ Erreur lors de la récupération depuis l'API: ".$e->getMessage(), [
                 'match_id' => $matchId,
-                'error' => $e->getTraceAsString()
+                'error' => $e->getTraceAsString(),
             ]);
 
             // Fallback sur la base de données
@@ -351,7 +357,7 @@ class PredictionController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Erreur lors de la récupération des détails: ' . $e->getMessage(),
+                'message' => 'Erreur lors de la récupération des détails: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -362,12 +368,12 @@ class PredictionController extends Controller
     // Historique public — accessible sans authentification
     public function historyPublic(Request $request)
     {
-        $user      = $request->user();
+        $user = $request->user();
         $isPremium = $this->resolvePremium($user);
 
-        $page        = $request->input('page', 1);
-        $perPage     = 15;
-        $status      = $request->input('status');
+        $page = $request->input('page', 1);
+        $perPage = 15;
+        $status = $request->input('status');
         $competition = $request->input('competition');
 
         $query = DB::table('predictions')
@@ -386,18 +392,18 @@ class PredictionController extends Controller
             $query->where('match_date', '>=', Carbon::now()->subDays(90)->startOfDay());
         }
 
-        $total       = $query->count();
+        $total = $query->count();
         $predictions = $query->skip(($page - 1) * $perPage)->take($perPage)->get();
 
         return response()->json([
-            'success'    => true,
-            'data'       => $predictions->map(fn($p) => $this->formatPrediction($p, $isPremium)),
+            'success' => true,
+            'data' => $predictions->map(fn ($p) => $this->formatPrediction($p, $isPremium)),
             'pagination' => [
                 'current_page' => $page,
-                'per_page'     => $perPage,
-                'total'        => $total,
-                'total_pages'  => ceil($total / $perPage),
-                'has_more'     => $page < ceil($total / $perPage),
+                'per_page' => $perPage,
+                'total' => $total,
+                'total_pages' => ceil($total / $perPage),
+                'has_more' => $page < ceil($total / $perPage),
             ],
         ]);
     }
@@ -469,9 +475,9 @@ class PredictionController extends Controller
     public function accuracy(): JsonResponse
     {
         $data = Cache::remember('stats:accuracy:public', 3600, function () {
-            $now       = Carbon::now();
+            $now = Carbon::now();
             $month_ago = $now->copy()->subDays(30);
-            $season    = Carbon::createFromDate($now->month >= 7 ? $now->year : $now->year - 1, 7, 1);
+            $season = Carbon::createFromDate($now->month >= 7 ? $now->year : $now->year - 1, 7, 1);
 
             // ── Taux de réussite 30 jours ─────────────────────────────────────
             $month = DB::table('predictions')
@@ -481,9 +487,9 @@ class PredictionController extends Controller
                 ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = \'won\' THEN 1 ELSE 0 END) as won')
                 ->first();
 
-            $total30   = (int) ($month->total ?? 0);
-            $won30     = (int) ($month->won   ?? 0);
-            $accuracy  = $total30 > 0 ? (int) round($won30 / $total30 * 100) : 0;
+            $total30 = (int) ($month->total ?? 0);
+            $won30 = (int) ($month->won ?? 0);
+            $accuracy = $total30 > 0 ? (int) round($won30 / $total30 * 100) : 0;
 
             // ── ROI saison (mise fictive 1 unité par pari, cote réelle) ───────
             $season_preds = DB::table('predictions')
@@ -493,7 +499,7 @@ class PredictionController extends Controller
                 ->select('status', 'odds')
                 ->get();
 
-            $stakes  = $season_preds->count();         // 1 unité par pari
+            $stakes = $season_preds->count();         // 1 unité par pari
             $returns = $season_preds
                 ->where('status', 'won')
                 ->sum('odds');                          // retour brut des paris gagnés
@@ -513,19 +519,19 @@ class PredictionController extends Controller
                     ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = \'won\' THEN 1 ELSE 0 END) as won')
                     ->first();
                 $t = (int) ($row->total ?? 0);
-                $w = (int) ($row->won   ?? 0);
+                $w = (int) ($row->won ?? 0);
                 $byStars[$stars] = [
-                    'total'    => $t,
-                    'won'      => $w,
+                    'total' => $t,
+                    'won' => $w,
                     'accuracy' => $t > 0 ? (int) round($w / $t * 100) : null,
                 ];
             }
 
             return [
                 'accuracy_30d' => $accuracy,
-                'roi_season'   => $roi,
-                'total_30d'    => $total30,
-                'by_stars'     => $byStars,
+                'roi_season' => $roi,
+                'total_30d' => $total30,
+                'by_stars' => $byStars,
             ];
         });
 
@@ -552,16 +558,16 @@ class PredictionController extends Controller
                 ->orderBy('match_date')
                 ->get();
 
-            $stake        = 1000; // FCFA par pari
-            $totalStaked  = $preds->count() * $stake;
+            $stake = 1000; // FCFA par pari
+            $totalStaked = $preds->count() * $stake;
             $totalReturns = (int) round($preds->where('status', 'won')->sum('odds') * $stake);
-            $netGain      = $totalReturns - $totalStaked;
-            $roi          = $totalStaked > 0 ? round($netGain / $totalStaked * 100, 1) : 0;
+            $netGain = $totalReturns - $totalStaked;
+            $roi = $totalStaked > 0 ? round($netGain / $totalStaked * 100, 1) : 0;
 
             // Courbe sparkline : gain cumulé semaine par semaine
             $sparkline = [];
             $cumulative = 0;
-            foreach ($preds->groupBy(fn($p) => Carbon::parse($p->match_date)->startOfWeek()->toDateString()) as $week => $group) {
+            foreach ($preds->groupBy(fn ($p) => Carbon::parse($p->match_date)->startOfWeek()->toDateString()) as $week => $group) {
                 $weekReturn = (int) round($group->where('status', 'won')->sum('odds') * $stake);
                 $weekStaked = $group->count() * $stake;
                 $cumulative += ($weekReturn - $weekStaked);
@@ -569,14 +575,14 @@ class PredictionController extends Controller
             }
 
             return [
-                'stake_per_bet'  => $stake,
-                'total_bets'     => $preds->count(),
-                'total_staked'   => $totalStaked,
-                'total_returns'  => $totalReturns,
-                'net_gain'       => $netGain,
-                'roi_pct'        => $roi,
-                'since'          => $since->toDateString(),
-                'sparkline'      => $sparkline,
+                'stake_per_bet' => $stake,
+                'total_bets' => $preds->count(),
+                'total_staked' => $totalStaked,
+                'total_returns' => $totalReturns,
+                'net_gain' => $netGain,
+                'roi_pct' => $roi,
+                'since' => $since->toDateString(),
+                'sparkline' => $sparkline,
             ];
         });
 
@@ -666,7 +672,7 @@ class PredictionController extends Controller
      */
     public function welcomeCombined(Request $request)
     {
-        $cacheKey = 'welcome_combined_' . Carbon::today()->format('Y-m-d');
+        $cacheKey = 'welcome_combined_'.Carbon::today()->format('Y-m-d');
 
         $data = Cache::remember($cacheKey, 3600, function () {
             $predictions = DB::table('predictions')
@@ -685,18 +691,18 @@ class PredictionController extends Controller
             $totalOdds = $predictions->reduce(fn ($carry, $p) => $carry * (float) $p->odds, 1.0);
 
             return [
-                'success'     => true,
+                'success' => true,
                 'predictions' => $predictions->map(fn ($p) => $this->formatPrediction($p, false))->values(),
-                'total_odds'  => round($totalOdds, 2),
-                'date'        => Carbon::today()->toDateString(),
-                'is_free'     => true,
+                'total_odds' => round($totalOdds, 2),
+                'date' => Carbon::today()->toDateString(),
+                'is_free' => true,
             ];
         });
 
-        if (!$data) {
+        if (! $data) {
             return response()->json([
-                'success'     => false,
-                'message'     => 'Aucune prédiction disponible pour le combiné de bienvenue aujourd\'hui',
+                'success' => false,
+                'message' => 'Aucune prédiction disponible pour le combiné de bienvenue aujourd\'hui',
                 'predictions' => [],
             ]);
         }
@@ -764,7 +770,7 @@ class PredictionController extends Controller
             'Ligue 1' => 5,
             'UEFA Champions League' => 6,
             'Champions League' => 6,
-            
+
             // Tier 2 - Compétitions UEFA et ligues secondaires majeures (priorité 11-20)
             'UEFA Europa League' => 11,
             'Europa League' => 11,
@@ -775,7 +781,7 @@ class PredictionController extends Controller
             'Eredivisie' => 14,
             'Saudi Pro League' => 15,
             'MLS' => 16,
-            
+
             // Tier 3 - Compétitions internationales et secondaires (priorité 21-30)
             'Africa Cup of Nations' => 21,
             'Copa America' => 22,
@@ -786,13 +792,13 @@ class PredictionController extends Controller
             'LaLiga2' => 27,
             '2. Bundesliga' => 28,
             'Ligue 2' => 29,
-            
+
             // Tier 4 - Ligues inférieures (priorité 31-40)
             'League One' => 31,
             'League Two' => 32,
             'National League' => 33,
         ];
-        
+
         // Priorité des pays (les plus reconnus en premier)
         $countryPriorities = [
             'England' => 1,
@@ -819,14 +825,16 @@ class PredictionController extends Controller
         // + les pays prioritaires pour éviter un JSON énorme
         $competitions = $competitions->filter(function ($item) use ($competitionPriorities, $countryPriorities) {
             $hasKnownCompetition = isset($competitionPriorities[$item->competition]);
-            $hasKnownCountry     = isset($countryPriorities[$item->country]);
+            $hasKnownCountry = isset($countryPriorities[$item->country]);
+
             return $hasKnownCompetition || $hasKnownCountry;
         });
 
         // Trier par priorité combinée
         $sortedCompetitions = $competitions->sortBy(function ($item) use ($competitionPriorities, $countryPriorities) {
             $competitionPriority = $competitionPriorities[$item->competition] ?? 100;
-            $countryPriority     = $countryPriorities[$item->country] ?? 50;
+            $countryPriority = $countryPriorities[$item->country] ?? 50;
+
             return $countryPriority * 1000 + $competitionPriority;
         });
 
@@ -837,13 +845,13 @@ class PredictionController extends Controller
             });
 
             return [
-                'country'      => $country,
+                'country' => $country,
                 'competitions' => $sortedItems->map(function ($item) {
                     return [
-                        'id'      => $item->competition_id,
-                        'name'    => $item->competition,
+                        'id' => $item->competition_id,
+                        'name' => $item->competition,
                         'country' => $item->country,
-                        'logo'    => $item->competition_logo ?? null,
+                        'logo' => $item->competition_logo ?? null,
                     ];
                 })->values()->all(),
             ];
@@ -851,7 +859,7 @@ class PredictionController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $groupedByCountry,
+            'data' => $groupedByCountry,
         ]);
     }
 
@@ -861,10 +869,10 @@ class PredictionController extends Controller
      */
     public function combinedDaily(Request $request)
     {
-        $user      = auth('sanctum')->user();
+        $user = auth('sanctum')->user();
         $isPremium = $this->resolvePremium($user);
 
-        $date       = $request->input('date', Carbon::today()->toDateString());
+        $date = $request->input('date', Carbon::today()->toDateString());
         $targetDate = Carbon::parse($date);
 
         // ── Chercher d'abord en DB (top 5 par score, publiés aujourd'hui) ──
@@ -877,35 +885,36 @@ class PredictionController extends Controller
             ->get();
 
         if ($dbPredictions->isNotEmpty()) {
-            $totalOdds     = $dbPredictions->reduce(fn($carry, $p) => $carry * (float) $p->odds, 1.0);
+            $totalOdds = $dbPredictions->reduce(fn ($carry, $p) => $carry * (float) $p->odds, 1.0);
             $avgConfidence = $dbPredictions->avg('total_score');
 
             return response()->json([
                 'success' => true,
-                'data'    => [
-                    'date'           => $targetDate->toDateString(),
-                    'total_odds'     => round($totalOdds, 2),
+                'data' => [
+                    'date' => $targetDate->toDateString(),
+                    'total_odds' => round($totalOdds, 2),
                     'avg_confidence' => round($avgConfidence, 2),
-                    'matches'        => $dbPredictions->map(fn($p) => $this->formatPrediction($p, $isPremium))->values()->all(),
+                    'matches' => $dbPredictions->map(fn ($p) => $this->formatPrediction($p, $isPremium))->values()->all(),
                 ],
             ]);
         }
 
         // ── DB vide : premium génère à la demande, free attend ──────────────
-        if (!$isPremium) {
+        if (! $isPremium) {
             return response()->json([
                 'success' => false,
                 'message' => 'Le combiné du jour sera disponible après la génération automatique',
             ], 404);
         }
 
-        $cacheKey = 'combined_daily_premium_' . $targetDate->format('Y-m-d');
+        $cacheKey = 'combined_daily_premium_'.$targetDate->format('Y-m-d');
 
         $result = Cache::remember($cacheKey, 300, function () use ($targetDate) {
             try {
                 $fixtures = $this->footballApi->getPopularMatches($targetDate->format('Y-m-d'), 30);
             } catch (\Throwable $e) {
                 Log::error('combinedDaily premium: getPopularMatches failed', ['error' => $e->getMessage()]);
+
                 return null;
             }
 
@@ -915,47 +924,47 @@ class PredictionController extends Controller
 
             $coupon = $this->predictionAlgorithm->generateDailyCoupon($fixtures, 3, 5, 60.0);
 
-            if (!($coupon['success'] ?? false)) {
+            if (! ($coupon['success'] ?? false)) {
                 return $coupon;
             }
 
             // Convertir les picks en format PredictionModel compatible Flutter
             $matches = array_map(function (array $pick): array {
                 return [
-                    'id'                => 0,
-                    'match_id'          => null,
-                    'prediction_type'   => $pick['type'] ?? '1X2',
+                    'id' => 0,
+                    'match_id' => null,
+                    'prediction_type' => $pick['type'] ?? '1X2',
                     'predicted_outcome' => $pick['prediction'] ?? '',
-                    'odds'              => $pick['odds'] ?? 1.0,
-                    'confidence_score'  => (int) ($pick['confidence'] ?? 0),
-                    'confidence_stars'  => $pick['stars'] ?? 1,
-                    'is_premium'        => $pick['is_premium'] ?? true,
-                    'result'            => null,
-                    'created_at'        => now()->toIso8601String(),
-                    'match'             => [
-                        'id'             => null,
-                        'fixture_id'     => null,
-                        'home_team'      => explode(' vs ', $pick['match'] ?? ' vs ')[0] ?? '',
-                        'away_team'      => explode(' vs ', $pick['match'] ?? ' vs ')[1] ?? '',
+                    'odds' => $pick['odds'] ?? 1.0,
+                    'confidence_score' => (int) ($pick['confidence'] ?? 0),
+                    'confidence_stars' => $pick['stars'] ?? 1,
+                    'is_premium' => $pick['is_premium'] ?? true,
+                    'result' => null,
+                    'created_at' => now()->toIso8601String(),
+                    'match' => [
+                        'id' => null,
+                        'fixture_id' => null,
+                        'home_team' => explode(' vs ', $pick['match'] ?? ' vs ')[0] ?? '',
+                        'away_team' => explode(' vs ', $pick['match'] ?? ' vs ')[1] ?? '',
                         'home_team_logo' => null,
                         'away_team_logo' => null,
-                        'league'         => $pick['league'] ?? '',
-                        'league_logo'    => null,
-                        'match_date'     => $pick['date'] ?? now()->toIso8601String(),
-                        'status'         => 'NS',
-                        'home_score'     => null,
-                        'away_score'     => null,
+                        'league' => $pick['league'] ?? '',
+                        'league_logo' => null,
+                        'match_date' => $pick['date'] ?? now()->toIso8601String(),
+                        'status' => 'NS',
+                        'home_score' => null,
+                        'away_score' => null,
                     ],
                 ];
             }, $coupon['picks']);
 
             return [
                 'success' => true,
-                'data'    => [
-                    'date'           => $targetDate->toDateString(),
-                    'total_odds'     => $coupon['total_odds'],
+                'data' => [
+                    'date' => $targetDate->toDateString(),
+                    'total_odds' => $coupon['total_odds'],
                     'avg_confidence' => $coupon['avg_confidence'],
-                    'matches'        => $matches,
+                    'matches' => $matches,
                 ],
             ];
         });
@@ -990,11 +999,11 @@ class PredictionController extends Controller
             ->where('is_published', true);
 
         // Recherche par texte (équipe ou compétition)
-        if (!empty($query)) {
+        if (! empty($query)) {
             $dbQuery->where(function ($q) use ($query) {
                 $q->where('home_team', 'LIKE', "%{$query}%")
-                  ->orWhere('away_team', 'LIKE', "%{$query}%")
-                  ->orWhere('competition', 'LIKE', "%{$query}%");
+                    ->orWhere('away_team', 'LIKE', "%{$query}%")
+                    ->orWhere('competition', 'LIKE', "%{$query}%");
             });
         }
 
@@ -1025,8 +1034,8 @@ class PredictionController extends Controller
      */
     public function couponHistory(Request $request)
     {
-        $limit    = min((int) $request->query('limit', 10), 30);
-        $cacheKey = 'coupon_history_public_' . $limit;
+        $limit = min((int) $request->query('limit', 10), 30);
+        $cacheKey = 'coupon_history_public_'.$limit;
 
         $data = Cache::remember($cacheKey, 1800, function () use ($limit) {
             return DB::table('combined_bets')
@@ -1039,19 +1048,19 @@ class PredictionController extends Controller
                     $picks = is_string($c->details) ? (json_decode($c->details, true) ?? []) : [];
 
                     return [
-                        'date'           => $c->date,
-                        'type'           => $c->type,
-                        'status'         => $c->status,
-                        'picks_count'    => $c->predictions_count,
-                        'total_odds'     => $c->total_odds,
+                        'date' => $c->date,
+                        'type' => $c->type,
+                        'status' => $c->status,
+                        'picks_count' => $c->predictions_count,
+                        'total_odds' => $c->total_odds,
                         'potential_gain' => $c->potential_payout,
-                        'won_count'      => $c->won_count,
-                        'lost_count'     => $c->lost_count,
-                        'picks'          => array_map(fn($p) => [
-                            'match'      => $p['match'] ?? '—',
-                            'league'     => $p['league'] ?? '',
+                        'won_count' => $c->won_count,
+                        'lost_count' => $c->lost_count,
+                        'picks' => array_map(fn ($p) => [
+                            'match' => $p['match'] ?? '—',
+                            'league' => $p['league'] ?? '',
                             'prediction' => $p['prediction'] ?? '',
-                            'odds'       => $p['odds'] ?? null,
+                            'odds' => $p['odds'] ?? null,
                             'confidence' => $p['confidence'] ?? null,
                         ], $picks),
                     ];
@@ -1060,10 +1069,11 @@ class PredictionController extends Controller
 
         $stats = Cache::remember('coupon_history_stats', 3600, function () {
             $total = DB::table('combined_bets')->whereIn('status', ['won', 'lost'])->count();
-            $won   = DB::table('combined_bets')->where('status', 'won')->count();
+            $won = DB::table('combined_bets')->where('status', 'won')->count();
+
             return [
-                'total'    => $total,
-                'won'      => $won,
+                'total' => $total,
+                'won' => $won,
                 'win_rate' => $total > 0 ? round(($won / $total) * 100, 1) : 0,
             ];
         });
@@ -1080,22 +1090,22 @@ class PredictionController extends Controller
      */
     public function coupon(Request $request): JsonResponse
     {
-        $user      = auth('sanctum')->user();
+        $user = auth('sanctum')->user();
         $isPremium = $this->resolvePremium($user);
-        $date      = $request->query('date', Carbon::today()->toDateString());
-        $cacheKey  = 'coupon_v3_' . $date . '_' . ($isPremium ? 'premium' : 'free');
+        $date = $request->query('date', Carbon::today()->toDateString());
+        $cacheKey = 'coupon_v3_'.$date.'_'.($isPremium ? 'premium' : 'free');
         // TTL court : un match du coupon qui démarre doit en sortir rapidement.
         // Sans ça, le cache « jusqu'à minuit » figeait le coupon avec des matchs
         // déjà commencés (le filtre match_time > now n'était jamais réévalué).
-        $ttl       = 900; // 15 min
+        $ttl = 900; // 15 min
 
-        $result = Cache::remember($cacheKey, $ttl, function () use ($date, $isPremium) {
+        $result = Cache::remember($cacheKey, $ttl, function () use ($date) {
 
             // Fenêtre élargie J→J+3 : plus de matchs disponibles → coupons plus
             // gros et cote totale plus élevée (kamikaze atteignable). On exclut
             // les matchs déjà commencés aujourd'hui (jouables uniquement à venir).
             $windowStart = Carbon::parse($date);
-            $windowEnd   = $windowStart->copy()->addDays(3)->endOfDay();
+            $windowEnd = $windowStart->copy()->addDays(3)->endOfDay();
 
             $rows = DB::table('predictions')
                 ->where('is_published', true)
@@ -1105,11 +1115,11 @@ class PredictionController extends Controller
                     // Matchs d'aujourd'hui : uniquement ceux pas encore commencés.
                     // Matchs des jours suivants : tous conservés.
                     if ($windowStart->isToday()) {
-                        $now   = Carbon::now()->format('H:i:s');
+                        $now = Carbon::now()->format('H:i:s');
                         $today = $windowStart->toDateString();
                         $q->whereDate('match_date', '>', $today)
-                          ->orWhereNull('match_time')
-                          ->orWhere('match_time', '>', $now);
+                            ->orWhereNull('match_time')
+                            ->orWhere('match_time', '>', $now);
                     }
                 })
                 ->orderByDesc('total_score')
@@ -1118,17 +1128,17 @@ class PredictionController extends Controller
 
             if ($rows->isEmpty()) {
                 return [
-                    'success'   => false,
-                    'message'   => 'Aucune prédiction disponible pour le ' . $date,
-                    'date'      => $date,
-                    'prudent'   => null,
+                    'success' => false,
+                    'message' => 'Aucune prédiction disponible pour le '.$date,
+                    'date' => $date,
+                    'prudent' => null,
                     'equilibre' => null,
                     'audacieux' => null,
                 ];
             }
 
             // Déterminer si le plancher a été appliqué ce jour
-            $pools        = $this->selection->buildPools($rows->map(fn($r) => (array) $r)->toArray());
+            $pools = $this->selection->buildPools($rows->map(fn ($r) => (array) $r)->toArray());
             $floorApplied = $pools['floor_applied'];
 
             // Pool élargi pour les coupons par compétition majeure (Coupe du monde…) :
@@ -1137,13 +1147,13 @@ class PredictionController extends Controller
             // plusieurs jours → on veut un coupon par journée à venir.
             // Compétitions vedettes (tournois internationaux majeurs) : on élargit
             // au-delà du tier ≤ 2 pour capter CAN, Copa, Euro… qui sont en tier 3.
-            $featured  = config('cota.coupon.featured_competitions', []);
+            $featured = config('cota.coupon.featured_competitions', []);
             $majorRows = DB::table('predictions')
                 ->where('is_published', true)
                 ->where(function ($q) use ($featured) {
                     $q->where('league_tier', '<=', 2);
                     foreach ($featured as $pattern) {
-                        $q->orWhere('competition', 'like', '%' . $pattern . '%');
+                        $q->orWhere('competition', 'like', '%'.$pattern.'%');
                     }
                 })
                 ->where('match_date', '>=', Carbon::now())
@@ -1155,24 +1165,24 @@ class PredictionController extends Controller
             $variants = $this->couponBuilder->buildAll($rows, $floorApplied, $majorRows);
 
             return [
-                'success'      => true,
-                'date'         => $date,
+                'success' => true,
+                'date' => $date,
                 'generated_at' => Carbon::now()->toIso8601String(),
-                'floor_applied'=> $floorApplied,
-                'prudent'      => $variants['prudent'],
-                'equilibre'    => $variants['equilibre'],
-                'audacieux'    => $variants['audacieux'],
-                'kamikaze'     => $variants['kamikaze'] ?? null,
+                'floor_applied' => $floorApplied,
+                'prudent' => $variants['prudent'],
+                'equilibre' => $variants['equilibre'],
+                'audacieux' => $variants['audacieux'],
+                'kamikaze' => $variants['kamikaze'] ?? null,
                 'competitions' => $variants['competitions'] ?? [],
             ];
         });
 
         // Gate premium : équilibré/audacieux/kamikaze verrouillés pour les non-premium
-        if (!$isPremium && ($result['success'] ?? false)) {
+        if (! $isPremium && ($result['success'] ?? false)) {
             foreach (['equilibre', 'audacieux', 'kamikaze'] as $variant) {
-                if (!empty($result[$variant])) {
-                    $result[$variant]['picks']        = [];
-                    $result[$variant]['is_locked']    = true;
+                if (! empty($result[$variant])) {
+                    $result[$variant]['picks'] = [];
+                    $result[$variant]['is_locked'] = true;
                     $result[$variant]['lock_message'] = 'Passez Premium pour débloquer cette variante';
                 }
             }
@@ -1186,8 +1196,11 @@ class PredictionController extends Controller
      */
     private function extractOddsSource(mixed $analysisDetails): string
     {
-        if (!$analysisDetails) return 'estimated';
+        if (! $analysisDetails) {
+            return 'estimated';
+        }
         $details = is_string($analysisDetails) ? json_decode($analysisDetails, true) : $analysisDetails;
+
         return $details['odds_source'] ?? 'estimated';
     }
 
@@ -1202,8 +1215,8 @@ class PredictionController extends Controller
             return \App\Models\CouponTab::activeOrdered()
                 ->get(['key', 'label', 'subtitle'])
                 ->map(fn ($t) => [
-                    'key'      => $t->key,
-                    'label'    => $t->label,
+                    'key' => $t->key,
+                    'label' => $t->label,
                     'subtitle' => $t->subtitle,
                 ])
                 ->values()
@@ -1221,11 +1234,11 @@ class PredictionController extends Controller
      */
     public function worldCupUpcoming(Request $request): JsonResponse
     {
-        $user      = auth('sanctum')->user();
+        $user = auth('sanctum')->user();
         $isPremium = $this->resolvePremium($user);
-        $limit     = min((int) $request->query('limit', 10), 20);
+        $limit = min((int) $request->query('limit', 10), 20);
 
-        $cacheKey = 'wc_upcoming_v1_' . ($isPremium ? 'premium' : 'free');
+        $cacheKey = 'wc_upcoming_v1_'.($isPremium ? 'premium' : 'free');
         $result = Cache::remember($cacheKey, 900, function () use ($isPremium, $limit) {
             $rows = DB::table('predictions')
                 ->where('is_published', true)
@@ -1241,12 +1254,42 @@ class PredictionController extends Controller
 
             return [
                 'success' => true,
-                'data'    => $data,
-                'meta'    => ['count' => $data->count()],
+                'data' => $data,
+                'meta' => ['count' => $data->count()],
             ];
         });
 
         return response()->json($result);
+    }
+
+    /**
+     * Charge les marchés switchables d'une prédiction, groupés par catégorie.
+     * Retourne un tableau prêt pour le sélecteur de marchés côté mobile.
+     */
+    private function loadMarkets($predictionId): array
+    {
+        $markets = \App\Models\PredictionMarket::where('prediction_id', $predictionId)
+            ->orderByDesc('is_primary')
+            ->orderByDesc('market_score')
+            ->get();
+
+        if ($markets->isEmpty()) {
+            return [];
+        }
+
+        return $markets->map(fn ($m) => [
+            'category' => $m->category,
+            'bet_type' => $m->bet_type,
+            'outcome' => $m->outcome,
+            'market_selection' => $m->market_selection,
+            'odds' => (float) $m->odds,
+            'market_score' => (float) $m->market_score,
+            'score_tier' => $m->score_tier,
+            'active_side' => $m->active_side,
+            'is_primary' => (bool) $m->is_primary,
+            'is_risky' => (bool) $m->is_risky,
+            'status' => $m->status,
+        ])->values()->all();
     }
 
     private function formatPrediction($prediction, $isPremium)
@@ -1261,7 +1304,7 @@ class PredictionController extends Controller
             $matchDate = \Carbon\Carbon::parse($prediction->match_date);
             $now = \Carbon\Carbon::now();
             $diffHours = $matchDate->diffInHours($now, false);
-            
+
             if ($diffHours >= 0 && $diffHours <= 3) {
                 // Match dans les 3 dernières heures avec scores = probablement en direct
                 $matchStatus = 'live';
@@ -1287,13 +1330,13 @@ class PredictionController extends Controller
                 'home_team_id' => $prediction->home_team_id,
                 'away_team_id' => $prediction->away_team_id,
                 'home_team_logo' => $prediction->home_team_logo
-                    ?? ($prediction->home_team_id > 0 ? 'https://media.api-sports.io/football/teams/' . $prediction->home_team_id . '.png' : null),
+                    ?? ($prediction->home_team_id > 0 ? 'https://media.api-sports.io/football/teams/'.$prediction->home_team_id.'.png' : null),
                 'away_team_logo' => $prediction->away_team_logo
-                    ?? ($prediction->away_team_id > 0 ? 'https://media.api-sports.io/football/teams/' . $prediction->away_team_id . '.png' : null),
+                    ?? ($prediction->away_team_id > 0 ? 'https://media.api-sports.io/football/teams/'.$prediction->away_team_id.'.png' : null),
                 'competition' => $prediction->competition,
                 'competition_id' => $prediction->competition_id,
                 'competition_logo' => $prediction->competition_logo
-                    ?? ($prediction->competition_id > 0 ? 'https://media.api-sports.io/football/leagues/' . $prediction->competition_id . '.png' : null),
+                    ?? ($prediction->competition_id > 0 ? 'https://media.api-sports.io/football/leagues/'.$prediction->competition_id.'.png' : null),
                 'country' => $prediction->country,
                 'match_date' => $prediction->match_date,
                 'match_time' => $prediction->match_time,
@@ -1307,7 +1350,7 @@ class PredictionController extends Controller
             'prediction' => $isLocked ? null : $prediction->prediction,
             'odds_source' => $this->extractOddsSource($prediction->analysis_details),
             'odds' => $isLocked ? null : (function () use ($prediction) {
-                $odds   = (float) ($prediction->odds ?? 0);
+                $odds = (float) ($prediction->odds ?? 0);
                 $source = $this->extractOddsSource($prediction->analysis_details);
 
                 // Coupe du monde : vitrine — on affiche toute cote RÉELLE, même < 1.50
@@ -1317,7 +1360,10 @@ class PredictionController extends Controller
                 }
 
                 // C-03 : cote < 1.50 → pas de valeur pour l'utilisateur
-                if ($odds > 0 && $odds < 1.50) return null;
+                if ($odds > 0 && $odds < 1.50) {
+                    return null;
+                }
+
                 return $source === 'estimated' ? null : $odds;
             })(),
             'confidence_stars' => $prediction->confidence_stars,
@@ -1326,22 +1372,24 @@ class PredictionController extends Controller
             'is_premium' => $prediction->is_premium,
             'is_locked' => $isLocked,
             'published_at' => $prediction->published_at,
-            'value_score'     => $prediction->value_score,
-            'kelly_fraction'  => $prediction->kelly_fraction,
-            'ev_positive'     => (bool) $prediction->ev_positive,
-            'sure_bet_level'  => $prediction->sure_bet_level,
+            'value_score' => $prediction->value_score,
+            'kelly_fraction' => $prediction->kelly_fraction,
+            'ev_positive' => (bool) $prediction->ev_positive,
+            'sure_bet_level' => $prediction->sure_bet_level,
+            // Marchés switchables (cascade multi-marchés)
+            'markets' => $this->loadMarkets($prediction->id),
         ];
 
         // Ajouter les détails complets si non verrouillé
-        if (!$isLocked) {
+        if (! $isLocked) {
             $data['scores'] = [
-                'form'      => $prediction->score_form,
-                'h2h'       => $prediction->score_h2h,
+                'form' => $prediction->score_form,
+                'h2h' => $prediction->score_h2h,
                 'home_away' => $prediction->score_home_away,
-                'league'    => $prediction->score_league,
-                'goals'     => $prediction->score_goals,
-                'time'      => $prediction->score_time,
-                'total'     => $prediction->total_score,
+                'league' => $prediction->score_league,
+                'goals' => $prediction->score_goals,
+                'time' => $prediction->score_time,
+                'total' => $prediction->total_score,
             ];
 
             $details = $prediction->analysis_details
@@ -1357,13 +1405,13 @@ class PredictionController extends Controller
             // Exposer les données tierces directement au niveau racine pour le mobile
             $thirdParty = $details['third_party'] ?? null;
             $data['third_party'] = $thirdParty ? [
-                'prediction'   => $thirdParty['prediction']   ?? null,
+                'prediction' => $thirdParty['prediction'] ?? null,
                 'home_win_pct' => $thirdParty['home_win_pct'] ?? null,
-                'draw_pct'     => $thirdParty['draw_pct']     ?? null,
+                'draw_pct' => $thirdParty['draw_pct'] ?? null,
                 'away_win_pct' => $thirdParty['away_win_pct'] ?? null,
-                'btts'         => $thirdParty['btts']         ?? null,
-                'over25'       => $thirdParty['over25']       ?? null,
-                'agreement'    => $thirdParty['agreement']    ?? null,
+                'btts' => $thirdParty['btts'] ?? null,
+                'over25' => $thirdParty['over25'] ?? null,
+                'agreement' => $thirdParty['agreement'] ?? null,
             ] : null;
         }
 
@@ -1372,11 +1420,11 @@ class PredictionController extends Controller
 
     /**
      * Calculer les séries de victoires (current_streak et best_streak)
-     * 
+     *
      * current_streak : Nombre de victoires consécutives depuis la prédiction la plus récente
      * best_streak : La plus longue série de victoires consécutives dans tout l'historique
-     * 
-     * @param string|null $competition Filtre par compétition (optionnel)
+     *
+     * @param  string|null  $competition  Filtre par compétition (optionnel)
      * @return array ['current' => int, 'best' => int]
      */
     private function calculateStreaks($competition = null): array
@@ -1453,15 +1501,15 @@ class PredictionController extends Controller
 
         // Déterminer le statut du match
         $matchStatus = $prediction['status'] ?? 'NS'; // Utiliser le statut si disponible
-        if ($matchStatus === 'NS' || !isset($prediction['status'])) {
+        if ($matchStatus === 'NS' || ! isset($prediction['status'])) {
             // Si pas de statut, déterminer depuis les scores et la date
-            if (isset($prediction['home_score']) && isset($prediction['away_score']) 
+            if (isset($prediction['home_score']) && isset($prediction['away_score'])
                 && $prediction['home_score'] !== null && $prediction['away_score'] !== null) {
                 if (isset($prediction['match_date'])) {
                     $matchDate = \Carbon\Carbon::parse($prediction['match_date']);
                     $now = \Carbon\Carbon::now();
                     $diffHours = $matchDate->diffInHours($now, false);
-                    
+
                     if ($diffHours >= 0 && $diffHours <= 3) {
                         $matchStatus = 'live';
                     } elseif ($diffHours > 3) {
@@ -1509,7 +1557,7 @@ class PredictionController extends Controller
             'is_premium' => $prediction['is_premium'] ?? false,
             'is_locked' => $isLocked,
             'published_at' => $prediction['published_at'] ?? now()->format('Y-m-d H:i:s'),
-            'scores' => !$isLocked ? [
+            'scores' => ! $isLocked ? [
                 'form' => $prediction['score_form'] ?? 0,
                 'h2h' => $prediction['score_h2h'] ?? 0,
                 'home_away' => $prediction['score_home_away'] ?? 0,
@@ -1518,9 +1566,9 @@ class PredictionController extends Controller
                 'time' => $prediction['score_time'] ?? 0,
                 'total' => $prediction['total_score'] ?? 0,
             ] : null,
-            'analysis_details' => !$isLocked && isset($prediction['analysis_details']) 
-                ? (is_string($prediction['analysis_details']) 
-                    ? json_decode($prediction['analysis_details'], true) 
+            'analysis_details' => ! $isLocked && isset($prediction['analysis_details'])
+                ? (is_string($prediction['analysis_details'])
+                    ? json_decode($prediction['analysis_details'], true)
                     : $prediction['analysis_details'])
                 : null,
             // Données enrichies depuis API-Football
@@ -1547,9 +1595,9 @@ class PredictionController extends Controller
         $competition = $sportEvent['sport_event_context']['competition']['name'] ?? 'Unknown';
         $competitionId = $sportEvent['sport_event_context']['competition']['id'] ?? '';
         $country = $sportEvent['sport_event_context']['category']['name'] ?? 'Unknown';
-        
-        $matchDate = isset($sportEvent['start_time']) 
-            ? Carbon::parse($sportEvent['start_time']) 
+
+        $matchDate = isset($sportEvent['start_time'])
+            ? Carbon::parse($sportEvent['start_time'])
             : Carbon::now();
 
         // Extraire les scores si disponibles
@@ -1561,7 +1609,7 @@ class PredictionController extends Controller
             $eventStatus = $matchSummary['sport_event_status'];
             $homeScore = $eventStatus['home_score'] ?? null;
             $awayScore = $eventStatus['away_score'] ?? null;
-            
+
             if ($homeScore !== null && $awayScore !== null) {
                 $status = $eventStatus['status'] === 'closed' ? 'finished' : 'live';
             }
@@ -1574,7 +1622,7 @@ class PredictionController extends Controller
 
         // Utiliser les données de la base si disponibles, sinon créer depuis l'API
         $predictionData = [
-            'id' => $dbPrediction ? $dbPrediction->id : ('api_' . $sportEvent['id']),
+            'id' => $dbPrediction ? $dbPrediction->id : ('api_'.$sportEvent['id']),
             'match_id' => $sportEvent['id'] ?? '',
             'home_team' => $homeTeam['name'] ?? 'Home',
             'away_team' => $awayTeam['name'] ?? 'Away',
@@ -1595,7 +1643,7 @@ class PredictionController extends Controller
             'prediction' => $dbPrediction ? $dbPrediction->prediction : '1',
             'odds' => $dbPrediction ? $dbPrediction->odds : 1.85,
             'confidence_stars' => $dbPrediction ? $dbPrediction->confidence_stars : 2,
-            'is_premium' => $dbPrediction ? (bool)$dbPrediction->is_premium : false,
+            'is_premium' => $dbPrediction ? (bool) $dbPrediction->is_premium : false,
             'is_published' => true,
             'published_at' => $dbPrediction ? $dbPrediction->published_at : now()->format('Y-m-d H:i:s'),
             'score_form' => $dbPrediction ? $dbPrediction->score_form : 0,
@@ -1625,13 +1673,13 @@ class PredictionController extends Controller
         try {
             $oddsService = app(\App\Services\OddsApiService::class);
             $matchOdds = $oddsService->getMatchOdds('soccer', $sportEvent['id']);
-            
+
             if ($matchOdds && isset($matchOdds['data'])) {
                 $predictionData['bookmaker_odds'] = $matchOdds['data'];
             }
         } catch (\Exception $e) {
             // Si les odds ne sont pas disponibles, continuer sans
-            Log::debug("Odds non disponibles pour le match {$sportEvent['id']}: " . $e->getMessage());
+            Log::debug("Odds non disponibles pour le match {$sportEvent['id']}: ".$e->getMessage());
         }
 
         return $this->formatPredictionFromArray($predictionData, $isPremium);
@@ -1642,15 +1690,15 @@ class PredictionController extends Controller
      */
     private function buildPredictionFromApiFootball(array $fixture, $dbPrediction, bool $isPremium): array
     {
-        $info    = $fixture['fixture'] ?? [];
-        $teams   = $fixture['teams'] ?? [];
-        $goals   = $fixture['goals'] ?? [];
-        $league  = $fixture['league'] ?? [];
-        $status  = $info['status'] ?? [];
+        $info = $fixture['fixture'] ?? [];
+        $teams = $fixture['teams'] ?? [];
+        $goals = $fixture['goals'] ?? [];
+        $league = $fixture['league'] ?? [];
+        $status = $info['status'] ?? [];
 
-        $matchDate  = Carbon::parse($info['date'] ?? now());
-        $homeScore  = $goals['home'];
-        $awayScore  = $goals['away'];
+        $matchDate = Carbon::parse($info['date'] ?? now());
+        $homeScore = $goals['home'];
+        $awayScore = $goals['away'];
         $matchStatus = match ($status['short'] ?? 'NS') {
             'FT', 'AET', 'PEN' => 'finished',
             '1H', '2H', 'ET', 'HT' => 'live',
@@ -1658,39 +1706,39 @@ class PredictionController extends Controller
         };
 
         $predictionData = [
-            'id'               => $dbPrediction ? $dbPrediction->id : ('api_' . ($info['id'] ?? '')),
-            'match_id'         => (string) ($info['id'] ?? ''),
-            'home_team'        => $teams['home']['name'] ?? 'Home',
-            'away_team'        => $teams['away']['name'] ?? 'Away',
-            'home_team_id'     => $teams['home']['id'] ?? '',
-            'away_team_id'     => $teams['away']['id'] ?? '',
-            'home_team_logo'   => $teams['home']['logo'] ?? null,
-            'away_team_logo'   => $teams['away']['logo'] ?? null,
-            'competition'      => $league['name'] ?? 'Unknown',
-            'competition_id'   => (string) ($league['id'] ?? ''),
+            'id' => $dbPrediction ? $dbPrediction->id : ('api_'.($info['id'] ?? '')),
+            'match_id' => (string) ($info['id'] ?? ''),
+            'home_team' => $teams['home']['name'] ?? 'Home',
+            'away_team' => $teams['away']['name'] ?? 'Away',
+            'home_team_id' => $teams['home']['id'] ?? '',
+            'away_team_id' => $teams['away']['id'] ?? '',
+            'home_team_logo' => $teams['home']['logo'] ?? null,
+            'away_team_logo' => $teams['away']['logo'] ?? null,
+            'competition' => $league['name'] ?? 'Unknown',
+            'competition_id' => (string) ($league['id'] ?? ''),
             'competition_logo' => $league['logo'] ?? null,
-            'country'          => $league['country'] ?? 'Unknown',
-            'match_date'       => $matchDate->format('Y-m-d H:i:s'),
-            'match_time'       => $matchDate->format('H:i'),
-            'home_score'       => $homeScore,
-            'away_score'       => $awayScore,
-            'status'           => $matchStatus,
-            'bet_type'         => $dbPrediction ? $dbPrediction->bet_type : '1X2',
-            'prediction'       => $dbPrediction ? $dbPrediction->prediction : '1',
-            'odds'             => $dbPrediction ? $dbPrediction->odds : 1.85,
+            'country' => $league['country'] ?? 'Unknown',
+            'match_date' => $matchDate->format('Y-m-d H:i:s'),
+            'match_time' => $matchDate->format('H:i'),
+            'home_score' => $homeScore,
+            'away_score' => $awayScore,
+            'status' => $matchStatus,
+            'bet_type' => $dbPrediction ? $dbPrediction->bet_type : '1X2',
+            'prediction' => $dbPrediction ? $dbPrediction->prediction : '1',
+            'odds' => $dbPrediction ? $dbPrediction->odds : 1.85,
             'confidence_stars' => $dbPrediction ? $dbPrediction->confidence_stars : 2,
-            'is_premium'       => $dbPrediction ? (bool) $dbPrediction->is_premium : false,
-            'is_published'     => true,
-            'published_at'     => $dbPrediction ? $dbPrediction->published_at : now()->format('Y-m-d H:i:s'),
-            'score_form'       => $dbPrediction ? $dbPrediction->score_form : 0,
-            'score_h2h'        => $dbPrediction ? $dbPrediction->score_h2h : 0,
-            'score_home_away'  => $dbPrediction ? $dbPrediction->score_home_away : 0,
-            'score_league'     => $dbPrediction ? $dbPrediction->score_league : 0,
-            'score_goals'      => $dbPrediction ? $dbPrediction->score_goals : 0,
-            'score_time'       => $dbPrediction ? $dbPrediction->score_time : 0,
-            'total_score'      => $dbPrediction ? $dbPrediction->total_score : 50,
+            'is_premium' => $dbPrediction ? (bool) $dbPrediction->is_premium : false,
+            'is_published' => true,
+            'published_at' => $dbPrediction ? $dbPrediction->published_at : now()->format('Y-m-d H:i:s'),
+            'score_form' => $dbPrediction ? $dbPrediction->score_form : 0,
+            'score_h2h' => $dbPrediction ? $dbPrediction->score_h2h : 0,
+            'score_home_away' => $dbPrediction ? $dbPrediction->score_home_away : 0,
+            'score_league' => $dbPrediction ? $dbPrediction->score_league : 0,
+            'score_goals' => $dbPrediction ? $dbPrediction->score_goals : 0,
+            'score_time' => $dbPrediction ? $dbPrediction->score_time : 0,
+            'total_score' => $dbPrediction ? $dbPrediction->total_score : 50,
             'analysis_details' => $dbPrediction ? $dbPrediction->analysis_details : null,
-            'venue'            => $info['venue']['name'] ?? null,
+            'venue' => $info['venue']['name'] ?? null,
         ];
 
         return $this->formatPredictionFromArray($predictionData, $isPremium);
@@ -1742,12 +1790,12 @@ class PredictionController extends Controller
     {
         $request->validate([
             'target_odds' => 'required|numeric|min:1.5|max:50',
-            'max_picks'   => 'integer|min:2|max:8',
+            'max_picks' => 'integer|min:2|max:8',
         ]);
 
         $targetOdds = (float) $request->input('target_odds');
-        $maxPicks   = (int)   $request->input('max_picks', 5);
-        $date       = Carbon::today()->toDateString();
+        $maxPicks = (int) $request->input('max_picks', 5);
+        $date = Carbon::today()->toDateString();
 
         // Récupérer toutes les prédictions publiées du jour
         $rows = DB::table('predictions')
@@ -1766,41 +1814,43 @@ class PredictionController extends Controller
 
         // Algorithme glouton : on cherche la combinaison qui atteint target_odds
         // avec le maximum de confiance, sans dépasser maxPicks
-        $best      = null;
+        $best = null;
         $bestDelta = PHP_FLOAT_MAX;
-        $pool      = $rows->shuffle()->take(30); // limiter la recherche
+        $pool = $rows->shuffle()->take(30); // limiter la recherche
 
         // Essais avec 2 à maxPicks picks
         for ($n = 2; $n <= min($maxPicks, $pool->count()); $n++) {
-            $picks     = $pool->take($n);
-            $totalOdds = $picks->reduce(fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
-            $delta     = abs($totalOdds - $targetOdds);
+            $picks = $pool->take($n);
+            $totalOdds = $picks->reduce(fn ($c, $p) => $c * (float) ($p->odds ?? 1.0), 1.0);
+            $delta = abs($totalOdds - $targetOdds);
 
             if ($delta < $bestDelta) {
                 $bestDelta = $delta;
-                $best      = $picks;
+                $best = $picks;
             }
-            if ($delta < 0.5) break; // assez proche, stop
+            if ($delta < 0.5) {
+                break;
+            } // assez proche, stop
         }
 
-        if (!$best || $best->isEmpty()) {
+        if (! $best || $best->isEmpty()) {
             $best = $pool->take($maxPicks);
         }
 
-        $selected      = $best->all();
-        $totalOdds     = array_reduce($selected, fn($c, $p) => $c * (float)($p->odds ?? 1.0), 1.0);
-        $avgConfidence = array_sum(array_map(fn($p) => (float)$p->total_score, $selected)) / count($selected);
+        $selected = $best->all();
+        $totalOdds = array_reduce($selected, fn ($c, $p) => $c * (float) ($p->odds ?? 1.0), 1.0);
+        $avgConfidence = array_sum(array_map(fn ($p) => (float) $p->total_score, $selected)) / count($selected);
 
-        $picks = array_map(fn($p) => [
-            'match'          => $p->home_team . ' vs ' . $p->away_team,
-            'league'         => $p->competition ?? null,
-            'date'           => $p->match_date,
-            'time'           => $p->match_time ?? null,
-            'prediction'     => $p->prediction,
-            'type'           => $p->bet_type,
-            'odds'           => round((float)($p->odds ?? 1.0), 2),
-            'confidence'     => round((float)$p->total_score, 1),
-            'stars'          => $p->confidence_stars,
+        $picks = array_map(fn ($p) => [
+            'match' => $p->home_team.' vs '.$p->away_team,
+            'league' => $p->competition ?? null,
+            'date' => $p->match_date,
+            'time' => $p->match_time ?? null,
+            'prediction' => $p->prediction,
+            'type' => $p->bet_type,
+            'odds' => round((float) ($p->odds ?? 1.0), 2),
+            'confidence' => round((float) $p->total_score, 1),
+            'stars' => $p->confidence_stars,
             'home_team_logo' => $p->home_team_logo ?? null,
             'away_team_logo' => $p->away_team_logo ?? null,
         ], $selected);
@@ -1809,16 +1859,16 @@ class PredictionController extends Controller
         $analysis = $this->analyzeCouponWithClaude($picks, $totalOdds, $avgConfidence);
 
         return response()->json([
-            'success'             => true,
-            'mode'                => 'custom',
-            'target_odds'         => $targetOdds,
-            'picks'               => $picks,
-            'matches_count'       => count($picks),
-            'total_odds'          => round($totalOdds, 2),
-            'avg_confidence'      => round($avgConfidence, 1),
+            'success' => true,
+            'mode' => 'custom',
+            'target_odds' => $targetOdds,
+            'picks' => $picks,
+            'matches_count' => count($picks),
+            'total_odds' => round($totalOdds, 2),
+            'avg_confidence' => round($avgConfidence, 1),
             'potential_gain_1000' => (int) round($totalOdds * 1000),
-            'analysis'            => $analysis,
-            'generated_at'        => Carbon::now()->toIso8601String(),
+            'analysis' => $analysis,
+            'generated_at' => Carbon::now()->toIso8601String(),
         ]);
     }
 
@@ -1831,35 +1881,44 @@ class PredictionController extends Controller
     public function couponAnalyze(Request $request)
     {
         $request->validate([
-            'picks'             => 'required|array|min:1|max:20',
-            'picks.*.match'     => 'required|string|max:100',
-            'picks.*.prediction'=> 'required|string|max:50',
-            'picks.*.odds'      => 'required|numeric|min:1.01|max:1000',
+            'picks' => 'required|array|min:1|max:20',
+            'picks.*.match' => 'required|string|max:100',
+            'picks.*.prediction' => 'required|string|max:50',
+            'picks.*.odds' => 'required|numeric|min:1.01|max:1000',
         ]);
 
-        $picks     = $request->input('picks');
-        $totalOdds = array_reduce($picks, fn($c, $p) => $c * (float)$p['odds'], 1.0);
+        $picks = $request->input('picks');
+        $totalOdds = array_reduce($picks, fn ($c, $p) => $c * (float) $p['odds'], 1.0);
 
         // Calcul confiance moyen estimé (heuristique sur les cotes)
         $avgConfidence = array_sum(array_map(function ($p) {
-            $odds = (float)$p['odds'];
+            $odds = (float) $p['odds'];
             // Cote < 1.5 → forte confiance implicite du marché
-            if ($odds < 1.3)  return 85.0;
-            if ($odds < 1.5)  return 75.0;
-            if ($odds < 2.0)  return 62.0;
-            if ($odds < 3.0)  return 50.0;
+            if ($odds < 1.3) {
+                return 85.0;
+            }
+            if ($odds < 1.5) {
+                return 75.0;
+            }
+            if ($odds < 2.0) {
+                return 62.0;
+            }
+            if ($odds < 3.0) {
+                return 50.0;
+            }
+
             return 35.0;
         }, $picks)) / count($picks);
 
         $analysis = $this->analyzeCouponWithClaude($picks, $totalOdds, $avgConfidence);
 
         return response()->json([
-            'success'             => true,
-            'picks_count'         => count($picks),
-            'total_odds'          => round($totalOdds, 2),
-            'avg_confidence'      => round($avgConfidence, 1),
+            'success' => true,
+            'picks_count' => count($picks),
+            'total_odds' => round($totalOdds, 2),
+            'avg_confidence' => round($avgConfidence, 1),
             'potential_gain_1000' => (int) round($totalOdds * 1000),
-            'analysis'            => $analysis,
+            'analysis' => $analysis,
         ]);
     }
 
@@ -1884,11 +1943,11 @@ class PredictionController extends Controller
         }
 
         // Lire et encoder l'image en base64
-        $file     = $request->file('image');
-        $mime     = $file->getMimeType();
-        $b64      = base64_encode(file_get_contents($file->getRealPath()));
+        $file = $request->file('image');
+        $mime = $file->getMimeType();
+        $b64 = base64_encode(file_get_contents($file->getRealPath()));
 
-        $prompt = <<<PROMPT
+        $prompt = <<<'PROMPT'
 Tu es un expert en paris sportifs. Analyse cette image d'un ticket de pari sportif.
 
 Extrait toutes les informations visibles et retourne UNIQUEMENT un JSON valide :
@@ -1927,21 +1986,21 @@ PROMPT;
 
         try {
             $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'x-api-key'         => $key,
+                'x-api-key' => $key,
                 'anthropic-version' => '2023-06-01',
-                'content-type'      => 'application/json',
+                'content-type' => 'application/json',
             ])->timeout(45)->post('https://api.anthropic.com/v1/messages', [
-                'model'      => 'claude-haiku-4-5-20251001',
+                'model' => 'claude-haiku-4-5-20251001',
                 'max_tokens' => 1200,
-                'messages'   => [[
-                    'role'    => 'user',
+                'messages' => [[
+                    'role' => 'user',
                     'content' => [
                         [
-                            'type'   => 'image',
+                            'type' => 'image',
                             'source' => [
-                                'type'       => 'base64',
+                                'type' => 'base64',
                                 'media_type' => $mime,
-                                'data'       => $b64,
+                                'data' => $b64,
                             ],
                         ],
                         ['type' => 'text', 'text' => $prompt],
@@ -1952,7 +2011,7 @@ PROMPT;
             $content = $response->json('content.0.text', '{}');
             $content = trim($content);
 
-            if (!str_starts_with($content, '{')) {
+            if (! str_starts_with($content, '{')) {
                 preg_match('/\{.*\}/s', $content, $m);
                 $content = $m[0] ?? '{}';
             }
@@ -1960,13 +2019,14 @@ PROMPT;
             $data = json_decode($content, true) ?? [];
 
             return response()->json([
-                'success'  => true,
-                'source'   => 'image_ocr',
-                'data'     => $data,
+                'success' => true,
+                'source' => 'image_ocr',
+                'data' => $data,
             ]);
 
         } catch (\Throwable $e) {
-            Log::error('[couponAnalyzeImage] ' . $e->getMessage());
+            Log::error('[couponAnalyzeImage] '.$e->getMessage());
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors de l\'analyse de l\'image.',
@@ -2015,27 +2075,27 @@ PROMPT;
 
         try {
             $response = \Illuminate\Support\Facades\Http::withHeaders([
-                'x-api-key'         => $key,
+                'x-api-key' => $key,
                 'anthropic-version' => '2023-06-01',
-                'content-type'      => 'application/json',
+                'content-type' => 'application/json',
             ])->timeout(20)->post('https://api.anthropic.com/v1/messages', [
-                'model'      => 'claude-haiku-4-5-20251001',
+                'model' => 'claude-haiku-4-5-20251001',
                 'max_tokens' => 400,
-                'messages'   => [['role' => 'user', 'content' => $prompt]],
+                'messages' => [['role' => 'user', 'content' => $prompt]],
             ]);
 
             $content = trim($response->json('content.0.text', '{}'));
-            if (!str_starts_with($content, '{')) {
+            if (! str_starts_with($content, '{')) {
                 preg_match('/\{.*\}/s', $content, $m);
                 $content = $m[0] ?? '{}';
             }
 
             $data = json_decode($content, true);
-            if (is_array($data) && !empty($data)) {
+            if (is_array($data) && ! empty($data)) {
                 return $data;
             }
         } catch (\Throwable $e) {
-            Log::warning('[analyzeCoupon] Claude error: ' . $e->getMessage());
+            Log::warning('[analyzeCoupon] Claude error: '.$e->getMessage());
         }
 
         return $this->fallbackAnalysis($picks, $totalOdds, $avgConfidence);
@@ -2049,7 +2109,7 @@ PROMPT;
     public function generateForDate(Request $request): \Illuminate\Http\JsonResponse
     {
         $user = $request->user();
-        if (!$user || !$user->is_premium) {
+        if (! $user || ! $user->is_premium) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cette fonctionnalité est réservée aux membres Premium.',
@@ -2077,65 +2137,66 @@ PROMPT;
             $existing = \App\Models\Prediction::whereDate('match_date', $dateStr)->get();
             if ($existing->isNotEmpty()) {
                 return response()->json([
-                    'success'       => true,
-                    'from_cache'    => true,
-                    'date'          => $dateStr,
-                    'generated'     => $existing->count(),
-                    'predictions'   => $existing->map(fn($p) => $this->formatPrediction($p, true)),
+                    'success' => true,
+                    'from_cache' => true,
+                    'date' => $dateStr,
+                    'generated' => $existing->count(),
+                    'predictions' => $existing->map(fn ($p) => $this->formatPrediction($p, true)),
                 ]);
             }
         }
 
-        Log::info("Premium generate triggered", ['user' => $user->id, 'date' => $dateStr]);
+        Log::info('Premium generate triggered', ['user' => $user->id, 'date' => $dateStr]);
 
         // Récupérer les matchs via API-Football pour cette date
         $fixtures = $this->footballApi->getMatchesByDate($dateStr);
 
         if (empty($fixtures)) {
             return response()->json([
-                'success'   => false,
-                'message'   => 'Aucun match trouvé pour cette date via API-Football.',
-                'date'      => $dateStr,
+                'success' => false,
+                'message' => 'Aucun match trouvé pour cette date via API-Football.',
+                'date' => $dateStr,
                 'generated' => 0,
             ]);
         }
 
         $generated = 0;
-        $skipped   = 0;
+        $skipped = 0;
 
         foreach ($fixtures as $fixture) {
             try {
                 $prediction = $this->algorithm->generatePrediction($fixture);
-                if (!$prediction['should_publish']) {
+                if (! $prediction['should_publish']) {
                     $skipped++;
+
                     continue;
                 }
 
                 $fixtureInfo = $fixture['fixture'] ?? [];
-                $teams       = $fixture['teams']   ?? [];
-                $league      = $fixture['league']  ?? [];
-                $matchDate   = Carbon::parse($fixtureInfo['date'] ?? $dateStr);
+                $teams = $fixture['teams'] ?? [];
+                $league = $fixture['league'] ?? [];
+                $matchDate = Carbon::parse($fixtureInfo['date'] ?? $dateStr);
 
                 \App\Models\Prediction::updateOrCreate(
                     ['fixture_id' => $fixtureInfo['id'] ?? null],
                     [
-                        'home_team'        => $teams['home']['name'] ?? 'Unknown',
-                        'away_team'        => $teams['away']['name'] ?? 'Unknown',
-                        'league'           => $league['name']        ?? 'Unknown',
-                        'country'          => $league['country']     ?? 'Unknown',
-                        'match_date'       => $matchDate,
-                        'prediction'       => $prediction['outcome'],
-                        'bet_type'         => $prediction['type'],
-                        'odds'             => $prediction['odds'],
+                        'home_team' => $teams['home']['name'] ?? 'Unknown',
+                        'away_team' => $teams['away']['name'] ?? 'Unknown',
+                        'league' => $league['name'] ?? 'Unknown',
+                        'country' => $league['country'] ?? 'Unknown',
+                        'match_date' => $matchDate,
+                        'prediction' => $prediction['outcome'],
+                        'bet_type' => $prediction['type'],
+                        'odds' => $prediction['odds'],
                         'confidence_score' => $prediction['confidence'],
-                        'stars'            => $prediction['stars'],
-                        'is_premium'       => $prediction['is_premium'],
-                        'status'           => 'pending',
+                        'stars' => $prediction['stars'],
+                        'is_premium' => $prediction['is_premium'],
+                        'status' => 'pending',
                     ]
                 );
                 $generated++;
             } catch (\Exception $e) {
-                Log::warning("generateForDate: erreur fixture", ['error' => $e->getMessage()]);
+                Log::warning('generateForDate: erreur fixture', ['error' => $e->getMessage()]);
                 $skipped++;
             }
         }
@@ -2147,40 +2208,40 @@ PROMPT;
             ->get();
 
         return response()->json([
-            'success'     => true,
-            'from_cache'  => false,
-            'date'        => $dateStr,
-            'analyzed'    => count($fixtures),
-            'generated'   => $generated,
-            'skipped'     => $skipped,
-            'predictions' => $savedPredictions->map(fn($p) => $this->formatPrediction($p, true)),
+            'success' => true,
+            'from_cache' => false,
+            'date' => $dateStr,
+            'analyzed' => count($fixtures),
+            'generated' => $generated,
+            'skipped' => $skipped,
+            'predictions' => $savedPredictions->map(fn ($p) => $this->formatPrediction($p, true)),
         ]);
     }
 
     private function fallbackAnalysis(array $picks, float $totalOdds, float $avgConfidence): array
     {
-        $pct = match(true) {
-            $avgConfidence >= 75 && $totalOdds <= 5  => 65,
-            $avgConfidence >= 65 && $totalOdds <= 8  => 52,
+        $pct = match (true) {
+            $avgConfidence >= 75 && $totalOdds <= 5 => 65,
+            $avgConfidence >= 65 && $totalOdds <= 8 => 52,
             $avgConfidence >= 55 && $totalOdds <= 15 => 40,
-            default                                   => 28,
+            default => 28,
         };
 
-        $verdict = match(true) {
+        $verdict = match (true) {
             $pct >= 70 => 'EXCELLENT',
             $pct >= 55 => 'BON',
             $pct >= 40 => 'RISQUÉ',
-            default    => 'TRÈS RISQUÉ',
+            default => 'TRÈS RISQUÉ',
         };
 
         return [
-            'verdict'          => $verdict,
-            'percentage_win'   => $pct,
+            'verdict' => $verdict,
+            'percentage_win' => $pct,
             'confidence_label' => $pct >= 55 ? 'Confiance satisfaisante' : 'Confiance faible',
-            'strengths'        => $avgConfidence >= 65 ? ['Picks à confiance élevée'] : [],
-            'weaknesses'       => $totalOdds > 10 ? ['Cote totale très élevée'] : [],
-            'advice'           => $pct >= 55 ? 'Coupon intéressant, mise raisonnable conseillée.' : 'Cote trop élevée, préférer un coupon plus prudent.',
-            'risk_level'       => $totalOdds > 15 ? 'TRÈS ÉLEVÉ' : ($totalOdds > 8 ? 'ÉLEVÉ' : 'MODÉRÉ'),
+            'strengths' => $avgConfidence >= 65 ? ['Picks à confiance élevée'] : [],
+            'weaknesses' => $totalOdds > 10 ? ['Cote totale très élevée'] : [],
+            'advice' => $pct >= 55 ? 'Coupon intéressant, mise raisonnable conseillée.' : 'Cote trop élevée, préférer un coupon plus prudent.',
+            'risk_level' => $totalOdds > 15 ? 'TRÈS ÉLEVÉ' : ($totalOdds > 8 ? 'ÉLEVÉ' : 'MODÉRÉ'),
         ];
     }
 }
