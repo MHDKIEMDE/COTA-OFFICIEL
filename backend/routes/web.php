@@ -194,6 +194,11 @@ Route::prefix('admin')->name('admin.')->middleware(['super_admin'])->group(funct
     Route::get('/news-sources/{newsSource}/articles', [App\Http\Controllers\Admin\NewsSourceController::class, 'articles'])->name('news-sources.articles');
     Route::post('/news-sources/articles/{article}/toggle', [App\Http\Controllers\Admin\NewsSourceController::class, 'toggleArticle'])->name('news-sources.toggle-article');
 
+    // Onglets de coupon — libellés éditables (apparaissent dynamiquement côté mobile)
+    Route::get('/coupon-tabs', [App\Http\Controllers\Admin\CouponTabController::class, 'index'])->name('coupon-tabs.index');
+    Route::put('/coupon-tabs/{couponTab}', [App\Http\Controllers\Admin\CouponTabController::class, 'update'])->name('coupon-tabs.update');
+    Route::post('/coupon-tabs/{couponTab}/toggle', [App\Http\Controllers\Admin\CouponTabController::class, 'toggle'])->name('coupon-tabs.toggle');
+
     // Coupon IA
     Route::get('/coupon', [App\Http\Controllers\Admin\CouponController::class, 'index'])->name('coupon.index');
     Route::post('/coupon/{id}/publish', [App\Http\Controllers\Admin\CouponController::class, 'publish'])->name('coupon.publish');

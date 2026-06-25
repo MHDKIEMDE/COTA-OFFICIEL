@@ -251,9 +251,15 @@
                 </a>
 
                 <a href="{{ route('admin.coupon.index') }}"
-                   class="sidebar-link {{ request()->routeIs('admin.coupon*') ? 'active' : '' }}">
+                   class="sidebar-link {{ request()->routeIs('admin.coupon.*') ? 'active' : '' }}">
                     <i class="fa-solid fa-ticket w-4 text-center"></i>
                     <span>Coupon IA</span>
+                </a>
+
+                <a href="{{ route('admin.coupon-tabs.index') }}"
+                   class="sidebar-link {{ request()->routeIs('admin.coupon-tabs.*') ? 'active' : '' }}">
+                    <i class="fa-solid fa-table-columns w-4 text-center"></i>
+                    <span>Onglets Coupon</span>
                 </a>
 
                 <a href="{{ route('admin.news-sources.index') }}"
