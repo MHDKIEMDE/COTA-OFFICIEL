@@ -21,10 +21,12 @@ return [
 
     'allowed_origins' => array_filter(explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000'))),
 
-    'allowed_origins_patterns' => [
+    'allowed_origins_patterns' => array_filter([
         // App mobile Flutter (schéma custom)
         '#^app://cotafoot\.com$#',
-    ],
+        // Dev local : Flutter web utilise un port aléatoire (localhost:xxxxx)
+        env('APP_ENV') === 'local' ? '#^https?://(localhost|127\.0\.0\.1)(:\d+)?$#' : null,
+    ]),
 
     'allowed_headers' => [
         'Content-Type',

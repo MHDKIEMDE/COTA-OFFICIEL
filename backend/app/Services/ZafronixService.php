@@ -89,6 +89,30 @@ class ZafronixService
     }
 
     /**
+     * Index des scores finaux des matchs terminés, clé "home|away" (lowercase).
+     * Sert à résoudre les prédictions Mondial (win/lost) dont API-Football
+     * n'a pas le score. Cache 10min.
+     *
+     * @return array<string, array{home:int, away:int}>
+     */
+    public function getFinalScores(int $year = 2026): array
+    {
+        $index = [];
+        foreach ($this->getMatches($year) as $m) {
+            if (($m['status'] ?? '') !== 'finished'
+                || $m['home_score'] === null || $m['away_score'] === null) {
+                continue;
+            }
+            $key = strtolower(trim($m['home_team']) . '|' . trim($m['away_team']));
+            $index[$key] = [
+                'home' => (int) $m['home_score'],
+                'away' => (int) $m['away_score'],
+            ];
+        }
+        return $index;
+    }
+
+    /**
      * Détail complet d'un match via /matches/{matchId} : heure, buteurs,
      * compositions, formations, cartons, remplacements, statistiques.
      * Cache 60s (un match en cours évolue). Retourne null si introuvable.
