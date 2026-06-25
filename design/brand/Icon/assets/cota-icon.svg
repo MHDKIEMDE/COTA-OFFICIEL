@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>COTA app icon</title>
+  <defs>
+    
+  </defs>
+  
+  <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+  
+  <rect x="69" y="69" width="886" height="886" rx="102" fill="none" stroke="#e8ff36" stroke-width="26"></rect>
+  
+  <text class="cota-c" x="512" y="696" text-anchor="middle" font-size="594" fill="#f4efe2" letter-spacing="-20">C</text>
+  
+  <rect x="307" y="809" width="348" height="36" fill="#e8ff36"></rect>
+  <rect x="655" y="809" width="41" height="36" fill="#e8ff36"></rect>
+</svg>

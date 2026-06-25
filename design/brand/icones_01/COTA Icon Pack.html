@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>COTA — Pack icône</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@800;900&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #0b0d10;
+    --bg-2: #15181d;
+    --line: #1d2026;
+    --ink: #f4efe2;
+    --ink-dim: #8b8a85;
+    --accent: #e8ff36;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: "Space Grotesk", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .container { max-width: 1280px; margin: 0 auto; padding: 80px 56px 160px; }
+
+  /* Type system */
+  .mono { font-family: "JetBrains Mono", monospace; letter-spacing: 0.08em; }
+  .label { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; }
+  .h1 { font-family: "Archivo Black", sans-serif; font-size: 64px; letter-spacing: -0.04em; margin: 12px 0 0; line-height: 1; }
+  .h2 { font-family: "Archivo Black", sans-serif; font-size: 36px; letter-spacing: -0.03em; margin: 0; line-height: 1; }
+  .lead { font-size: 17px; color: var(--ink-dim); max-width: 640px; line-height: 1.5; margin-top: 16px; }
+
+  .section { margin-top: 96px; }
+  .section-head { display: flex; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 20px; margin-bottom: 40px; }
+  .section-head .right { font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--ink-dim); letter-spacing: 0.1em; }
+
+  /* Hero */
+  .hero { display: grid; grid-template-columns: auto 1fr; gap: 64px; align-items: center; padding-bottom: 56px; border-bottom: 1px solid var(--line); }
+  .hero-icon { width: 288px; height: 288px; }
+
+  /* Grid utilities */
+  .grid { display: grid; gap: 28px; }
+
+  /* Size card */
+  .size-card { background: var(--bg-2); border-radius: 14px; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; position: relative; transition: background 0.15s ease; }
+  .size-card:hover { background: #1a1e25; }
+  .size-card .icon-slot { display: flex; align-items: center; justify-content: center; }
+  .size-card .meta { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .size-card .size-label { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink); letter-spacing: 0.08em; }
+  .size-card .size-caption { font-size: 11px; color: var(--ink-dim); }
+  .size-card .dl { font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.12em; color: var(--ink-dim); cursor: pointer; background: none; border: 1px solid var(--line); padding: 6px 10px; border-radius: 6px; transition: all 0.15s; }
+  .size-card .dl:hover { color: var(--accent); border-color: var(--accent); }
+  .size-card .dl:active { transform: translateY(1px); }
+
+  /* Springboard */
+  .springboard {
+    width: 380px; height: 620px; border-radius: 44px; overflow: hidden;
+    background: linear-gradient(160deg,#1e293b 0%, #475569 40%, #94a3b8 80%, #cbd5e1 100%);
+    padding: 60px 18px 18px;
+    position: relative;
+    font-family: -apple-system, system-ui, sans-serif;
+  }
+  .springboard .statusbar { position: absolute; top: 20px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 32px; color: #fff; font-size: 15px; font-weight: 600; }
+  .springboard .grid-apps { display: grid; grid-template-columns: repeat(4, 1fr); row-gap: 22px; column-gap: 10px; justify-items: center; }
+  .springboard .app { width: 64px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .springboard .app .ico { width: 64px; height: 64px; border-radius: 15px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .springboard .app .nm { font-size: 11px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+  .springboard .dock { position: absolute; bottom: 16px; left: 14px; right: 14px; height: 84px; border-radius: 28px; background: rgba(255,255,255,0.18); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); display: flex; align-items: center; justify-content: space-around; padding: 0 14px; }
+  .springboard .dock .ico { width: 60px; height: 60px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 26px; }
+  .springboard .home-bar { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 140px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.7); }
+
+  /* Light test */
+  .light-card { background: #f4efe2; border-radius: 14px; padding: 32px; }
+  .light-card .icon-slot { display: flex; justify-content: center; }
+
+  /* Tokens row */
+  .tokens { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .swatch { background: var(--bg-2); border-radius: 12px; overflow: hidden; }
+  .swatch .color { height: 100px; }
+  .swatch .info { padding: 12px 14px; }
+  .swatch .name { font-size: 13px; font-weight: 600; }
+  .swatch .hex { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+
+  /* Footer note */
+  .note { background: var(--bg-2); border-left: 2px solid var(--accent); padding: 20px 24px; border-radius: 0 12px 12px 0; }
+  .note .title { font-family: "JetBrains Mono", monospace; font-size: 10px; letter-spacing: 0.18em; color: var(--accent); margin-bottom: 8px; }
+  .note p { margin: 0; font-size: 14px; color: var(--ink-dim); line-height: 1.5; }
+  .note code { font-family: "JetBrains Mono", monospace; color: var(--ink); background: rgba(232,255,54,0.08); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+
+  /* Design todo */
+  .todo-panel { margin-top: 40px; background: #101318; border: 1px solid #262b33; padding: 28px; display: grid; grid-template-columns: 1fr 180px; gap: 28px; }
+  .todo-panel.is-hidden { display: none; }
+  .todo-title { font-family: "Archivo Black", sans-serif; font-size: 30px; letter-spacing: -0.035em; line-height: 1; margin: 8px 0 10px; }
+  .todo-copy { color: #a8a79f; max-width: 600px; line-height: 1.45; margin: 0 0 22px; font-size: 15px; }
+  .todo-list { display: flex; flex-direction: column; gap: 10px; }
+  .todo-item { display: grid; grid-template-columns: 28px 1fr; gap: 12px; align-items: center; width: 100%; border: 1px solid #2a2e36; background: var(--bg-2); color: #c7c4b8; padding: 12px 14px; border-radius: 8px; cursor: pointer; text-align: left; font: 500 14px/1.25 "Space Grotesk", system-ui, sans-serif; transition: background .18s ease, border-color .18s ease, transform .18s ease; }
+  .todo-item:hover { transform: translateY(-1px); border-color: rgba(232,255,54,0.45); }
+  .todo-item.is-done { background: rgba(232,255,54,0.08); border-color: rgba(232,255,54,0.45); color: var(--ink); }
+  .todo-box { width: 22px; height: 22px; border-radius: 6px; border: 1px solid #3b414c; display: flex; align-items: center; justify-content: center; color: var(--bg); font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 800; }
+  .todo-item.is-done .todo-box { background: var(--accent); border-color: var(--accent); }
+  .todo-item.is-done .todo-text { text-decoration: line-through; text-decoration-color: var(--accent); }
+  .todo-side { border-left: 1px solid #262b33; padding-left: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+  .todo-progress-label { margin-top: 16px; font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--ink-dim); letter-spacing: .12em; }
+  .todo-progress { height: 8px; background: #242934; margin-top: 10px; overflow: hidden; }
+  .todo-progress span { display: block; height: 100%; background: var(--accent); width: 0%; transition: width .25s ease; }
+  .todo-status { color: var(--ink-dim); font-size: 13px; line-height: 1.4; }
+  .todo-status.is-done { color: var(--accent); }
+
+  .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+  .btn { font-family: "JetBrains Mono", monospace; font-size: 11px; letter-spacing: 0.12em; padding: 12px 18px; border-radius: 8px; cursor: pointer; border: 1px solid var(--line); background: transparent; color: var(--ink); transition: all 0.15s; }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn.primary:hover { background: #f3ff66; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ────────── HERO ────────── -->
+  <header class="hero">
+    <div class="hero-icon">
+      <!-- COTA app icon — SIGNAL FRAME — master, 1024×1024 viewBox -->
+      <svg viewBox="0 0 1024 1024" width="100%" height="100%">
+        <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+        <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"></rect>
+        <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"></rect>
+        <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+        <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+        <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"></rect>
+        <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", "Archivo", sans-serif' font-weight="900" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+        <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"></rect>
+        <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"></rect>
+      </svg>
+    </div>
+    <div>
+      <div class="label">COTA · App icon</div>
+      <h1 class="h1">Le C, le signal,<br>la confiance.</h1>
+      <p class="lead">L'icône de l'app COTA garde le C massif et le jaune rare de la marque, puis ajoute trois ticks IA et une barre terminale. Elle reste lisible de 16 à 1024 pixels, sans ballon ni cliché bookmaker.</p>
+      <div class="actions">
+        <button class="btn primary" data-dl-all>↓ Tout télécharger (PNG)</button>
+        <a class="btn" href="assets/cota-icon.svg" download>↓ SVG master</a>
+        <a class="btn" href="assets/cota-icon-mono.svg" download>↓ SVG monochrome</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ────────── TODO DESIGN ────────── -->
+  <section class="todo-panel" data-design-todo>
+    <div>
+      <div class="label">Todo design · auto-suppression</div>
+      <div class="todo-title">Icône 01, propre jusqu'au dernier pixel.</div>
+      <p class="todo-copy">Coche les points au fil de la validation. Quand toute la liste est terminée, ce bloc se masque automatiquement et reste masqué au prochain chargement.</p>
+      <div class="todo-list" data-todo-list></div>
+    </div>
+    <div class="todo-side">
+      <svg viewBox="0 0 1024 1024" width="150" height="150" aria-hidden="true">
+        <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+        <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"></rect>
+        <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"></rect>
+        <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+        <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+        <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"></rect>
+        <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", "Archivo", sans-serif' font-weight="900" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+        <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"></rect>
+        <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"></rect>
+      </svg>
+      <div>
+        <div class="todo-progress-label" data-progress-label>0/5 VALIDÉ</div>
+        <div class="todo-progress"><span data-progress-bar></span></div>
+      </div>
+      <div class="todo-status" data-todo-status>La Todo reste visible tant qu'un point n'est pas terminé.</div>
+    </div>
+  </section>
+
+  <!-- ────────── iOS ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">01 — iOS</div>
+        <h2 class="h2">iOS App Icon</h2>
+      </div>
+      <div class="right">App Store · @1x / @2x / @3x</div>
+    </div>
+    <div class="grid" id="ios-grid" style="grid-template-columns: repeat(4, 1fr);"></div>
+  </section>
+
+  <!-- ────────── Android ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">02 — Android</div>
+        <h2 class="h2">Google Play & mipmap</h2>
+      </div>
+      <div class="right">xxxhdpi → mdpi</div>
+    </div>
+    <div class="grid" id="android-grid" style="grid-template-columns: repeat(4, 1fr);"></div>
+  </section>
+
+  <!-- ────────── Web / Favicon ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">03 — Web</div>
+        <h2 class="h2">Favicon</h2>
+      </div>
+      <div class="right">cota.app · onglet navigateur</div>
+    </div>
+    <div class="grid" id="web-grid" style="grid-template-columns: repeat(4, 1fr);"></div>
+  </section>
+
+  <!-- ────────── Springboard ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">04 — Mise en situation</div>
+        <h2 class="h2">Sur l'écran d'accueil</h2>
+      </div>
+      <div class="right">iOS · taille réelle 64px</div>
+    </div>
+    <div style="display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap;">
+      <div class="springboard">
+        <div class="statusbar"><span>9:41</span><span>●●● 5G ▮</span></div>
+        <div class="grid-apps">
+          <div class="app">
+            <div class="ico" style="background: linear-gradient(180deg,#3b82f6,#1d4ed8); color:#fff; font-size:28px;">☀</div>
+            <div class="nm">Météo</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #fff; color: #ef4444; font-size: 22px;">18</div>
+            <div class="nm">Calendrier</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #fff; font-size: 26px;">🌸</div>
+            <div class="nm">Photos</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: linear-gradient(135deg,#86efac,#3b82f6); color:#fff; font-size: 24px;">◧</div>
+            <div class="nm">Plans</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #fff; color: #f59e0b; font-size: 24px;">✎</div>
+            <div class="nm">Notes</div>
+          </div>
+          <!-- COTA highlighted -->
+          <div class="app" style="position: relative;">
+            <div style="position: absolute; top: -4px; left: -4px; right: -4px; bottom: 18px; border: 2px dashed #e8ff36; border-radius: 18px;"></div>
+            <div class="ico" style="padding:0;">
+              <svg viewBox="0 0 1024 1024" width="64" height="64">
+                <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+                <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"></rect>
+                <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"></rect>
+                <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+                <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+                <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"></rect>
+                <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", "Archivo", sans-serif' font-weight="900" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+                <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"></rect>
+                <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"></rect>
+              </svg>
+            </div>
+            <div class="nm" style="color: #e8ff36; font-weight: 700;">COTA</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #000; color: #22c55e; font-size: 24px;">📈</div>
+            <div class="nm">Bourse</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #000; font-size: 24px;">💳</div>
+            <div class="nm">Wallet</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #000; color: #22c55e; font-size: 28px;">♫</div>
+            <div class="nm">Spotify</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #22c55e; color: #fff; font-size: 28px;">✆</div>
+            <div class="nm">WhatsApp</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #dbeafe; font-size: 24px;">📍</div>
+            <div class="nm">Maps</div>
+          </div>
+          <div class="app">
+            <div class="ico" style="background: #ef4444; color: #fff; font-size: 28px;">❤</div>
+            <div class="nm">Santé</div>
+          </div>
+        </div>
+        <div class="dock">
+          <div class="ico" style="background:#22c55e; color:#fff;">✆</div>
+          <div class="ico" style="background:#3b82f6; color:#fff;">✉</div>
+          <div class="ico" style="background:#fff;">🧭</div>
+          <div class="ico" style="background:#fff;">🎵</div>
+        </div>
+        <div class="home-bar"></div>
+      </div>
+
+      <div style="flex: 1; min-width: 320px;">
+        <div class="note">
+          <div class="title">NOTE — coins arrondis</div>
+          <p>L'icône master a des coins arrondis intégrés (<code>rx=184</code> à 1024px). iOS applique son propre masque "squircle" par-dessus. Sur Android adaptive, le système recadre dans la safe zone. <strong>Tu peux livrer tel quel</strong> — ça marche partout.</p>
+        </div>
+
+        <div class="note" style="margin-top: 24px;">
+          <div class="title">NOTE — police</div>
+          <p>Le SVG référence <code>"Archivo Black"</code>. Quand tu rasterises pour iOS/Android, assure-toi que la police est installée ou exporte les PNG depuis cette page (boutons <code>↓ PNG</code>). Les exports respectent fidèlement le tracé.</p>
+        </div>
+
+        <div class="note" style="margin-top: 24px;">
+          <div class="title">NOTE — jaune signal</div>
+          <p>Le jaune <code>#e8ff36</code> reste réservé aux signaux décisifs : cadre, tick IA actif et barre terminale. Le reste de l'icône garde une surface sombre calme pour éviter l'effet casino.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── Monochrome ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">05 — Variantes</div>
+        <h2 class="h2">Monochrome & fonds</h2>
+      </div>
+      <div class="right">Notifications · badges · marketing</div>
+    </div>
+    <div class="grid" style="grid-template-columns: repeat(4, 1fr);">
+      <!-- Mono on dark -->
+      <div class="size-card">
+        <div class="icon-slot" style="color: #f4efe2;">
+          <svg viewBox="0 0 1024 1024" width="160" height="160">
+            <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="currentColor" stroke-width="35" stroke-linejoin="round"></rect>
+            <rect x="205" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="278" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="351" y="195" width="59" height="25" rx="12" fill="currentColor"></rect>
+            <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", sans-serif' font-weight="900" font-size="655" fill="currentColor" letter-spacing="-27">C</text>
+            <rect x="261" y="825" width="415" height="41" rx="10" fill="currentColor"></rect>
+            <rect x="707" y="825" width="56" height="41" rx="10" fill="currentColor"></rect>
+          </svg>
+        </div>
+        <div class="meta"><div class="size-label">MONO · INK</div><div class="size-caption">notif iOS, status bar</div></div>
+      </div>
+      <!-- Mono on dark accent -->
+      <div class="size-card" style="background: #0b0d10;">
+        <div class="icon-slot" style="color: #e8ff36;">
+          <svg viewBox="0 0 1024 1024" width="160" height="160">
+            <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="currentColor" stroke-width="35" stroke-linejoin="round"></rect>
+            <rect x="205" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="278" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="351" y="195" width="59" height="25" rx="12" fill="currentColor"></rect>
+            <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", sans-serif' font-weight="900" font-size="655" fill="currentColor" letter-spacing="-27">C</text>
+            <rect x="261" y="825" width="415" height="41" rx="10" fill="currentColor"></rect>
+            <rect x="707" y="825" width="56" height="41" rx="10" fill="currentColor"></rect>
+          </svg>
+        </div>
+        <div class="meta"><div class="size-label">MONO · ACCENT</div><div class="size-caption">moment décisif</div></div>
+      </div>
+      <!-- Light bg -->
+      <div class="size-card" style="background: #f4efe2;">
+        <div class="icon-slot">
+          <svg viewBox="0 0 1024 1024" width="160" height="160">
+            <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+            <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"></rect>
+            <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"></rect>
+            <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+            <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+            <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"></rect>
+            <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", sans-serif' font-weight="900" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+            <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"></rect>
+            <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"></rect>
+          </svg>
+        </div>
+        <div class="meta"><div class="size-label" style="color:#0b0d10;">SUR FOND CLAIR</div><div class="size-caption" style="color:#666;">marketing, press kit</div></div>
+      </div>
+      <!-- Inverse (light bg, dark icon) — rare case -->
+      <div class="size-card" style="background: #f4efe2; color: #0b0d10;">
+        <div class="icon-slot" style="color: #0b0d10;">
+          <svg viewBox="0 0 1024 1024" width="160" height="160">
+            <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="currentColor" stroke-width="35" stroke-linejoin="round"></rect>
+            <rect x="205" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="278" y="195" width="59" height="25" rx="12" fill="currentColor" opacity="0.35"></rect>
+            <rect x="351" y="195" width="59" height="25" rx="12" fill="currentColor"></rect>
+            <text x="512" y="717" text-anchor="middle" font-family='"Archivo Black", sans-serif' font-weight="900" font-size="655" fill="currentColor" letter-spacing="-27">C</text>
+            <rect x="261" y="825" width="415" height="41" rx="10" fill="currentColor"></rect>
+            <rect x="707" y="825" width="56" height="41" rx="10" fill="currentColor"></rect>
+          </svg>
+        </div>
+        <div class="meta"><div class="size-label" style="color:#0b0d10;">MONO · INVERSE</div><div class="size-caption" style="color:#666;">fond clair, impression</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ────────── Tokens ────────── -->
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <div class="label">06 — Tokens utilisés</div>
+        <h2 class="h2">Couleurs</h2>
+      </div>
+      <div class="right">brand tokens</div>
+    </div>
+    <div class="tokens">
+      <div class="swatch"><div class="color" style="background:#0b0d10; border-bottom: 1px solid var(--line);"></div><div class="info"><div class="name">Fond</div><div class="hex">#0b0d10</div></div></div>
+      <div class="swatch"><div class="color" style="background:#e8ff36;"></div><div class="info"><div class="name">Accent — jaune signal</div><div class="hex">#e8ff36</div></div></div>
+      <div class="swatch"><div class="color" style="background:#f4efe2;"></div><div class="info"><div class="name">Ink — texte principal</div><div class="hex">#f4efe2</div></div></div>
+      <div class="swatch"><div class="color" style="background:#15181d;"></div><div class="info"><div class="name">Surface élevée</div><div class="hex">#15181d</div></div></div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ──────────────────────── Renderer ──────────────────────── -->
+<script>
+  const DESIGN_TODOS = [
+    'Master icon redessiné autour du C, du cadre signal et de la barre terminale',
+    'Variantes icônes resserrées : signal, odds rail, coupon, live orbit, confiance',
+    'Lisibilité vérifiée dans les tailles 16, 24, 32, 60, 96 et 180 px',
+    'Contexte bookmaker et écran iOS conservés pour juger la différenciation',
+    'SVG master et pack export synchronisés avec la direction retenue',
+  ];
+  const TODO_KEY = 'cota.icon.design.todo.v2';
+
+  function initDesignTodo() {
+    const panel = document.querySelector('[data-design-todo]');
+    const list = document.querySelector('[data-todo-list]');
+    const label = document.querySelector('[data-progress-label]');
+    const bar = document.querySelector('[data-progress-bar]');
+    const status = document.querySelector('[data-todo-status]');
+    if (!panel || !list || !label || !bar || !status) return;
+
+    let done;
+    try {
+      const saved = JSON.parse(localStorage.getItem(TODO_KEY) || 'null');
+      done = Array.isArray(saved) && saved.length === DESIGN_TODOS.length
+        ? saved
+        : DESIGN_TODOS.map(() => false);
+    } catch (_) {
+      done = DESIGN_TODOS.map(() => false);
+    }
+
+    if (done.every(Boolean)) {
+      panel.classList.add('is-hidden');
+      return;
+    }
+
+    function renderTodo() {
+      list.innerHTML = DESIGN_TODOS.map((item, index) => `
+        <button class="todo-item ${done[index] ? 'is-done' : ''}" type="button" data-todo-index="${index}">
+          <span class="todo-box">${done[index] ? '✓' : ''}</span>
+          <span class="todo-text">${item}</span>
+        </button>
+      `).join('');
+      const completed = done.filter(Boolean).length;
+      label.textContent = `${completed}/${DESIGN_TODOS.length} VALIDÉ`;
+      bar.style.width = `${(completed / DESIGN_TODOS.length) * 100}%`;
+      status.textContent = completed === DESIGN_TODOS.length
+        ? 'Checklist complète. Suppression visuelle en cours.'
+        : 'La Todo reste visible tant qu\'un point n\'est pas terminé.';
+      status.classList.toggle('is-done', completed === DESIGN_TODOS.length);
+      localStorage.setItem(TODO_KEY, JSON.stringify(done));
+      if (completed === DESIGN_TODOS.length) {
+        setTimeout(() => panel.classList.add('is-hidden'), 650);
+      }
+    }
+
+    list.addEventListener('click', (event) => {
+      const item = event.target.closest('[data-todo-index]');
+      if (!item) return;
+      const index = Number(item.dataset.todoIndex);
+      done[index] = !done[index];
+      renderTodo();
+    });
+    renderTodo();
+  }
+
+  initDesignTodo();
+
+  // Definition of every required size, grouped by platform.
+  const IOS = [
+    { px: 1024, caption: 'App Store',        sub: '1024×1024' },
+    { px: 180,  caption: 'iPhone @3x',        sub: '60pt' },
+    { px: 167,  caption: 'iPad Pro @2x',      sub: '83.5pt' },
+    { px: 152,  caption: 'iPad @2x',          sub: '76pt' },
+    { px: 120,  caption: 'iPhone @2x',        sub: '60pt' },
+    { px: 87,   caption: 'Settings @3x',      sub: '29pt' },
+    { px: 80,   caption: 'Spotlight @2x',     sub: '40pt' },
+    { px: 58,   caption: 'Settings @2x',      sub: '29pt' },
+  ];
+  const ANDROID = [
+    { px: 512, caption: 'Google Play',  sub: 'store listing' },
+    { px: 192, caption: 'xxxhdpi',      sub: 'mipmap' },
+    { px: 144, caption: 'xxhdpi',       sub: 'mipmap' },
+    { px: 96,  caption: 'xhdpi',        sub: 'mipmap' },
+    { px: 72,  caption: 'hdpi',         sub: 'mipmap' },
+    { px: 48,  caption: 'mdpi',         sub: 'mipmap' },
+  ];
+  const WEB = [
+    { px: 192, caption: 'PWA / Apple touch', sub: 'manifest' },
+    { px: 64,  caption: 'Favicon retina',    sub: '@2x' },
+    { px: 32,  caption: 'Favicon',           sub: 'navigateur' },
+    { px: 16,  caption: 'Tab',               sub: 'onglet' },
+  ];
+
+  // Inline-SVG markup used both for preview and for canvas rasterisation.
+  function iconMarkup(size) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="${size}" height="${size}">
+      <rect width="1024" height="1024" rx="184" fill="#0b0d10"/>
+      <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"/>
+      <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"/>
+      <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"/>
+      <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"/>
+      <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"/>
+      <text x="512" y="717" text-anchor="middle" font-family='Archivo Black, Archivo, sans-serif' font-weight="900" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+      <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"/>
+      <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"/>
+    </svg>`;
+  }
+
+  // Helper — rounded rect for canvas.
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+
+  // Render the icon at any pixel size directly to a canvas, using the page's
+  // already-loaded Archivo Black font (no SVG-as-Image quirks).
+  async function renderToCanvas(size) {
+    await document.fonts.ready;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const s = size / 1024;
+
+    // bg
+    ctx.fillStyle = '#0b0d10';
+    roundRect(ctx, 0, 0, size, size, 184 * s);
+    ctx.fill();
+
+    // inner surface
+    ctx.fillStyle = '#141820';
+    roundRect(ctx, 61 * s, 61 * s, 902 * s, 902 * s, 140 * s);
+    ctx.fill();
+
+    // frame
+    ctx.strokeStyle = '#e8ff36';
+    ctx.lineWidth = 35 * s;
+    roundRect(ctx, 74 * s, 74 * s, 876 * s, 876 * s, 107 * s);
+    ctx.stroke();
+
+    // confidence ticks
+    ctx.fillStyle = '#f4efe2';
+    ctx.globalAlpha = 0.35;
+    [205, 278].forEach((x) => {
+      roundRect(ctx, x * s, 195 * s, 59 * s, 25 * s, 12 * s);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#e8ff36';
+    roundRect(ctx, 351 * s, 195 * s, 59 * s, 25 * s, 12 * s);
+    ctx.fill();
+
+    // C
+    ctx.fillStyle = '#f4efe2';
+    ctx.font = `900 ${655 * s}px "Archivo Black", "Archivo", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${-27 * s}px`;
+    ctx.fillText('C', 512 * s, 717 * s);
+
+    // underscore bar + terminal
+    ctx.fillStyle = '#e8ff36';
+    roundRect(ctx, 261 * s, 825 * s, 415 * s, 41 * s, 10 * s);
+    ctx.fill();
+    roundRect(ctx, 707 * s, 825 * s, 56 * s, 41 * s, 10 * s);
+    ctx.fill();
+
+    return canvas;
+  }
+
+  async function downloadPng(size, filename) {
+    const canvas = await renderToCanvas(size);
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `cota-icon-${size}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, 'image/png');
+  }
+
+  // Build a grid of size cards inside a container.
+  function buildGrid(containerId, sizes, prefix) {
+    const container = document.getElementById(containerId);
+    sizes.forEach(({ px, caption, sub }) => {
+      const previewSize = Math.min(px, 140);
+      const card = document.createElement('div');
+      card.className = 'size-card';
+      card.innerHTML = `
+        <div class="icon-slot" style="width:140px; height:140px;">
+          ${iconMarkup(previewSize)}
+        </div>
+        <div class="meta">
+          <div class="size-label">${px}×${px}</div>
+          <div class="size-caption">${caption} · ${sub}</div>
+        </div>
+        <button class="dl" data-size="${px}" data-name="${prefix}-${px}.png">↓ PNG</button>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  buildGrid('ios-grid',     IOS,     'cota-icon-ios');
+  buildGrid('android-grid', ANDROID, 'cota-icon-android');
+  buildGrid('web-grid',     WEB,     'cota-icon-web');
+
+  // Per-card download
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.dl');
+    if (!btn) return;
+    const size = parseInt(btn.dataset.size, 10);
+    const name = btn.dataset.name;
+    btn.textContent = '…';
+    downloadPng(size, name).then(() => {
+      btn.textContent = '↓ PNG';
+    });
+  });
+
+  // Download-all button — sequential downloads.
+  document.querySelector('[data-dl-all]').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = '⏳ Génération…';
+    const all = [
+      ...IOS.map(s => ({ size: s.px, name: `cota-icon-ios-${s.px}.png` })),
+      ...ANDROID.map(s => ({ size: s.px, name: `cota-icon-android-${s.px}.png` })),
+      ...WEB.map(s => ({ size: s.px, name: `cota-icon-web-${s.px}.png` })),
+    ];
+    for (const { size, name } of all) {
+      await downloadPng(size, name);
+      // small delay so the browser doesn't drop downloads
+      await new Promise(r => setTimeout(r, 220));
+    }
+    btn.textContent = '✓ Téléchargé';
+    setTimeout(() => {
+      btn.textContent = '↓ Tout télécharger (PNG)';
+      btn.disabled = false;
+    }, 2400);
+  });
+</script>
+
+</body>
+</html>

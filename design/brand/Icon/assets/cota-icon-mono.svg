@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>COTA monochrome icon — for notifications, status bar, system tinting</title>
+  <defs>
+    
+  </defs>
+  
+  <rect x="69" y="69" width="886" height="886" rx="102" fill="none" stroke="currentColor" stroke-width="26"></rect>
+  <text class="cota-c" x="512" y="696" text-anchor="middle" font-size="594" fill="currentColor" letter-spacing="-20">C</text>
+  <rect x="307" y="809" width="348" height="36" fill="currentColor"></rect>
+  <rect x="655" y="809" width="41" height="36" fill="currentColor"></rect>
+</svg>

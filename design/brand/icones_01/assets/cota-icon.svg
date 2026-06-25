@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>COTA app icon — signal frame</title>
+  <defs>
+    <style>
+      .cota-c {
+        font-family: "Archivo Black", "Archivo", sans-serif;
+        font-weight: 900;
+      }
+    </style>
+  </defs>
+
+  <rect width="1024" height="1024" rx="184" fill="#0b0d10"></rect>
+  <rect x="61" y="61" width="902" height="902" rx="140" fill="#141820"></rect>
+
+  <rect x="74" y="74" width="876" height="876" rx="107" fill="none" stroke="#e8ff36" stroke-width="35" stroke-linejoin="round"></rect>
+
+  <rect x="205" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+  <rect x="278" y="195" width="59" height="25" rx="12" fill="#f4efe2" opacity="0.35"></rect>
+  <rect x="351" y="195" width="59" height="25" rx="12" fill="#e8ff36"></rect>
+
+  <text class="cota-c" x="512" y="717" text-anchor="middle" font-size="655" fill="#f4efe2" letter-spacing="-27">C</text>
+
+  <rect x="261" y="825" width="415" height="41" rx="10" fill="#e8ff36"></rect>
+  <rect x="707" y="825" width="56" height="41" rx="10" fill="#e8ff36"></rect>
+</svg>
