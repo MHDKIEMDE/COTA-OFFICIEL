@@ -1084,7 +1084,10 @@ class PredictionController extends Controller
         $isPremium = $this->resolvePremium($user);
         $date      = $request->query('date', Carbon::today()->toDateString());
         $cacheKey  = 'coupon_v3_' . $date . '_' . ($isPremium ? 'premium' : 'free');
-        $ttl       = Carbon::tomorrow()->startOfDay()->diffInSeconds(Carbon::now());
+        // TTL court : un match du coupon qui démarre doit en sortir rapidement.
+        // Sans ça, le cache « jusqu'à minuit » figeait le coupon avec des matchs
+        // déjà commencés (le filtre match_time > now n'était jamais réévalué).
+        $ttl       = 900; // 15 min
 
         $result = Cache::remember($cacheKey, $ttl, function () use ($date, $isPremium) {
 
@@ -1132,12 +1135,16 @@ class PredictionController extends Controller
             // une grande compétition s'étale sur plusieurs jours, on prend J→J+1 à venir.
             // Fenêtre élargie (7 jours) : une grande compétition s'étale sur
             // plusieurs jours → on veut un coupon par journée à venir.
-            $majorComps = ['World Cup', 'UEFA Champions League', 'Champions League'];
+            // Compétitions vedettes (tournois internationaux majeurs) : on élargit
+            // au-delà du tier ≤ 2 pour capter CAN, Copa, Euro… qui sont en tier 3.
+            $featured  = config('cota.coupon.featured_competitions', []);
             $majorRows = DB::table('predictions')
                 ->where('is_published', true)
-                ->where(function ($q) use ($majorComps) {
-                    $q->where('league_tier', '<=', 2)
-                      ->orWhereIn('competition', $majorComps);
+                ->where(function ($q) use ($featured) {
+                    $q->where('league_tier', '<=', 2);
+                    foreach ($featured as $pattern) {
+                        $q->orWhere('competition', 'like', '%' . $pattern . '%');
+                    }
                 })
                 ->where('match_date', '>=', Carbon::now())
                 ->where('match_date', '<=', Carbon::now()->addDays(7)->endOfDay())
@@ -1182,6 +1189,64 @@ class PredictionController extends Controller
         if (!$analysisDetails) return 'estimated';
         $details = is_string($analysisDetails) ? json_decode($analysisDetails, true) : $analysisDetails;
         return $details['odds_source'] ?? 'estimated';
+    }
+
+    /**
+     * GET /api/predictions/coupon-tabs
+     * Onglets de coupon configurés depuis le dashboard (label, sous-titre, ordre).
+     * Permet au mobile d'afficher des libellés dynamiques éditables côté admin.
+     */
+    public function couponTabs(): JsonResponse
+    {
+        $tabs = Cache::remember('coupon_tabs_v1', 600, function () {
+            return \App\Models\CouponTab::activeOrdered()
+                ->get(['key', 'label', 'subtitle'])
+                ->map(fn ($t) => [
+                    'key'      => $t->key,
+                    'label'    => $t->label,
+                    'subtitle' => $t->subtitle,
+                ])
+                ->values()
+                ->all();
+        });
+
+        return response()->json(['success' => true, 'data' => $tabs]);
+    }
+
+    /**
+     * GET /api/predictions/worldcup-upcoming
+     * Prochains matchs Coupe du monde à venir (J→J+3) avec prono publié.
+     * Alimente le bandeau « Coupe du monde » de l'accueil : l'accueil n'affiche
+     * que le jour exact, ce bandeau met en avant les affiches CDM des jours suivants.
+     */
+    public function worldCupUpcoming(Request $request): JsonResponse
+    {
+        $user      = auth('sanctum')->user();
+        $isPremium = $this->resolvePremium($user);
+        $limit     = min((int) $request->query('limit', 10), 20);
+
+        $cacheKey = 'wc_upcoming_v1_' . ($isPremium ? 'premium' : 'free');
+        $result = Cache::remember($cacheKey, 900, function () use ($isPremium, $limit) {
+            $rows = DB::table('predictions')
+                ->where('is_published', true)
+                ->where('competition', 'like', '%World Cup%')
+                ->where('match_date', '>', Carbon::now())
+                ->where('match_date', '<=', Carbon::now()->addDays(3)->endOfDay())
+                ->orderBy('match_date', 'asc')
+                ->orderByDesc('total_score')
+                ->limit($limit)
+                ->get();
+
+            $data = $rows->map(fn ($p) => $this->formatPrediction($p, $isPremium))->values();
+
+            return [
+                'success' => true,
+                'data'    => $data,
+                'meta'    => ['count' => $data->count()],
+            ];
+        });
+
+        return response()->json($result);
     }
 
     private function formatPrediction($prediction, $isPremium)
@@ -1284,6 +1349,10 @@ class PredictionController extends Controller
                 : null;
 
             $data['analysis_details'] = $details;
+
+            // Analyse texte lisible (notamment pour les pronos importés sans
+            // breakdown des 9 critères : le mobile l'affiche à la place du tableau).
+            $data['analysis_text'] = $prediction->analysis_text ?? null;
 
             // Exposer les données tierces directement au niveau racine pour le mobile
             $thirdParty = $details['third_party'] ?? null;

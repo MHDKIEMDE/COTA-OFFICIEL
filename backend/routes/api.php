@@ -79,6 +79,8 @@ Route::middleware('throttle:60,1')->group(function () {
     Route::get('/predictions/competitions',     [PredictionController::class, 'competitions']);
     Route::get('/predictions/search',           [PredictionController::class, 'search']);
     Route::get('/predictions/welcome-combined', [PredictionController::class, 'welcomeCombined']);
+    Route::get('/predictions/worldcup-upcoming',[PredictionController::class, 'worldCupUpcoming']);
+    Route::get('/predictions/coupon-tabs',       [PredictionController::class, 'couponTabs']);
     Route::get('/predictions/{id}',             [PredictionController::class, 'show'])->where('id', '[0-9]+');
 
     // Teams

@@ -67,7 +67,7 @@ class CouponBuilderService
     private function buildByCompetition(Collection $rows): array
     {
         $byComp = $rows
-            ->filter(fn ($r) => (int) ($r->league_tier ?? 99) <= self::MAJOR_COMP_MAX_TIER)
+            ->filter(fn ($r) => $this->isFeaturedCompetition($r))
             ->groupBy(fn ($r) => $r->competition ?? 'Unknown');
 
         $coupons = [];
@@ -96,6 +96,32 @@ class CouponBuilderService
         }
 
         return $coupons;
+    }
+
+    /**
+     * Vrai si la compétition de cette prédiction est une « vedette » :
+     * soit son nom matche la liste cota.coupon.featured_competitions (grands
+     * tournois internationaux : Mondial, Euro, CAN, Copa, LDC…), soit elle est
+     * taguée tier ≤ MAJOR_COMP_MAX_TIER (compatibilité grandes coupes UEFA).
+     * → L'onglet vedette du coupon devient dynamique : il suit la compétition
+     *   en cours et disparaît quand elle se termine.
+     */
+    private function isFeaturedCompetition(object $r): bool
+    {
+        if ((int) ($r->league_tier ?? 99) <= self::MAJOR_COMP_MAX_TIER) {
+            return true;
+        }
+
+        $name = strtolower((string) ($r->competition ?? ''));
+        if ($name === '') return false;
+
+        foreach (config('cota.coupon.featured_competitions', []) as $pattern) {
+            if (str_contains($name, strtolower($pattern))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -280,8 +306,11 @@ class CouponBuilderService
 
         $coupon = $this->formatVariant($selected, 'Kamikaze', true, true);
 
-        // Garde-fou : ne sortir le kamikaze que s'il atteint une vraie grosse cote.
-        if (($coupon['total_odds'] ?? 0) < $totalMin) return null;
+        // Fallback « jamais vide » : si la cote totale n'atteint pas la cible grosse
+        // cote, on sort quand même le meilleur combiné du jour, marqué below_target
+        // pour que le mobile l'affiche comme « cote du jour » plutôt qu'un vrai kamikaze.
+        $coupon['below_target'] = ($coupon['total_odds'] ?? 0) < $totalMin;
+        $coupon['target_odds']  = $totalMin;
 
         return $coupon;
     }

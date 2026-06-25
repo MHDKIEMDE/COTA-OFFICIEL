@@ -99,6 +99,16 @@ Schedule::command('predictions:import-worldcup')
     ->withoutOverlapping()
     ->onOneServer();
 
+// ── Toutes les 3h — Rattrapage import Coupe du monde
+// L'API-Football remplit les pronos CDM en journée (parfois après le matin).
+// Sans relance régulière, les matchs du soir restent is_published=0 → invisibles
+// sur l'accueil. Une relance /3h garantit leur publication dès que l'API est prête.
+Schedule::command('predictions:import-worldcup')
+    ->everyThreeHours()
+    ->name('import-worldcup-predictions-catchup')
+    ->withoutOverlapping()
+    ->onOneServer();
+
 // ── 09:00 UTC (10h WAT) — Broadcast Telegram picks du jour
 Schedule::job(new \App\Jobs\SendTelegramBroadcastJob)
     ->dailyAt('09:00')

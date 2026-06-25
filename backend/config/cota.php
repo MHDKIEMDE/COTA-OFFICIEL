@@ -84,5 +84,22 @@ return [
             'total_min'  => (float) env('COTA_FREE_TOTAL_MIN', 6.0),
             'total_max'  => (float) env('COTA_FREE_TOTAL_MAX', 12.0),
         ],
+
+        // Compétitions « vedettes » : grands tournois internationaux qui alimentent
+        // dynamiquement l'onglet dédié du coupon. Dès que l'une est en cours (≥3
+        // pronos), son coupon apparaît ; quand elle finit, il disparaît tout seul.
+        // Matché par sous-chaîne insensible à la casse sur le nom de compétition,
+        // pour couvrir les variantes de libellés API (« UEFA Champions League » /
+        // « Champions League », « Africa Cup of Nations » / « AFCON », etc.).
+        'featured_competitions' => [
+            'World Cup', 'Coupe du Monde', 'Mondial',
+            'Champions League', 'Ligue des Champions',
+            'Europa League', 'Conference League',
+            'European Championship', 'Euro',
+            'Africa Cup of Nations', 'AFCON', 'CAN',
+            'Copa America', 'Copa América',
+            'Gold Cup', 'Asian Cup', 'Nations League',
+            'CAF Champions League', 'Copa Libertadores',
+        ],
     ],
 ];
