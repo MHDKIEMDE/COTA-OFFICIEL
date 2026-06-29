@@ -1060,6 +1060,7 @@ class PredictionController extends Controller
                             'match' => $p['match'] ?? '—',
                             'league' => $p['league'] ?? '',
                             'prediction' => $p['prediction'] ?? '',
+                            'prediction_label' => $this->predictionLabel($p['prediction'] ?? null, null, null),
                             'odds' => $p['odds'] ?? null,
                             'confidence' => $p['confidence'] ?? null,
                         ], $picks),
@@ -1292,6 +1293,20 @@ class PredictionController extends Controller
         ])->values()->all();
     }
 
+    /**
+     * Libellé localisé d'un outcome (FR/EN selon la locale active).
+     * Renvoie null si l'outcome est verrouillé ou vide.
+     */
+    private function predictionLabel(?string $outcome, ?string $homeTeam, ?string $awayTeam): ?string
+    {
+        if ($outcome === null || $outcome === '') {
+            return null;
+        }
+
+        return app(\App\Services\BetLabelTranslator::class)
+            ->translate($outcome, $homeTeam, $awayTeam);
+    }
+
     private function formatPrediction($prediction, $isPremium)
     {
         // Toutes les prédictions sont librement accessibles — seul le coupon est premium
@@ -1348,6 +1363,11 @@ class PredictionController extends Controller
             ],
             'bet_type' => $prediction->bet_type,
             'prediction' => $isLocked ? null : $prediction->prediction,
+            'prediction_label' => $isLocked ? null : $this->predictionLabel(
+                $prediction->prediction,
+                $prediction->home_team,
+                $prediction->away_team
+            ),
             'odds_source' => $this->extractOddsSource($prediction->analysis_details),
             'odds' => $isLocked ? null : (function () use ($prediction) {
                 $odds = (float) ($prediction->odds ?? 0);
@@ -1550,6 +1570,11 @@ class PredictionController extends Controller
             ],
             'bet_type' => $prediction['bet_type'] ?? '1X2',
             'prediction' => $isLocked ? null : ($prediction['prediction'] ?? null),
+            'prediction_label' => $isLocked ? null : $this->predictionLabel(
+                $prediction['prediction'] ?? null,
+                $prediction['home_team'] ?? null,
+                $prediction['away_team'] ?? null
+            ),
             'odds' => $isLocked ? null : ($prediction['odds'] ?? null),
             'confidence_stars' => $prediction['confidence_stars'] ?? 0,
             'status' => $prediction['status'] ?? 'pending',

@@ -76,3 +76,6 @@ temp/
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Graphify knowledge graph (généré, ne pas versionner)
+graphify-out/

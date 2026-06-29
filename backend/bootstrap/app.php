@@ -15,11 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         // Inertia middleware for web routes
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
+            // Affiche « Bientôt disponible » sur tout le web (public + admin).
+            // Réversible : retirer cette ligne pour réactiver le web. L'API n'est pas concernée.
+            \App\Http\Middleware\WebComingSoon::class,
         ]);
 
         // Configuration CORS pour permettre les requêtes depuis Flutter Web
         $middleware->api(prepend: [
             \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+
+        // Détermine la langue (FR/EN) de la réponse API selon l'utilisateur
+        // ou l'en-tête Accept-Language
+        $middleware->api(append: [
+            \App\Http\Middleware\SetLocale::class,
         ]);
 
         // Configuration Rate Limiting strict pour production

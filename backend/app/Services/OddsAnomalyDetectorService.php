@@ -10,11 +10,11 @@ use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 /**
- * Détecte les anomalies de cotes en comparant :
- *   - Cotes live 1xBet (via RapidApiService)
- *   - Cotes de référence agrégées (RapidAPI football-prediction-api)
+ * Détecte les anomalies de cotes (value bets) en comparant :
+ *   - Cote bookmaker réelle 1xBet (via OddsApiService / The Odds API)
+ *   - Cote « juste » issue de notre algorithme (prediction->odds)
  *
- * Une anomalie = écart > GAP_THRESHOLD entre le bookmaker et le marché de référence.
+ * Une anomalie = écart > GAP_THRESHOLD entre la cote bookmaker et notre cote.
  * Durée de vie d'une anomalie : ANOMALY_TTL_MINUTES (les bookmakers corrigent vite).
  */
 class OddsAnomalyDetectorService
@@ -24,7 +24,7 @@ class OddsAnomalyDetectorService
     private const MIN_ODD             = 1.05;  // cotes trop basses ignorées
     private const MAX_ODD             = 15.0;  // cotes trop hautes = cote de niche, ignorées
 
-    public function __construct(private readonly RapidApiService $rapidApi) {}
+    public function __construct(private readonly OddsApiService $oddsApi) {}
 
     // ── Point d'entrée principal ──────────────────────────────────────────────
 
@@ -36,14 +36,14 @@ class OddsAnomalyDetectorService
     {
         $detected = 0;
 
-        // 1. Charger les cotes live 1xBet
-        $liveOdds = $this->rapidApi->get1xBetLiveOdds();
-        if (empty($liveOdds)) {
-            Log::info('OddsAnomalyDetector: aucune cote 1xBet live disponible');
+        // 1. Charger les cotes réelles 1xBet du jour (The Odds API, cache 4h)
+        $indexed = $this->oddsApi->loadDailyOdds();
+        if ($indexed === 0) {
+            Log::info('OddsAnomalyDetector: aucune cote bookmaker disponible');
             return 0;
         }
 
-        // 2. Charger les prédictions du jour avec cotes de référence RapidAPI
+        // 2. Charger les prédictions publiées du jour encore en attente
         $predictions = Prediction::whereDate('match_date', today())
             ->where('is_published', true)
             ->where('status', 'pending')
@@ -53,32 +53,25 @@ class OddsAnomalyDetectorService
             return 0;
         }
 
-        // 3. Construire index 1xBet normalisé : "home vs away" → odds
-        $liveIndex = $this->buildLiveIndex($liveOdds);
-
-        // 4. Comparer pour chaque prédiction
+        // 3. Comparer la cote bookmaker réelle à notre cote « juste » (algo)
         foreach ($predictions as $prediction) {
-            $key      = $this->normalizeKey($prediction->home_team, $prediction->away_team);
-            $live1x   = $liveIndex[$key] ?? null;
+            $bookOdds = $this->oddsApi->findStrict($prediction->home_team, $prediction->away_team);
+            if (!$bookOdds) continue;
 
-            if (!$live1x) continue;
+            $outcome  = $prediction->prediction;          // '1' | 'X' | '2'
+            $bookOdd  = $this->bookmakerOddFor($bookOdds, $outcome);
+            $ourOdd   = (float) $prediction->odds;        // cote juste de notre algo
 
-            // Cote de référence = cote stockée en base (issue de RapidAPI / algo)
-            $refOdds = $this->buildReferenceOdds($prediction);
+            if ($bookOdd === null) continue;
+            if ($bookOdd < self::MIN_ODD || $bookOdd > self::MAX_ODD) continue;
+            if ($ourOdd  < self::MIN_ODD || $ourOdd  > self::MAX_ODD) continue;
 
-            foreach (['1' => 'home_win', 'X' => 'draw', '2' => 'away_win'] as $outcome => $field) {
-                $liveOdd = (float) ($live1x[$field] ?? 0);
-                $refOdd  = (float) ($refOdds[$outcome] ?? 0);
+            $gap = $this->gapPercent($bookOdd, $ourOdd);
 
-                if ($liveOdd < self::MIN_ODD || $liveOdd > self::MAX_ODD) continue;
-                if ($refOdd  < self::MIN_ODD || $refOdd  > self::MAX_ODD) continue;
-
-                $gap = $this->gapPercent($liveOdd, $refOdd);
-
-                if (abs($gap) >= self::GAP_THRESHOLD) {
-                    $saved = $this->saveAnomaly($prediction, $outcome, '1xbet', $liveOdd, $refOdd, $gap);
-                    if ($saved) $detected++;
-                }
+            // Value bet = le bookmaker propose nettement PLUS que notre cote juste
+            if ($gap >= self::GAP_THRESHOLD) {
+                $saved = $this->saveAnomaly($prediction, $outcome, '1xbet', $bookOdd, $ourOdd, $gap);
+                if ($saved) $detected++;
             }
         }
 
@@ -90,62 +83,20 @@ class OddsAnomalyDetectorService
         return $detected;
     }
 
-    // ── Construction des index ────────────────────────────────────────────────
-
-    private function buildLiveIndex(array $liveOdds): array
-    {
-        $index = [];
-        foreach ($liveOdds as $match) {
-            $home = $match['home_team'] ?? $match['home'] ?? null;
-            $away = $match['away_team'] ?? $match['away'] ?? null;
-            if (!$home || !$away) continue;
-
-            $key = $this->normalizeKey($home, $away);
-            $index[$key] = [
-                'home_win' => (float) ($match['home']  ?? $match['home_win'] ?? 0),
-                'draw'     => (float) ($match['draw']  ?? 0),
-                'away_win' => (float) ($match['away']  ?? $match['away_win'] ?? 0),
-            ];
-        }
-        return $index;
-    }
-
-    private function buildReferenceOdds(Prediction $prediction): array
-    {
-        // Utiliser les cotes stockées comme référence selon le type de pari
-        $stored = (float) $prediction->odds;
-        $pred   = $prediction->prediction;
-
-        return [
-            '1' => $pred === '1'  ? $stored : $this->estimateFromStored($stored, '1',  $pred),
-            'X' => $pred === 'X'  ? $stored : $this->estimateFromStored($stored, 'X',  $pred),
-            '2' => $pred === '2'  ? $stored : $this->estimateFromStored($stored, '2',  $pred),
-        ];
-    }
-
     /**
-     * Estime les cotes non stockées à partir de la cote principale.
-     * Approximation : si on a la cote du favori (ex 1.40), les autres sont déduites.
+     * Extrait la cote bookmaker correspondant au résultat prédit.
+     * Les marchés over/under utilisent l'outcome textuel de la prédiction.
      */
-    private function estimateFromStored(float $stored, string $target, string $stored_outcome): float
+    private function bookmakerOddFor(array $bookOdds, string $outcome): ?float
     {
-        if ($stored < self::MIN_ODD) return 0.0;
-
-        // Probabilité implicite du résultat stocké
-        $p = 1 / $stored;
-
-        // Distribuer le reste entre X et l'autre outcome
-        $pRest = 1 - $p;
-
-        return match (true) {
-            $stored_outcome === '1' && $target === 'X'  => round(1 / ($pRest * 0.55), 2),
-            $stored_outcome === '1' && $target === '2'  => round(1 / ($pRest * 0.45), 2),
-            $stored_outcome === '2' && $target === 'X'  => round(1 / ($pRest * 0.55), 2),
-            $stored_outcome === '2' && $target === '1'  => round(1 / ($pRest * 0.45), 2),
-            $stored_outcome === 'X' && $target === '1'  => round(1 / ($pRest * 0.50), 2),
-            $stored_outcome === 'X' && $target === '2'  => round(1 / ($pRest * 0.50), 2),
-            default => 0.0,
+        $val = match ($outcome) {
+            '1' => $bookOdds['home'] ?? null,
+            'X' => $bookOdds['draw'] ?? null,
+            '2' => $bookOdds['away'] ?? null,
+            default => null,
         };
+
+        return $val !== null ? (float) $val : null;
     }
 
     // ── Sauvegarde ───────────────────────────────────────────────────────────
@@ -203,11 +154,6 @@ class OddsAnomalyDetectorService
     {
         if ($ref <= 0) return 0.0;
         return (($odd - $ref) / $ref) * 100;
-    }
-
-    private function normalizeKey(string $home, string $away): string
-    {
-        return strtolower(trim($home) . ' vs ' . trim($away));
     }
 
     // ── Nettoyage ─────────────────────────────────────────────────────────────

@@ -195,15 +195,17 @@ class OddsApiService
         $awayOdds = $h2h[$away] ?? null;
         $drawOdds = $h2h['Draw'] ?? null;
 
-        // Fallback si noms légèrement différents
+        // Pas de devinette : si on ne peut pas associer home/away par leur nom,
+        // toute attribution positionnelle risquerait d'inverser V1/V2 (favori à
+        // domicile = cote la plus basse). On préfère ne pas retourner de cote 1xBet.
         if (!$homeOdds || !$awayOdds) {
-            $values = array_values($h2h);
-            sort($values);
-            if (count($values) >= 2) {
-                $homeOdds = $homeOdds ?? ($values[1] ?? null); // tendance : home > draw
-                $awayOdds = $awayOdds ?? ($values[0] ?? null);
-                $drawOdds = $drawOdds ?? ($values[count($values) > 2 ? 1 : 0] ?? null);
-            }
+            return [
+                'home'    => null,
+                'draw'    => null,
+                'away'    => null,
+                'over25'  => $entry['over25']  ? round((float) $entry['over25'],  2) : null,
+                'under25' => $entry['under25'] ? round((float) $entry['under25'], 2) : null,
+            ];
         }
 
         return [
